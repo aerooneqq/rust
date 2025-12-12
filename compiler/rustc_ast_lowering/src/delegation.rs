@@ -43,6 +43,7 @@ use hir::def::{DefKind, PartialRes, Res};
 use hir::{BodyId, HirId};
 use rustc_abi::ExternAbi;
 use rustc_ast::*;
+use rustc_data_structures::fx::FxHashSet;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::attrs::{AttributeKind, InlineAttr};
 use rustc_hir::def_id::DefId;
@@ -82,10 +83,19 @@ impl<'hir> LoweringContext<'_, 'hir> {
         &mut self,
         delegation: &Delegation,
         item_id: NodeId,
-        is_in_trait_impl: bool,
+        _is_in_trait_impl: bool,
     ) -> DelegationResults<'hir> {
         let span = self.lower_span(delegation.path.segments.last().unwrap().ident.span);
-        let sig_id = self.get_delegation_sig_id(item_id, delegation.id, span, is_in_trait_impl);
+
+        let sig_id = self.get_resolution_id(
+            self.resolver
+                .delegation_resolution_info
+                .get(&self.local_def_id(item_id))
+                .unwrap()
+                .resolution_id,
+            span,
+        );
+
         match sig_id {
             Ok(sig_id) => {
                 self.add_inline_attribute_if_needed(span);
@@ -128,26 +138,42 @@ impl<'hir> LoweringContext<'_, 'hir> {
         self.attrs.insert(PARENT_ID, new_attributes);
     }
 
-    fn get_delegation_sig_id(
-        &self,
-        item_id: NodeId,
-        path_id: NodeId,
-        span: Span,
-        is_in_trait_impl: bool,
-    ) -> Result<DefId, ErrorGuaranteed> {
-        let sig_id = if is_in_trait_impl { item_id } else { path_id };
-        self.get_resolution_id(sig_id, span)
-    }
-
-    fn get_resolution_id(&self, node_id: NodeId, span: Span) -> Result<DefId, ErrorGuaranteed> {
-        let def_id =
-            self.resolver.get_partial_res(node_id).and_then(|r| r.expect_full_res().opt_def_id());
-        def_id.ok_or_else(|| {
+    fn get_resolution_id(&self, mut node_id: NodeId, span: Span) -> Result<DefId, ErrorGuaranteed> {
+        let create_error = |node_id: NodeId| {
             self.tcx.dcx().span_delayed_bug(
                 span,
                 format!("LoweringContext: couldn't resolve node {:?} in delegation item", node_id),
             )
-        })
+        };
+
+        let mut processed: FxHashSet<NodeId> = Default::default();
+
+        loop {
+            processed.insert(node_id);
+
+            let def_id = self
+                .resolver
+                .get_partial_res(node_id)
+                .and_then(|r| r.expect_full_res().opt_def_id());
+
+            if let Some(def_id) = def_id
+                && let Some(local_id) = def_id.as_local()
+                && !self.resolver.delegation_fn_sigs.contains_key(&local_id)
+            {
+                if let Some(info) = self.resolver.delegation_resolution_info.get(&local_id) {
+                    node_id = info.resolution_id;
+                    if processed.contains(&node_id) {
+                        return Err(create_error(node_id));
+                    }
+
+                    continue;
+                } else {
+                    return Err(create_error(node_id));
+                }
+            }
+
+            return def_id.ok_or_else(|| create_error(node_id));
+        }
     }
 
     fn lower_delegation_generics(&mut self, span: Span) -> &'hir hir::Generics<'hir> {

@@ -69,8 +69,7 @@ use rustc_middle::middle::privacy::EffectiveVisibilities;
 use rustc_middle::query::Providers;
 use rustc_middle::span_bug;
 use rustc_middle::ty::{
-    self, DelegationFnSig, Feed, MainDefinition, RegisteredTools, ResolverAstLowering,
-    ResolverGlobalCtxt, TyCtxt, TyCtxtFeed, Visibility,
+    self, DelegationFnSig, DelegationResolutionInfo, Feed, MainDefinition, RegisteredTools, ResolverAstLowering, ResolverGlobalCtxt, TyCtxt, TyCtxtFeed, Visibility
 };
 use rustc_query_system::ich::StableHashingContext;
 use rustc_session::lint::builtin::PRIVATE_MACRO_USE;
@@ -1273,6 +1272,7 @@ pub struct Resolver<'ra, 'tcx> {
     /// Amount of lifetime parameters for each item in the crate.
     item_generics_num_lifetimes: FxHashMap<LocalDefId, usize>,
     delegation_fn_sigs: LocalDefIdMap<DelegationFnSig>,
+    delegation_resolution_info: LocalDefIdMap<DelegationResolutionInfo>,
 
     main_def: Option<MainDefinition> = None,
     trait_impls: FxIndexMap<DefId, Vec<LocalDefId>>,
@@ -1691,6 +1691,7 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
             current_crate_outer_attr_insert_span,
             mods_with_parse_errors: Default::default(),
             impl_trait_names: Default::default(),
+            delegation_resolution_info: Default::default(),
             ..
         };
 
@@ -1819,6 +1820,7 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
             lifetime_elision_allowed: self.lifetime_elision_allowed,
             lint_buffer: Steal::new(self.lint_buffer),
             delegation_fn_sigs: self.delegation_fn_sigs,
+            delegation_resolution_info: self.delegation_resolution_info
         };
         ResolverOutputs { global_ctxt, ast_lowering }
     }

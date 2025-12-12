@@ -219,6 +219,7 @@ pub struct ResolverAstLowering {
 
     /// Information about functions signatures for delegation items expansion
     pub delegation_fn_sigs: LocalDefIdMap<DelegationFnSig>,
+    pub delegation_resolution_info: LocalDefIdMap<DelegationResolutionInfo>,
 }
 
 #[derive(Debug)]
@@ -228,6 +229,11 @@ pub struct DelegationFnSig {
     pub has_self: bool,
     pub c_variadic: bool,
     pub target_feature: bool,
+}
+
+#[derive(Debug)]
+pub struct DelegationResolutionInfo {
+    pub resolution_id: ast::NodeId,
 }
 
 #[derive(Clone, Copy, Debug, HashStable)]
