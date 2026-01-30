@@ -33,6 +33,7 @@
 // tidy-alphabetical-start
 #![cfg_attr(bootstrap, feature(if_let_guard))]
 #![feature(box_patterns)]
+#![recursion_limit = "256"]
 // tidy-alphabetical-end
 
 use std::mem;
