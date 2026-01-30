@@ -14,6 +14,7 @@ trait Trait<'a, 'b, 'c, A, B, C, const N: usize> {
 }
 
 reuse Trait::foo;
-//~^ ERROR: type annotations needed
 
-fn main() {}
+fn main() {
+
+}
