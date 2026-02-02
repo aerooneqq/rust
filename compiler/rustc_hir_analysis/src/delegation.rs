@@ -12,23 +12,16 @@ use rustc_middle::ty::{
 };
 use rustc_span::{ErrorGuaranteed, Span};
 
-struct ExistingMappingFolder<'tcx> {
+type RemapTable = FxHashMap<u32, u32>;
+
+struct ParamIndexRemapper<'tcx> {
     tcx: TyCtxt<'tcx>,
-    mapping: FxHashMap<u32, u32>,
+    remap_table: RemapTable,
 }
 
-impl<'tcx> TypeFolder<TyCtxt<'tcx>> for ExistingMappingFolder<'tcx> {
+impl<'tcx> TypeFolder<TyCtxt<'tcx>> for ParamIndexRemapper<'tcx> {
     fn cx(&self) -> TyCtxt<'tcx> {
         self.tcx
-    }
-
-    fn fold_const(&mut self, ct: ty::Const<'tcx>) -> ty::Const<'tcx> {
-        if let ty::ConstKind::Param(param) = ct.kind() {
-            let index = self.mapping[&param.index];
-            return ty::Const::new_param(self.tcx, ty::ParamConst::new(index, param.name));
-        }
-
-        ct.super_fold_with(self)
     }
 
     fn fold_ty(&mut self, ty: Ty<'tcx>) -> Ty<'tcx> {
@@ -36,28 +29,34 @@ impl<'tcx> TypeFolder<TyCtxt<'tcx>> for ExistingMappingFolder<'tcx> {
             return ty;
         }
 
-        if let ty::Param(param) = ty.kind() {
-            return if let Some(index) = self.mapping.get(&param.index) {
-                Ty::new_param(self.tcx, *index, param.name)
-            } else {
-                ty
-            };
+        if let ty::Param(param) = ty.kind()
+            && let Some(index) = self.remap_table.get(&param.index)
+        {
+            return Ty::new_param(self.tcx, *index, param.name);
         }
-
         ty.super_fold_with(self)
     }
 
     fn fold_region(&mut self, r: ty::Region<'tcx>) -> ty::Region<'tcx> {
-        if let ty::ReEarlyParam(param) = r.kind() {
-            let index = self.mapping[&param.index];
-
+        if let ty::ReEarlyParam(param) = r.kind()
+            && let Some(index) = self.remap_table.get(&param.index).copied()
+        {
             return ty::Region::new_early_param(
                 self.tcx,
                 ty::EarlyParamRegion { index, name: param.name },
             );
         }
-
         r
+    }
+
+    fn fold_const(&mut self, ct: ty::Const<'tcx>) -> ty::Const<'tcx> {
+        if let ty::ConstKind::Param(param) = ct.kind()
+            && let Some(idx) = self.remap_table.get(&param.index)
+        {
+            let param = ty::ParamConst::new(*idx, param.name);
+            return ty::Const::new_param(self.tcx, param);
+        }
+        ct.super_fold_with(self)
     }
 }
 
@@ -459,14 +458,14 @@ pub(crate) fn inherit_predicates_for_delegation_item<'tcx>(
         tcx: TyCtxt<'tcx>,
         preds: Vec<(ty::Clause<'tcx>, Span)>,
         args: Vec<ty::GenericArg<'tcx>>,
-        folder: ExistingMappingFolder<'tcx>,
+        folder: ParamIndexRemapper<'tcx>,
     }
 
     impl<'tcx> PredicatesCollector<'tcx> {
         fn new(
             tcx: TyCtxt<'tcx>,
             args: Vec<ty::GenericArg<'tcx>>,
-            folder: ExistingMappingFolder<'tcx>,
+            folder: ParamIndexRemapper<'tcx>,
         ) -> PredicatesCollector<'tcx> {
             PredicatesCollector { tcx, preds: vec![], args, folder }
         }
@@ -540,11 +539,11 @@ fn create_folder_and_args<'tcx>(
     sig_id: DefId,
     parent_args: &'tcx [ty::GenericArg<'tcx>],
     child_args: &'tcx [ty::GenericArg<'tcx>],
-) -> (ExistingMappingFolder<'tcx>, Vec<ty::GenericArg<'tcx>>) {
+) -> (ParamIndexRemapper<'tcx>, Vec<ty::GenericArg<'tcx>>) {
     let args = create_generic_args(tcx, sig_id, def_id, parent_args, child_args);
-    let mapping = create_mapping(tcx, sig_id, def_id, &args);
+    let remap_table = create_mapping(tcx, sig_id, def_id, &args);
 
-    (ExistingMappingFolder { tcx, mapping }, args)
+    (ParamIndexRemapper { tcx, remap_table }, args)
 }
 
 fn check_constraints<'tcx>(
