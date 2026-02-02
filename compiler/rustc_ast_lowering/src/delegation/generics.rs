@@ -147,13 +147,11 @@ impl<'hir> LoweringContext<'_, 'hir> {
         // FIXME(fn_delegation): proper support for late bound lifetimes.
         self.arena.alloc(hir::Generics {
             params,
-            predicates: self.arena.alloc_from_iter(params.iter().filter_map(|p| {
-                if matches!(p.kind, hir::GenericParamKind::Lifetime { .. }) {
-                    Some(self.generate_lifetime_predicate(p))
-                } else {
-                    None
-                }
-            })),
+            predicates: self.arena.alloc_from_iter(
+                params
+                    .iter()
+                    .filter_map(|p| p.is_lifetime().then(|| self.generate_lifetime_predicate(p))),
+            ),
             has_where_clause_predicates: false,
             where_clause_span: span,
             span,
@@ -258,7 +256,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                     }
                 }
             })),
-            constraints: self.arena.alloc_slice(&[]),
+            constraints: &[],
             parenthesized: hir::GenericArgsParentheses::No,
             span_ext: DUMMY_SP,
         })
