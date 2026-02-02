@@ -219,20 +219,17 @@ fn get_delegation_parent_args_count_without_self<'tcx>(
     let delegation_parent_args_count = tcx.generics_of(delegation_id).parent_count;
 
     match get_caller_and_callee_kind(tcx, delegation_id, sig_id) {
-        (FnKind::Free, FnKind::Free) | (FnKind::Free, FnKind::AssocTrait) => 0,
+        (FnKind::Free, FnKind::Free)
+        | (FnKind::Free, FnKind::AssocTrait)
+        | (FnKind::AssocTraitImpl, FnKind::AssocTrait) => 0,
 
-        (FnKind::AssocInherentImpl, FnKind::Free) => {
+        (FnKind::AssocInherentImpl, FnKind::Free)
+        | (FnKind::AssocInherentImpl, FnKind::AssocTrait) => {
             delegation_parent_args_count /* No Self in AssocInherentImpl */
         }
 
         (FnKind::AssocTrait, FnKind::Free) | (FnKind::AssocTrait, FnKind::AssocTrait) => {
             delegation_parent_args_count - 1 /* Without Self */
-        }
-
-        (FnKind::AssocTraitImpl, FnKind::AssocTrait) => 0,
-
-        (FnKind::AssocInherentImpl, FnKind::AssocTrait) => {
-            delegation_parent_args_count /* No Self in AssocInherentImpl */
         }
 
         unsupported_caller_callee_kinds!() => unreachable!(),
@@ -304,20 +301,34 @@ pub(crate) fn get_delegation_self_ty<'tcx>(
         }
 
         (FnKind::AssocTraitImpl, FnKind::AssocTrait) => {
-            let parent = tcx.parent(delegation_id.into());
-            let parent_args = tcx.impl_trait_header(parent).trait_ref.instantiate_identity().args;
-            parent_args.first().map(|a| a.as_type()).flatten()
+            create_trait_impl_to_trait_parent_args(tcx, delegation_id)
+                .first()
+                .map(|a| a.as_type())
+                .flatten()
         }
 
         (FnKind::AssocInherentImpl, FnKind::AssocTrait) => {
-            let parent = tcx.parent(delegation_id.into());
-            let self_ty = tcx.type_of(parent).instantiate_identity();
-
-            Some(self_ty)
+            Some(create_inherent_impl_to_trait_self_ty(tcx, delegation_id))
         }
 
         unsupported_caller_callee_kinds!() => unreachable!(),
     }
+}
+
+fn create_trait_impl_to_trait_parent_args<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    delegation_id: LocalDefId,
+) -> ty::GenericArgsRef<'tcx> {
+    let parent = tcx.parent(delegation_id.into());
+    tcx.impl_trait_header(parent).trait_ref.instantiate_identity().args
+}
+
+fn create_inherent_impl_to_trait_self_ty<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    delegation_id: LocalDefId,
+) -> Ty<'tcx> {
+    let parent = tcx.parent(delegation_id.into());
+    tcx.type_of(parent).instantiate_identity()
 }
 
 /// Creates generic arguments for further delegation signature and predicates instantiation.
@@ -358,22 +369,18 @@ fn create_generic_args<'tcx>(
         | (FnKind::AssocTrait, FnKind::AssocTrait) => delegation_args,
 
         (FnKind::AssocTraitImpl, FnKind::AssocTrait) => {
-            let parent = tcx.parent(delegation_id.into());
             // Special case, as user specifies Trait args in impl trait header, we want to treat
             // them as parent args.
-            parent_args = tcx.impl_trait_header(parent).trait_ref.instantiate_identity().args;
-
+            parent_args = create_trait_impl_to_trait_parent_args(tcx, delegation_id);
             tcx.mk_args(&delegation_args[delegation_parent_args_count..])
         }
 
         (FnKind::AssocInherentImpl, FnKind::AssocTrait) => {
-            let parent = tcx.parent(delegation_id.into());
-            let self_ty = tcx.type_of(parent).instantiate_identity();
-            let generic_self_ty = ty::GenericArg::from(self_ty);
+            let self_ty = create_inherent_impl_to_trait_self_ty(tcx, delegation_id);
 
-            let args_iter = std::iter::once(generic_self_ty).chain(delegation_args.iter());
-
-            tcx.mk_args_from_iter(args_iter)
+            tcx.mk_args_from_iter(
+                std::iter::once(ty::GenericArg::from(self_ty)).chain(delegation_args.iter()),
+            )
         }
 
         unsupported_caller_callee_kinds!() => unreachable!(),

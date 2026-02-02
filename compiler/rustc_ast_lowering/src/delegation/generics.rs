@@ -81,7 +81,9 @@ impl<'hir> LoweringContext<'_, 'hir> {
         generics: &DelegationGenerics<Generics>,
     ) -> DelegationGenerics<&'hir hir::Generics<'hir>> {
         let mut process_params = |generics: &Option<Generics>| {
-            generics.as_ref().map(|g| self.process_generic_params(item_id, span, g.params.clone()))
+            generics
+                .as_ref()
+                .map(|g| self.lower_delegation_generic_params(item_id, span, g.params.clone()))
         };
 
         match generics {
@@ -95,7 +97,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
         }
     }
 
-    fn process_generic_params(
+    fn lower_delegation_generic_params(
         &mut self,
         item_id: NodeId,
         span: Span,
@@ -357,43 +359,43 @@ impl<'hir> LoweringContext<'_, 'hir> {
         add_self: bool,
         user_specified: bool,
     ) -> Option<Generics> {
-        id.map(|id| {
-            let mut generics = if user_specified {
-                Some(Generics::default())
-            } else {
-                if let Some(local_id) = id.as_local() {
-                    if let Some(AstOwner::Item(item)) = self.ast_accessor.get(local_id)
-                        && matches!(item.kind, ItemKind::Trait(..))
-                    {
-                        item.opt_generics().cloned()
-                    } else {
-                        None
-                    }
+        let id = if let Some(id) = id { id } else { return None };
+
+        // If args are user-specified we still maybe need to add self
+        let mut generics = if user_specified {
+            None
+        } else {
+            if let Some(local_id) = id.as_local() {
+                if let Some(AstOwner::Item(item)) = self.ast_accessor.get(local_id)
+                    && matches!(item.kind, ItemKind::Trait(..))
+                {
+                    item.opt_generics().cloned()
                 } else {
-                    self.get_external_generics(id, true)
+                    None
                 }
-            };
-
-            if add_self {
-                generics = Some(generics.unwrap_or(Generics::default()));
-
-                generics.as_mut().unwrap().params.insert(
-                    0,
-                    GenericParam {
-                        id: self.next_node_id(),
-                        ident: Ident::new(kw::SelfUpper, DUMMY_SP),
-                        attrs: Default::default(),
-                        bounds: vec![],
-                        is_placeholder: false,
-                        kind: GenericParamKind::Type { default: None },
-                        colon_span: None,
-                    },
-                );
+            } else {
+                self.get_external_generics(id, true)
             }
+        };
 
-            generics
-        })
-        .flatten()
+        if add_self {
+            generics = Some(generics.unwrap_or(Generics::default()));
+
+            generics.as_mut().unwrap().params.insert(
+                0,
+                GenericParam {
+                    id: self.next_node_id(),
+                    ident: Ident::new(kw::SelfUpper, DUMMY_SP),
+                    attrs: Default::default(),
+                    bounds: vec![],
+                    is_placeholder: false,
+                    kind: GenericParamKind::Type { default: None },
+                    colon_span: None,
+                },
+            );
+        }
+
+        generics
     }
 }
 
@@ -405,13 +407,13 @@ pub(super) enum HirOrAstGenerics<'hir> {
 impl<'hir> HirOrAstGenerics<'hir> {
     pub(super) fn into_hir_generics(
         &mut self,
-        this: &mut LoweringContext<'_, 'hir>,
+        ctx: &mut LoweringContext<'_, 'hir>,
         item_id: NodeId,
         span: Span,
     ) -> &mut Self {
         match self {
             HirOrAstGenerics::Ast(delegation_generics) => {
-                *self = Self::Hir(this.lower_ast_generics(item_id, span, delegation_generics));
+                *self = Self::Hir(ctx.lower_ast_generics(item_id, span, delegation_generics));
             }
             HirOrAstGenerics::Hir(_) => {}
         }
@@ -434,7 +436,7 @@ impl<'hir> HirOrAstGenerics<'hir> {
 
     pub(super) fn into_generic_args(
         &self,
-        this: &mut LoweringContext<'_, 'hir>,
+        ctx: &mut LoweringContext<'_, 'hir>,
         add_lifetimes: bool,
     ) -> Option<&'hir hir::GenericArgs<'hir>> {
         match self {
@@ -442,12 +444,9 @@ impl<'hir> HirOrAstGenerics<'hir> {
             HirOrAstGenerics::Hir(hir_generics) => match hir_generics {
                 DelegationGenerics::UserSpecified => None,
                 DelegationGenerics::Default(generics)
-                | DelegationGenerics::SelfAndUserSpecified(generics) => match generics {
-                    Some(generics) => {
-                        Some(this.create_generics_args_from_params(generics.params, add_lifetimes))
-                    }
-                    None => None,
-                },
+                | DelegationGenerics::SelfAndUserSpecified(generics) => generics.map(|generics| {
+                    ctx.create_generics_args_from_params(generics.params, add_lifetimes)
+                }),
             },
         }
     }
@@ -481,19 +480,19 @@ impl<'hir> GenericsGenerationResults<'hir> {
         &mut self,
         item_id: NodeId,
         span: Span,
-        this: &mut LoweringContext<'_, 'hir>,
+        ctx: &mut LoweringContext<'_, 'hir>,
     ) -> impl Iterator<Item = hir::GenericParam<'hir>> {
         let parent = self
             .parent
             .generics
-            .into_hir_generics(this, item_id, span)
+            .into_hir_generics(ctx, item_id, span)
             .hir_generics_or_empty()
             .params;
 
         let child = self
             .child
             .generics
-            .into_hir_generics(this, item_id, span)
+            .into_hir_generics(ctx, item_id, span)
             .hir_generics_or_empty()
             .params;
 
