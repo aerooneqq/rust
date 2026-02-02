@@ -63,6 +63,7 @@ impl<'tcx> TypeFolder<TyCtxt<'tcx>> for ParamIndexRemapper<'tcx> {
 enum SelfPositionKind {
     AfterLifetimes,
     Zero,
+    None,
 }
 
 macro_rules! unsupported_caller_callee_kinds {
@@ -80,9 +81,9 @@ fn create_self_position_kind(caller_kind: FnKind, callee_kind: FnKind) -> SelfPo
         | (FnKind::AssocTrait, FnKind::AssocTrait)
         | (FnKind::AssocTrait, FnKind::Free) => SelfPositionKind::Zero,
 
-        unsupported_caller_callee_kinds!() => unreachable!(),
+        (FnKind::Free, FnKind::AssocTrait) => SelfPositionKind::AfterLifetimes,
 
-        _ => SelfPositionKind::AfterLifetimes,
+        _ => SelfPositionKind::None,
     }
 }
 
@@ -146,10 +147,9 @@ fn create_mapping<'tcx>(
     let (caller_kind, callee_kind) = get_caller_and_callee_kind(tcx, def_id, sig_id);
     let self_pos_kind = create_self_position_kind(caller_kind, callee_kind);
     let is_self_at_zero = matches!(self_pos_kind, SelfPositionKind::Zero);
-    let process_sig_parent_generics = matches!(callee_kind, FnKind::AssocTrait);
 
     // Is self at zero? If so insert mapping, self in sig parent is always at 0.
-    if is_self_at_zero && process_sig_parent_generics {
+    if is_self_at_zero {
         mapping.insert(0, 0);
     }
 
@@ -159,6 +159,8 @@ fn create_mapping<'tcx>(
     args_index += get_delegation_parent_args_count_without_self(tcx, def_id, sig_id);
 
     let sig_generics = tcx.generics_of(sig_id);
+    let process_sig_parent_generics = matches!(callee_kind, FnKind::AssocTrait);
+
     if process_sig_parent_generics {
         for i in (sig_generics.has_self as usize)..sig_generics.parent_count {
             let param = sig_generics.param_at(i, tcx);
@@ -184,7 +186,7 @@ fn create_mapping<'tcx>(
     }
 
     // If self after lifetimes insert mapping, relying that self is at 0 in sig parent
-    if !is_self_at_zero && process_sig_parent_generics {
+    if matches!(self_pos_kind, SelfPositionKind::AfterLifetimes) {
         mapping.insert(0, args_index as u32);
         args_index += 1;
     }
@@ -284,16 +286,20 @@ pub(crate) fn get_delegation_self_ty<'tcx>(
         | (FnKind::AssocInherentImpl, FnKind::Free)
         | (FnKind::AssocTrait, FnKind::Free)
         | (FnKind::AssocTrait, FnKind::AssocTrait) => {
-            let args = ty::GenericArgs::identity_for_item(tcx, delegation_id);
             match create_self_position_kind(caller_kind, callee_kind) {
-                SelfPositionKind::AfterLifetimes => args
-                    .iter()
-                    .skip_while(|a| a.as_region().is_some())
-                    .next()
+                SelfPositionKind::None => None,
+                SelfPositionKind::AfterLifetimes => {
+                    ty::GenericArgs::identity_for_item(tcx, delegation_id)
+                        .iter()
+                        .skip_while(|a| a.as_region().is_some())
+                        .next()
+                        .map(|a| a.as_type())
+                        .flatten()
+                }
+                SelfPositionKind::Zero => ty::GenericArgs::identity_for_item(tcx, delegation_id)
+                    .first()
                     .map(|a| a.as_type())
                     .flatten(),
-
-                SelfPositionKind::Zero => args.first().map(|a| a.as_type()).flatten(),
             }
         }
 
@@ -347,11 +353,9 @@ fn create_generic_args<'tcx>(
     let args = match (caller_kind, callee_kind) {
         (FnKind::Free, FnKind::Free)
         | (FnKind::Free, FnKind::AssocTrait)
-        | (FnKind::AssocInherentImpl, FnKind::Free) => delegation_args,
-
-        (FnKind::AssocTrait, FnKind::Free) | (FnKind::AssocTrait, FnKind::AssocTrait) => {
-            delegation_args
-        }
+        | (FnKind::AssocInherentImpl, FnKind::Free)
+        | (FnKind::AssocTrait, FnKind::Free)
+        | (FnKind::AssocTrait, FnKind::AssocTrait) => delegation_args,
 
         (FnKind::AssocTraitImpl, FnKind::AssocTrait) => {
             let parent = tcx.parent(delegation_id.into());
@@ -404,6 +408,8 @@ fn create_generic_args<'tcx>(
 
                 lifetimes_end_pos += deleg_parent_args_without_self_count;
             }
+            // If we have parent args then we obtained them from trait, then self must be somewhere
+            SelfPositionKind::None => unreachable!(),
         };
     } else {
         let self_impact = matches!(self_pos_kind, SelfPositionKind::Zero) as usize;
