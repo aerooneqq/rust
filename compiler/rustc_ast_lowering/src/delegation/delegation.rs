@@ -641,13 +641,8 @@ impl<'hir> LoweringContext<'_, 'hir> {
 
             // FIXME(fn_delegation): proper support for parent generics propagation
             // in method call scenario.
-            let segment = self.arena.alloc(self.process_segment(
-                item_id,
-                span,
-                &segment,
-                &mut generics.child,
-                false,
-            ));
+            let segment = self.process_segment(item_id, span, &segment, &mut generics.child, false);
+            let segment = self.arena.alloc(segment);
 
             self.arena.alloc(hir::Expr {
                 hir_id: self.next_id(),
@@ -688,16 +683,12 @@ impl<'hir> LoweringContext<'_, 'hir> {
 
                     hir::QPath::Resolved(ty, self.arena.alloc(new_path))
                 }
-                hir::QPath::TypeRelative(ty, segment) => hir::QPath::TypeRelative(
-                    ty,
-                    self.arena.alloc(self.process_segment(
-                        item_id,
-                        span,
-                        segment,
-                        &mut generics.child,
-                        false,
-                    )),
-                ),
+                hir::QPath::TypeRelative(ty, segment) => {
+                    let segment =
+                        self.process_segment(item_id, span, segment, &mut generics.child, false);
+
+                    hir::QPath::TypeRelative(ty, self.arena.alloc(segment))
+                }
             };
 
             let callee_path = self.arena.alloc(self.mk_expr(hir::ExprKind::Path(new_path), span));
