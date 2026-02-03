@@ -136,12 +136,12 @@ fn gather_explicit_predicates_of(tcx: TyCtxt<'_>, def_id: LocalDefId) -> ty::Gen
     let hir_id = tcx.local_def_id_to_hir_id(def_id);
     let node = tcx.hir_node(hir_id);
 
+    let icx = ItemCtxt::new(tcx, def_id);
+
     if let Some(sig) = node.fn_sig()
         && let Some(sig_id) = sig.decl.opt_delegation_sig_id()
     {
-        let ctx = ItemCtxt::new(tcx, def_id);
-        let ctx = &ctx as &dyn HirTyLowerer<'_>;
-        let (parent_args, child_args) = ctx.get_delegation_user_specified_args();
+        let (parent_args, child_args) = icx.lowerer().get_delegation_user_specified_args();
 
         return inherit_predicates_for_delegation_item(
             tcx,
@@ -154,8 +154,6 @@ fn gather_explicit_predicates_of(tcx: TyCtxt<'_>, def_id: LocalDefId) -> ty::Gen
 
     let mut is_trait = None;
     let mut is_default_impl_trait = None;
-
-    let icx = ItemCtxt::new(tcx, def_id);
 
     const NO_GENERICS: &hir::Generics<'_> = hir::Generics::empty();
 
