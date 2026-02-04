@@ -4,6 +4,7 @@
 
 use rustc_data_structures::debug_assert_matches;
 use rustc_data_structures::fx::FxHashMap;
+use rustc_hir::DelegationGenerics;
 use rustc_hir::def::DefKind;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_middle::ty::{
@@ -11,6 +12,8 @@ use rustc_middle::ty::{
     TypeVisitableExt,
 };
 use rustc_span::{ErrorGuaranteed, Span};
+
+use crate::collect::ItemCtxt;
 
 type RemapTable = FxHashMap<u32, u32>;
 
@@ -288,6 +291,11 @@ pub(crate) fn get_delegation_self_ty<'tcx>(
     delegation_id: LocalDefId,
 ) -> Option<Ty<'tcx>> {
     let sig_id = tcx.hir_opt_delegation_sig_id(delegation_id).expect("Delegation must have sig_id");
+    if let Some(self_ty) = get_delegation_user_specified_self_ty(tcx, delegation_id, sig_id) {
+        return Some(self_ty);
+    }
+
+    let sig_id = tcx.hir_opt_delegation_sig_id(delegation_id).expect("Delegation must have sig_id");
     let (caller_kind, callee_kind) = get_caller_and_callee_kind(tcx, delegation_id, sig_id);
 
     match (caller_kind, callee_kind) {
@@ -326,6 +334,22 @@ pub(crate) fn get_delegation_self_ty<'tcx>(
         }
 
         unsupported_caller_callee_kinds!() => unreachable!(),
+    }
+}
+
+fn get_delegation_user_specified_self_ty(
+    tcx: TyCtxt<'_>,
+    delegation_id: LocalDefId,
+    sig_id: DefId,
+) -> Option<Ty<'_>> {
+    match get_caller_and_callee_kind(tcx, delegation_id, sig_id) {
+        (FnKind::Free, FnKind::AssocTrait) => {
+            get_delegation_generics_info(tcx, delegation_id).self_ty_id.map(|id| {
+                let ctx = ItemCtxt::new(tcx, delegation_id);
+                ctx.lower_ty(tcx.hir_node(id).expect_ty())
+            })
+        }
+        _ => None,
     }
 }
 
@@ -445,6 +469,18 @@ fn create_generic_args<'tcx>(
                 .count();
 
         new_args.extend_from_slice(args);
+    }
+
+    if let Some(self_ty) = get_delegation_user_specified_self_ty(tcx, delegation_id, sig_id) {
+        match self_pos_kind {
+            SelfPositionKind::AfterLifetimes => {
+                new_args[lifetimes_end_pos] = ty::GenericArg::from(self_ty);
+            }
+            SelfPositionKind::Zero => {
+                new_args[0] = ty::GenericArg::from(self_ty);
+            }
+            SelfPositionKind::None => {}
+        }
     }
 
     if !child_args.is_empty() {
@@ -617,4 +653,16 @@ pub(crate) fn inherit_sig_for_delegation_item<'tcx>(
     let sig = caller_sig.instantiate(tcx, args.as_slice()).skip_binder();
     let sig_iter = sig.inputs().iter().cloned().chain(std::iter::once(sig.output()));
     tcx.arena.alloc_from_iter(sig_iter)
+}
+
+pub(crate) fn get_delegation_generics_info(
+    tcx: TyCtxt<'_>,
+    delegation_id: LocalDefId,
+) -> &DelegationGenerics {
+    tcx.hir_node(tcx.local_def_id_to_hir_id(delegation_id))
+        .fn_sig()
+        .expect("Processing delegation")
+        .decl
+        .opt_delegation_generics_info()
+        .expect("Processing delegation")
 }

@@ -66,6 +66,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
         GenericsGenerationResults {
             parent: GenericsGenerationResult::new(parent_generics),
             child: GenericsGenerationResult::new(child_generics),
+            self_ty_id: None,
         }
     }
 
@@ -472,6 +473,7 @@ impl<'a> GenericsGenerationResult<'a> {
 pub(super) struct GenericsGenerationResults<'hir> {
     pub(super) parent: GenericsGenerationResult<'hir>,
     pub(super) child: GenericsGenerationResult<'hir>,
+    pub(super) self_ty_id: Option<HirId>,
 }
 
 impl<'hir> GenericsGenerationResults<'hir> {
@@ -522,6 +524,7 @@ impl<'hir> GenericsGenerationResults<'hir> {
         hir::DelegationGenerics {
             child_args_segment_id: self.child.args_segment_id,
             parent_args_segment_id: self.parent.args_segment_id,
+            self_ty_id: self.self_ty_id,
         }
     }
 }
