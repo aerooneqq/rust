@@ -18,6 +18,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
         delegation: &Delegation,
         ids: &super::delegation::DelegationIds,
         item_id: NodeId,
+        is_method: bool,
     ) -> GenericsGenerationResults<'hir> {
         let delegation_in_free_ctx = self
             .tcx
@@ -29,7 +30,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
             .opt_parent(ids.root_function_id())
             .is_some_and(|p| matches!(self.tcx.def_kind(p), DefKind::Trait));
 
-        let generate_self = delegation_in_free_ctx && root_function_in_trait;
+        let generate_self = delegation_in_free_ctx && root_function_in_trait && is_method;
 
         let parent_generics_factory = |this: &mut Self, user_specified: bool| {
             this.get_parent_generics(
