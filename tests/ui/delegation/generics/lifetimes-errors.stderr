@@ -1,0 +1,274 @@
+error[E0794]: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
+  --> $DIR/lifetimes-errors.rs:28:17
+   |
+LL |     reuse foo::<'static> as error;
+   |                 ^^^^^^^
+   |
+note: the late bound lifetime parameter is introduced here
+  --> $DIR/lifetimes-errors.rs:24:12
+   |
+LL |     fn foo<'a, 'b>(_s: &'a str, _t: &'b usize) {}
+   |            ^^
+
+error[E0794]: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
+  --> $DIR/lifetimes-errors.rs:31:17
+   |
+LL |     reuse foo::<'static, 'static> as error2;
+   |                 ^^^^^^^
+   |
+note: the late bound lifetime parameter is introduced here
+  --> $DIR/lifetimes-errors.rs:24:12
+   |
+LL |     fn foo<'a, 'b>(_s: &'a str, _t: &'b usize) {}
+   |            ^^
+
+error[E0794]: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
+  --> $DIR/lifetimes-errors.rs:48:17
+   |
+LL |     reuse foo::<'static> as error;
+   |                 ^^^^^^^
+   |
+note: the late bound lifetime parameter is introduced here
+  --> $DIR/lifetimes-errors.rs:44:12
+   |
+LL |     fn foo<'a, 'b>() {}
+   |            ^^
+
+error[E0794]: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
+  --> $DIR/lifetimes-errors.rs:51:17
+   |
+LL |     reuse foo::<'static, 'static> as error2;
+   |                 ^^^^^^^
+   |
+note: the late bound lifetime parameter is introduced here
+  --> $DIR/lifetimes-errors.rs:44:12
+   |
+LL |     fn foo<'a, 'b>() {}
+   |            ^^
+
+error[E0794]: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
+  --> $DIR/lifetimes-errors.rs:73:24
+   |
+LL |     reuse Trait::foo::<'static, 'static> as bar3;
+   |                        ^^^^^^^
+   |
+note: the late bound lifetime parameter is introduced here
+  --> $DIR/lifetimes-errors.rs:65:16
+   |
+LL |         fn foo<'a, 'b>(&self, _s: &'a str, _t: &'b usize) {}
+   |                ^^
+
+error[E0794]: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
+  --> $DIR/lifetimes-errors.rs:153:38
+   |
+LL |         reuse Trait::<'a, 'b>::foo::<'static, 'a> as error;
+   |                                      ^^^^^^^
+   |
+note: the late bound lifetime parameter is introduced here
+  --> $DIR/lifetimes-errors.rs:141:16
+   |
+LL |         fn foo<'a, 'b>(&self) {}
+   |                ^^
+
+error[E0794]: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
+  --> $DIR/lifetimes-errors.rs:155:28
+   |
+LL |         reuse Trait::foo::<'b> as error2;
+   |                            ^^
+   |
+note: the late bound lifetime parameter is introduced here
+  --> $DIR/lifetimes-errors.rs:141:16
+   |
+LL |         fn foo<'a, 'b>(&self) {}
+   |                ^^
+
+error[E0794]: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
+  --> $DIR/lifetimes-errors.rs:99:28
+   |
+LL |         reuse Trait::foo::<'a, 'b> { &self.0 }
+   |                            ^^
+   |
+note: the late bound lifetime parameter is introduced here
+  --> $DIR/lifetimes-errors.rs:90:16
+   |
+LL |         fn foo<'a, 'b>(&self) {}
+   |                ^^
+
+error[E0794]: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
+  --> $DIR/lifetimes-errors.rs:124:38
+   |
+LL |         reuse Trait::<'c, 'a>::foo::<'a, 'b> as error { &self.0 }
+   |                                      ^^
+   |
+note: the late bound lifetime parameter is introduced here
+  --> $DIR/lifetimes-errors.rs:114:16
+   |
+LL |         fn foo<'a, 'b>(&self) {}
+   |                ^^
+
+error[E0195]: lifetime parameters or bounds on method `foo` do not match the trait declaration
+  --> $DIR/lifetimes-errors.rs:99:22
+   |
+LL |         fn foo<'a, 'b>(&self) {}
+   |               -------- lifetimes in impl do not match this method in trait
+...
+LL |         reuse Trait::foo::<'a, 'b> { &self.0 }
+   |                      ^^^ lifetimes do not match method in trait
+
+error[E0794]: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
+  --> $DIR/lifetimes-errors.rs:35:15
+   |
+LL |         bar::<'static>(s, x);
+   |               ^^^^^^^
+   |
+note: the late bound lifetime parameter is introduced here
+  --> $DIR/lifetimes-errors.rs:24:12
+   |
+LL |     fn foo<'a, 'b>(_s: &'a str, _t: &'b usize) {}
+   |            ^^
+
+error[E0794]: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
+  --> $DIR/lifetimes-errors.rs:38:15
+   |
+LL |         bar::<'a, 'b>(s, x);
+   |               ^^
+   |
+note: the late bound lifetime parameter is introduced here
+  --> $DIR/lifetimes-errors.rs:24:12
+   |
+LL |     fn foo<'a, 'b>(_s: &'a str, _t: &'b usize) {}
+   |            ^^
+
+error[E0794]: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
+  --> $DIR/lifetimes-errors.rs:55:15
+   |
+LL |         bar::<'a>();
+   |               ^^
+   |
+note: the late bound lifetime parameter is introduced here
+  --> $DIR/lifetimes-errors.rs:44:12
+   |
+LL |     fn foo<'a, 'b>() {}
+   |            ^^
+
+error[E0794]: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
+  --> $DIR/lifetimes-errors.rs:58:15
+   |
+LL |         bar::<'a, 'b>();
+   |               ^^
+   |
+note: the late bound lifetime parameter is introduced here
+  --> $DIR/lifetimes-errors.rs:44:12
+   |
+LL |     fn foo<'a, 'b>() {}
+   |            ^^
+
+warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
+  --> $DIR/lifetimes-errors.rs:73:24
+   |
+LL |         fn foo<'a, 'b>(&self, _s: &'a str, _t: &'b usize) {}
+   |                -- the late bound lifetime parameter is introduced here
+...
+LL |     reuse Trait::foo::<'static, 'static> as bar3;
+   |                        ^^^^^^^
+   |
+   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
+   = note: `#[warn(late_bound_lifetime_arguments)]` (part of `#[warn(future_incompatible)]`) on by default
+
+warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
+  --> $DIR/lifetimes-errors.rs:82:15
+   |
+LL |         fn foo<'a, 'b>(&self, _s: &'a str, _t: &'b usize) {}
+   |                -- the late bound lifetime parameter is introduced here
+...
+LL |         bar::<'static, 'static, usize>(&123, s, x);
+   |               ^^^^^^^
+   |
+   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
+
+warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
+  --> $DIR/lifetimes-errors.rs:99:28
+   |
+LL |         fn foo<'a, 'b>(&self) {}
+   |                -- the late bound lifetime parameter is introduced here
+...
+LL |         reuse Trait::foo::<'a, 'b> { &self.0 }
+   |                            ^^
+   |
+   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
+
+error[E0794]: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
+  --> $DIR/lifetimes-errors.rs:132:57
+   |
+LL |         S::<'static, 'static, 'static, i32, i32>::foo::<'static>(&s);
+   |                                                         ^^^^^^^
+   |
+note: the late bound lifetime parameter is introduced here
+  --> $DIR/lifetimes-errors.rs:114:16
+   |
+LL |         fn foo<'a, 'b>(&self) {}
+   |                ^^
+
+warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
+  --> $DIR/lifetimes-errors.rs:155:28
+   |
+LL |         fn foo<'a, 'b>(&self) {}
+   |                -- the late bound lifetime parameter is introduced here
+...
+LL |         reuse Trait::foo::<'b> as error2;
+   |                            ^^
+   |
+   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
+
+error[E0794]: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
+  --> $DIR/lifetimes-errors.rs:165:50
+   |
+LL |         <u32 as Trait2<'static, 'static>>::foo::<'static>(&123);
+   |                                                  ^^^^^^^
+   |
+note: the late bound lifetime parameter is introduced here
+  --> $DIR/lifetimes-errors.rs:141:16
+   |
+LL |         fn foo<'a, 'b>(&self) {}
+   |                ^^
+
+error[E0794]: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
+  --> $DIR/lifetimes-errors.rs:167:50
+   |
+LL |         <u32 as Trait2<'static, 'static>>::bar::<'static>(&123);
+   |                                                  ^^^^^^^
+   |
+note: the late bound lifetime parameter is introduced here
+  --> $DIR/lifetimes-errors.rs:141:16
+   |
+LL |         fn foo<'a, 'b>(&self) {}
+   |                ^^
+
+error[E0597]: `x` does not live long enough
+  --> $DIR/lifetimes-errors.rs:18:17
+   |
+LL |         let x = 1;
+   |             - binding `x` declared here
+LL |         bar("", &x);
+   |         --------^^-
+   |         |       |
+   |         |       borrowed value does not live long enough
+   |         argument requires that `x` is borrowed for `'static`
+LL |
+LL |     }
+   |     - `x` dropped here while still borrowed
+   |
+note: requirement that the value outlives `'static` introduced here
+  --> $DIR/lifetimes-errors.rs:10:16
+   |
+LL |     fn foo<'a: 'static, 'b: 'a>(_s: &'a str, _t: &'a dyn Trait<'b>) {}
+   |                ^^^^^^^
+
+error: aborting due to 18 previous errors; 4 warnings emitted
+
+Some errors have detailed explanations: E0195, E0597, E0794.
+For more information about an error, try `rustc --explain E0195`.

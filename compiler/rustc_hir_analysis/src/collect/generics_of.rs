@@ -11,6 +11,7 @@ use rustc_session::lint;
 use rustc_span::{Span, Symbol, kw};
 use tracing::{debug, instrument};
 
+use crate::delegation::{get_delegation_generics_info, opt_delegation_sig_id};
 use crate::middle::resolve_bound_vars as rbv;
 
 #[instrument(level = "debug", skip(tcx), ret)]
@@ -240,13 +241,53 @@ pub(super) fn generics_of(tcx: TyCtxt<'_>, def_id: LocalDefId) -> ty::Generics {
         own_params.push(opt_self);
     }
 
+    let (early_lifetimes_count, has_late_bound_regions) = match opt_delegation_sig_id(&node) {
+        Some(sig_id) => {
+            let info = get_delegation_generics_info(tcx, def_id);
+
+            // If user has specified parent args then we will not generate them in HIR,
+            // so don't count them.
+            let parent_lifetimes_count =
+                info.parent_args_segment_id.map(|_| 0).unwrap_or_else(|| {
+                    tcx.opt_parent(sig_id)
+                        .filter(|p| matches!(tcx.def_kind(p), DefKind::Trait))
+                        .map(|p| tcx.generics_of(p).own_counts().lifetimes)
+                        .unwrap_or(0)
+                });
+
+            let sig_generics = tcx.generics_of(sig_id);
+
+            // If user has specified child args then there will be 0 lifetimes,
+            // otherwise take number of lifetimes from sig_id.
+            let child_lifetimes_count = info
+                .child_args_segment_id
+                .map(|_| 0)
+                .unwrap_or(sig_generics.own_counts().lifetimes);
+
+            let early_lifetimes_count = parent_lifetimes_count + child_lifetimes_count;
+
+            // During HIR -> AST lowering we generated early bound lifetimes for all lifetimes of a sig
+            // function (`sig_id`), as we can't understand which lifetimes are late bound
+            // at AST -> HIR lowering stage. So we get generics of
+            // delegation sig now and take only early bound lifetimes. The `early_lifetimes_count` can not
+            // exceed number of early bound lifetimes in `hir_generics`.
+            (early_lifetimes_count, sig_generics.has_late_bound_regions)
+        }
+        None => {
+            // Take all early bound lifetimes in any other case
+            (std::usize::MAX, has_late_bound_regions(tcx, node))
+        }
+    };
+
     let early_lifetimes = super::early_bound_lifetimes_from_generics(tcx, hir_generics);
-    own_params.extend(early_lifetimes.enumerate().map(|(i, param)| ty::GenericParamDef {
-        name: param.name.ident().name,
-        index: own_start + i as u32,
-        def_id: param.def_id.to_def_id(),
-        pure_wrt_drop: param.pure_wrt_drop,
-        kind: ty::GenericParamDefKind::Lifetime,
+    own_params.extend(early_lifetimes.enumerate().take(early_lifetimes_count).map(|(i, param)| {
+        ty::GenericParamDef {
+            name: param.name.ident().name,
+            index: own_start + i as u32,
+            def_id: param.def_id.to_def_id(),
+            pure_wrt_drop: param.pure_wrt_drop,
+            kind: ty::GenericParamDefKind::Lifetime,
+        }
     }));
 
     // Now create the real type and const parameters.
@@ -373,7 +414,7 @@ pub(super) fn generics_of(tcx: TyCtxt<'_>, def_id: LocalDefId) -> ty::Generics {
         own_params,
         param_def_id_to_index,
         has_self: has_self || parent_has_self,
-        has_late_bound_regions: has_late_bound_regions(tcx, node),
+        has_late_bound_regions,
     }
 }
 

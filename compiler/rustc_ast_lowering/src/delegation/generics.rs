@@ -141,10 +141,10 @@ impl<'hir> LoweringContext<'_, 'hir> {
             params.iter().map(|p| self.lower_generic_param(p, hir::GenericParamSource::Generics)),
         );
 
-        // HACK: for now we generate predicates such that all lifetimes are early bound,
+        // HACK: We generate predicates such that all lifetimes are early bound,
         // we can not not generate early-bound lifetimes, but we can't know which of them
-        // are late-bound at this level of compilation.
-        // FIXME(fn_delegation): proper support for late bound lifetimes.
+        // are late-bound at this level of compilation. We return proper generics for delegation
+        // in `rustc_hir_analysis::collect::generics_of`.
         self.arena.alloc(hir::Generics {
             params,
             predicates: self.arena.alloc_from_iter(

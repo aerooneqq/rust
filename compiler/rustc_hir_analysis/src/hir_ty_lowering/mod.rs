@@ -53,7 +53,7 @@ use tracing::{debug, instrument};
 
 use crate::check::check_abi;
 use crate::check_c_variadic_abi;
-use crate::delegation::get_delegation_self_ty;
+use crate::delegation::{get_delegation_generics_info, get_delegation_self_ty};
 use crate::errors::{AmbiguousLifetimeBound, BadReturnTypeNotation};
 use crate::hir_ty_lowering::errors::{GenericsArgsErrExtend, prohibit_assoc_item_constraint};
 use crate::hir_ty_lowering::generics::{check_generic_arg_count, lower_generic_args};
@@ -2868,14 +2868,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
     pub fn get_delegation_user_specified_args(
         &self,
     ) -> (&'tcx [ty::GenericArg<'tcx>], &'tcx [ty::GenericArg<'tcx>]) {
-        let info = self
-            .tcx()
-            .hir_node(self.tcx().local_def_id_to_hir_id(self.item_def_id()))
-            .fn_sig()
-            .expect("Lowering delegation")
-            .decl
-            .opt_delegation_generics_info()
-            .expect("Lowering delegation");
+        let info = get_delegation_generics_info(self.tcx(), self.item_def_id());
 
         let get_segment = |hir_id: Option<HirId>| -> Option<(&'tcx PathSegment<'tcx>, DefId)> {
             hir_id.map(|hir_id| {
@@ -2890,7 +2883,8 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
             let self_ty = get_delegation_self_ty(self.tcx(), self.item_def_id());
 
             // FIXME(fn_delegation): execute this call with silenced dcx, as now warnings are duplicated, remove
-            // diagnostics deduplication in `free-fn-to-trait-infer.rs` and `generics-gen-args-errors.rs`.
+            // diagnostics deduplication in `free-fn-to-trait-infer.rs`, `generics-gen-args-errors.rs` and
+            // `lifetime-errors.rs`.
             self.lower_generic_args_of_path(
                 segment.ident.span,
                 def_id,
@@ -2917,7 +2911,8 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
             };
 
             // FIXME(fn_delegation): execute this call with silenced dcx, as now warnings are duplicated, remove
-            // diagnostics deduplication in `free-fn-to-trait-infer.rs` and `generics-gen-args-errors.rs`.
+            // diagnostics deduplication in `free-fn-to-trait-infer.rs`, `generics-gen-args-errors.rs` and
+            // `lifetime-errors.rs`.
             let args = self
                 .lower_generic_args_of_path(
                     segment.ident.span,

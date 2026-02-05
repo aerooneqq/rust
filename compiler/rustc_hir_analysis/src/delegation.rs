@@ -6,6 +6,7 @@ use rustc_data_structures::debug_assert_matches;
 use rustc_data_structures::fx::FxHashMap;
 use rustc_hir::def::DefKind;
 use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_hir::{DelegationGenerics, Node};
 use rustc_middle::ty::{
     self, EarlyBinder, GenericPredicates, Ty, TyCtxt, TypeFoldable, TypeFolder, TypeSuperFoldable,
     TypeVisitableExt,
@@ -140,7 +141,6 @@ fn create_mapping<'tcx>(
     tcx: TyCtxt<'tcx>,
     sig_id: DefId,
     def_id: LocalDefId,
-    args: &Vec<ty::GenericArg<'tcx>>,
 ) -> FxHashMap<u32, u32> {
     let mut mapping: FxHashMap<u32, u32> = Default::default();
 
@@ -176,13 +176,6 @@ fn create_mapping<'tcx>(
             mapping.insert(param.index, args_index as u32);
             args_index += 1;
         }
-    }
-
-    // If there are still unmapped lifetimes left and we are to map types and maybe self
-    // then skip them, now it is the case when we generated more lifetimes then needed.
-    // FIXME(fn_delegation): proper support for late bound lifetimes.
-    while args_index < args.len() && args[args_index].as_region().is_some() {
-        args_index += 1;
     }
 
     // If self after lifetimes insert mapping, relying that self is at 0 in sig parent
@@ -554,7 +547,7 @@ fn create_folder_and_args<'tcx>(
     child_args: &'tcx [ty::GenericArg<'tcx>],
 ) -> (ParamIndexRemapper<'tcx>, Vec<ty::GenericArg<'tcx>>) {
     let args = create_generic_args(tcx, sig_id, def_id, parent_args, child_args);
-    let remap_table = create_mapping(tcx, sig_id, def_id, &args);
+    let remap_table = create_mapping(tcx, sig_id, def_id);
 
     (ParamIndexRemapper { tcx, remap_table }, args)
 }
@@ -603,4 +596,20 @@ pub(crate) fn inherit_sig_for_delegation_item<'tcx>(
     let sig = caller_sig.instantiate(tcx, args.as_slice()).skip_binder();
     let sig_iter = sig.inputs().iter().cloned().chain(std::iter::once(sig.output()));
     tcx.arena.alloc_from_iter(sig_iter)
+}
+
+pub(crate) fn get_delegation_generics_info(
+    tcx: TyCtxt<'_>,
+    delegation_id: LocalDefId,
+) -> &DelegationGenerics {
+    tcx.hir_node(tcx.local_def_id_to_hir_id(delegation_id))
+        .fn_sig()
+        .expect("Processing delegation")
+        .decl
+        .opt_delegation_generics_info()
+        .expect("Processing delegation")
+}
+
+pub(crate) fn opt_delegation_sig_id(node: &Node<'_>) -> Option<DefId> {
+    node.fn_sig().map(|sig| sig.decl.opt_delegation_sig_id()).flatten()
 }
