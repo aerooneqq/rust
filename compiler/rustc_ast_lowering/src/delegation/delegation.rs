@@ -186,7 +186,8 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 // we need a function to extract this information
                 let (param_count, c_variadic) = self.param_count(root_function_id);
 
-                let mut generics = self.lower_delegation_generics(delegation, &ids, item_id, is_method);
+                let mut generics =
+                    self.lower_delegation_generics(delegation, &ids, item_id, is_method);
 
                 let body_id = self.lower_delegation_body(
                     delegation,

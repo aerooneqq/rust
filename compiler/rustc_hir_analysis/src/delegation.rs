@@ -86,26 +86,29 @@ macro_rules! unsupported_caller_callee_kinds {
 
 fn create_self_position_kind(
     tcx: TyCtxt<'_>,
-    caller_kind: FnKind,
-    callee_kind: FnKind,
+    def_id: LocalDefId,
     sig_id: DefId,
 ) -> SelfPositionKind {
-    match (caller_kind, callee_kind) {
+    match get_caller_and_callee_kind(tcx, def_id, sig_id) {
         (FnKind::AssocInherentImpl, FnKind::AssocTrait)
         | (FnKind::AssocTraitImpl, FnKind::AssocTrait)
         | (FnKind::AssocTrait, FnKind::AssocTrait)
         | (FnKind::AssocTrait, FnKind::Free) => SelfPositionKind::Zero,
 
         (FnKind::Free, FnKind::AssocTrait) => {
-            SelfPositionKind::AfterLifetimes(should_propagate_self_ty(tcx, sig_id))
+            SelfPositionKind::AfterLifetimes(should_propagate_self_ty(tcx, def_id))
         }
 
         _ => SelfPositionKind::None,
     }
 }
 
-fn should_propagate_self_ty(tcx: TyCtxt<'_>, sig_id: DefId) -> PropagateSelfTy {
-    if tcx.associated_item(sig_id).is_method() { PropagateSelfTy::No } else { PropagateSelfTy::Yes }
+fn should_propagate_self_ty(tcx: TyCtxt<'_>, delegation_id: LocalDefId) -> PropagateSelfTy {
+    if get_delegation_generics_info(tcx, delegation_id).propagate_self_ty {
+        PropagateSelfTy::Yes
+    } else {
+        PropagateSelfTy::No
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -178,8 +181,8 @@ fn create_mapping<'tcx>(
 ) -> FxHashMap<u32, u32> {
     let mut mapping: FxHashMap<u32, u32> = Default::default();
 
-    let (caller_kind, callee_kind) = get_caller_and_callee_kind(tcx, def_id, sig_id);
-    let self_pos_kind = create_self_position_kind(tcx, caller_kind, callee_kind, sig_id);
+    let (_, callee_kind) = get_caller_and_callee_kind(tcx, def_id, sig_id);
+    let self_pos_kind = create_self_position_kind(tcx, def_id, sig_id);
     let is_self_at_zero = matches!(self_pos_kind, SelfPositionKind::Zero);
 
     // Is self at zero? If so insert mapping, self in sig parent is always at 0.
@@ -286,7 +289,7 @@ fn get_parent_and_inheritance_kind<'tcx>(
     match get_caller_and_callee_kind(tcx, def_id, sig_id) {
         (FnKind::Free, FnKind::AssocTrait) => (
             None,
-            InheritanceKind::WithParent(match should_propagate_self_ty(tcx, sig_id) {
+            InheritanceKind::WithParent(match should_propagate_self_ty(tcx, def_id) {
                 PropagateSelfTy::No => SelfPredsFilterKind::None,
                 PropagateSelfTy::Yes => SelfPredsFilterKind::All,
             }),
@@ -326,7 +329,7 @@ pub(crate) fn get_delegation_self_ty<'tcx>(
         | (FnKind::AssocInherentImpl, FnKind::Free)
         | (FnKind::AssocTrait, FnKind::Free)
         | (FnKind::AssocTrait, FnKind::AssocTrait) => {
-            match create_self_position_kind(tcx, caller_kind, callee_kind, sig_id) {
+            match create_self_position_kind(tcx, delegation_id, sig_id) {
                 SelfPositionKind::None => None,
                 SelfPositionKind::AfterLifetimes(propagate_self_ty) => match propagate_self_ty {
                     PropagateSelfTy::Yes => Some(get_delegation_self_ty_or_err(tcx, delegation_id)),
@@ -448,7 +451,7 @@ fn create_generic_args<'tcx>(
 
     let mut new_args = vec![];
 
-    let self_pos_kind = create_self_position_kind(tcx, caller_kind, callee_kind, sig_id);
+    let self_pos_kind = create_self_position_kind(tcx, delegation_id, sig_id);
     let mut lifetimes_end_pos;
 
     if !parent_args.is_empty() {

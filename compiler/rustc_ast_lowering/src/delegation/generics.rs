@@ -30,7 +30,8 @@ impl<'hir> LoweringContext<'_, 'hir> {
             .opt_parent(ids.root_function_id())
             .is_some_and(|p| matches!(self.tcx.def_kind(p), DefKind::Trait));
 
-        let generate_self = delegation_in_free_ctx && root_function_in_trait && is_method;
+        let free_to_trait_delegation = delegation_in_free_ctx && root_function_in_trait;
+        let generate_self = free_to_trait_delegation && is_method && delegation.qself.is_none();
 
         let parent_generics_factory = |this: &mut Self, user_specified: bool| {
             this.get_parent_generics(
@@ -67,6 +68,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
             parent: GenericsGenerationResult::new(parent_generics),
             child: GenericsGenerationResult::new(child_generics),
             self_ty_id: None,
+            propagate_self_ty: free_to_trait_delegation && !generate_self,
         }
     }
 
@@ -474,6 +476,7 @@ pub(super) struct GenericsGenerationResults<'hir> {
     pub(super) parent: GenericsGenerationResult<'hir>,
     pub(super) child: GenericsGenerationResult<'hir>,
     pub(super) self_ty_id: Option<HirId>,
+    pub(super) propagate_self_ty: bool,
 }
 
 impl<'hir> GenericsGenerationResults<'hir> {
@@ -525,6 +528,7 @@ impl<'hir> GenericsGenerationResults<'hir> {
             child_args_segment_id: self.child.args_segment_id,
             parent_args_segment_id: self.parent.args_segment_id,
             self_ty_id: self.self_ty_id,
+            propagate_self_ty: self.propagate_self_ty,
         }
     }
 }
