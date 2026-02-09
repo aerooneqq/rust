@@ -8,6 +8,26 @@ mod test_1 {
 
     impl<'a, T> Trait<'a, T> for u8 {}
 
+    reuse Trait::foo::<String, false> as bar1;
+    reuse Trait::foo as bar2;
+    reuse Trait::foo::<String, false> as bar3;
+    reuse Trait::foo as bar4;
+
+    reuse <u8 as Trait>::foo::<String, false> as bar5;
+    reuse <u8 as Trait>::foo as bar6;
+    reuse <u8 as Trait>::foo::<String, false> as bar7;
+    reuse <u8 as Trait>::foo as bar8;
+
+    reuse Trait::<'static, usize>::foo::<String, false> as bar9;
+    reuse Trait::<'static, usize>::foo as bar10;
+    reuse Trait::<'static, usize>::foo::<String, false> as bar11;
+    reuse Trait::<'static, usize>::foo as bar12;
+
+    reuse <u8 as Trait::<'static, usize>>::foo::<String, false> as bar13;
+    reuse <u8 as Trait::<'static, usize>>::foo as bar14;
+    reuse <u8 as Trait::<'static, usize>>::foo::<String, false> as bar15;
+    reuse <u8 as Trait::<'static, usize>>::foo as bar16;
+
     trait Trait2<'a, 'b, 'c, X, Y, Z>: Sized {
         fn get() -> &'static u8 { &0 }
         fn get_self(&self) -> &'static u8 { &0 }
