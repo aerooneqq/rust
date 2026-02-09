@@ -2,35 +2,28 @@ use hir::HirId;
 use hir::def::{DefKind, Res};
 use rustc_ast::*;
 use rustc_hir as hir;
-use rustc_hir::def_id::DefId;
-use rustc_middle::ty;
-use rustc_middle::ty::GenericParamDefKind;
+use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_middle::ty::{
+    self, GenericParamDefKind, Ty, TyCtxt, TypeFoldable, TypeFolder, TypeSuperFoldable,
+    TypeVisitableExt,
+};
 use rustc_span::sym::{self};
 use rustc_span::symbol::kw;
 use rustc_span::{DUMMY_SP, Ident, Span};
 use thin_vec::{ThinVec, thin_vec};
 
+use crate::delegation::delegation::DelegationIds;
 use crate::{AstOwner, LoweringContext};
 
 impl<'hir> LoweringContext<'_, 'hir> {
     pub(super) fn lower_delegation_generics(
         &mut self,
         delegation: &Delegation,
-        ids: &super::delegation::DelegationIds,
+        ids: &DelegationIds,
         item_id: NodeId,
         is_method: bool,
     ) -> GenericsGenerationResults<'hir> {
-        let delegation_in_free_ctx = self
-            .tcx
-            .opt_parent(self.local_def_id(item_id).to_def_id())
-            .is_none_or(|p| !matches!(self.tcx.def_kind(p), DefKind::Trait | DefKind::Impl { .. }));
-
-        let root_function_in_trait = self
-            .tcx
-            .opt_parent(ids.root_function_id())
-            .is_some_and(|p| matches!(self.tcx.def_kind(p), DefKind::Trait));
-
-        let free_to_trait_delegation = delegation_in_free_ctx && root_function_in_trait;
+        let free_to_trait_delegation = self.is_free_to_trait_reuse(ids, item_id);
         let generate_self = free_to_trait_delegation && is_method && delegation.qself.is_none();
 
         let parent_generics_factory = |this: &mut Self, user_specified: bool| {
@@ -70,6 +63,20 @@ impl<'hir> LoweringContext<'_, 'hir> {
             self_ty_id: None,
             propagate_self_ty: free_to_trait_delegation && !generate_self,
         }
+    }
+
+    pub(super) fn is_free_to_trait_reuse(&self, ids: &DelegationIds, item_id: NodeId) -> bool {
+        let delegation_in_free_ctx = self
+            .tcx
+            .opt_parent(self.local_def_id(item_id).to_def_id())
+            .is_none_or(|p| !matches!(self.tcx.def_kind(p), DefKind::Trait | DefKind::Impl { .. }));
+
+        let root_function_in_trait = self
+            .tcx
+            .opt_parent(ids.root_function_id())
+            .is_some_and(|p| matches!(self.tcx.def_kind(p), DefKind::Trait));
+
+        delegation_in_free_ctx && root_function_in_trait
     }
 
     fn can_add_generics_to(&self, node_id: NodeId) -> bool {
@@ -268,17 +275,17 @@ impl<'hir> LoweringContext<'_, 'hir> {
 
     fn get_fn_like_generics(&mut self, id: DefId) -> Option<Generics> {
         if let Some(local_id) = id.as_local() {
-            match self.ast_accessor.get(local_id) {
-                Some(AstOwner::Item(item)) if let ItemKind::Fn(f) = &item.kind => {
-                    Some(f.generics.clone())
-                }
-                Some(AstOwner::AssocItem(item, _)) if let AssocItemKind::Fn(f) = &item.kind => {
-                    Some(f.generics.clone())
-                }
-                _ => None,
-            }
+            self.get_fn(local_id).map(|f| f.generics.clone())
         } else {
             self.get_external_generics(id, false)
+        }
+    }
+
+    pub(super) fn get_fn(&self, local_id: LocalDefId) -> Option<&Box<Fn>> {
+        match self.ast_accessor.get(local_id) {
+            Some(AstOwner::Item(item)) if let ItemKind::Fn(f) = &item.kind => Some(f),
+            Some(AstOwner::AssocItem(item, _)) if let AssocItemKind::Fn(f) = &item.kind => Some(f),
+            _ => None,
         }
     }
 
@@ -333,7 +340,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
         self.resolver.partial_res_map.insert(node_id, hir::def::PartialRes::new(res));
 
         GenericParamKind::Const {
-            ty: Box::new(Ty {
+            ty: Box::new(rustc_ast::Ty {
                 id: node_id,
                 kind: TyKind::Path(
                     None,
@@ -399,6 +406,70 @@ impl<'hir> LoweringContext<'_, 'hir> {
 
         generics
     }
+
+    pub(super) fn references_parent_generics_external(&self, root_fn_id: DefId) -> bool {
+        struct ParentGenericParamsUsageMarker<'tcx> {
+            tcx: TyCtxt<'tcx>,
+            parent_count: u32,
+            references_parent_generics: bool,
+        }
+
+        impl<'tcx> TypeFolder<TyCtxt<'tcx>> for ParentGenericParamsUsageMarker<'tcx> {
+            fn cx(&self) -> TyCtxt<'tcx> {
+                self.tcx
+            }
+
+            fn fold_ty(&mut self, ty: Ty<'tcx>) -> Ty<'tcx> {
+                if !ty.has_param() {
+                    return ty;
+                }
+
+                if let ty::Param(param) = ty.kind() {
+                    self.check_if_parent_param(param.index);
+                }
+
+                ty.super_fold_with(self)
+            }
+
+            fn fold_region(&mut self, r: ty::Region<'tcx>) -> ty::Region<'tcx> {
+                if let ty::ReEarlyParam(param) = r.kind() {
+                    self.check_if_parent_param(param.index);
+                }
+
+                r
+            }
+
+            fn fold_const(&mut self, ct: ty::Const<'tcx>) -> ty::Const<'tcx> {
+                if let ty::ConstKind::Param(param) = ct.kind() {
+                    self.check_if_parent_param(param.index);
+                }
+
+                ct.super_fold_with(self)
+            }
+        }
+
+        impl<'tcx> ParentGenericParamsUsageMarker<'tcx> {
+            fn check_if_parent_param(&mut self, index: u32) {
+                // Don't consider usage of Self
+                self.references_parent_generics |= index > 0 && index < self.parent_count;
+            }
+        }
+
+        let generics = self.tcx.generics_of(root_fn_id);
+
+        let mut marker = ParentGenericParamsUsageMarker {
+            parent_count: generics.parent_count as u32,
+            references_parent_generics: false,
+            tcx: self.tcx,
+        };
+
+        self.tcx.fn_sig(root_fn_id).skip_binder().fold_with(&mut marker);
+        for (pred, _) in self.tcx.predicates_of(root_fn_id).predicates {
+            pred.fold_with(&mut marker);
+        }
+
+        marker.references_parent_generics
+    }
 }
 
 pub(super) enum HirOrAstGenerics<'hir> {
@@ -418,6 +489,24 @@ impl<'hir> HirOrAstGenerics<'hir> {
                 *self = Self::Hir(ctx.lower_ast_generics(item_id, span, delegation_generics));
             }
             HirOrAstGenerics::Hir(_) => {}
+        }
+
+        self
+    }
+
+    pub(super) fn into_hir_generics_self_user_specified_only(
+        &mut self,
+        ctx: &mut LoweringContext<'_, 'hir>,
+        item_id: NodeId,
+        span: Span,
+    ) -> &mut Self {
+        match self {
+            HirOrAstGenerics::Ast(generics)
+                if matches!(generics, DelegationGenerics::SelfAndUserSpecified { .. }) =>
+            {
+                *self = Self::Hir(ctx.lower_ast_generics(item_id, span, generics));
+            }
+            _ => {}
         }
 
         self
@@ -461,20 +550,20 @@ impl<'hir> HirOrAstGenerics<'hir> {
     }
 }
 
-pub(super) struct GenericsGenerationResult<'hir> {
+pub(super) struct GenericsGenerationResult<'hir, T: From<HirId>> {
     pub(super) generics: HirOrAstGenerics<'hir>,
-    pub(super) args_segment_id: Option<HirId>,
+    pub(super) args_segment_id: Option<T>,
 }
 
-impl<'a> GenericsGenerationResult<'a> {
+impl<'a, T: From<HirId>> GenericsGenerationResult<'a, T> {
     fn new(generics: DelegationGenerics<Generics>) -> Self {
         Self { generics: HirOrAstGenerics::Ast(generics), args_segment_id: None }
     }
 }
 
 pub(super) struct GenericsGenerationResults<'hir> {
-    pub(super) parent: GenericsGenerationResult<'hir>,
-    pub(super) child: GenericsGenerationResult<'hir>,
+    pub(super) parent: GenericsGenerationResult<'hir, hir::DelegationParentGenerics>,
+    pub(super) child: GenericsGenerationResult<'hir, HirId>,
     pub(super) self_ty_id: Option<HirId>,
     pub(super) propagate_self_ty: bool,
 }
@@ -489,16 +578,11 @@ impl<'hir> GenericsGenerationResults<'hir> {
         let parent = self
             .parent
             .generics
-            .into_hir_generics(ctx, item_id, span)
+            .into_hir_generics_self_user_specified_only(ctx, item_id, span)
             .hir_generics_or_empty()
             .params;
 
-        let child = self
-            .child
-            .generics
-            .into_hir_generics(ctx, item_id, span)
-            .hir_generics_or_empty()
-            .params;
+        let child = self.child.generics.hir_generics_or_empty().params;
 
         // Order generics, firstly we have parent and child lifetimes,
         // then parent and child types and consts.

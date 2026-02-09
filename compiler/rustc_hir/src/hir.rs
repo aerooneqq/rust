@@ -3726,10 +3726,31 @@ pub enum OpaqueTyOrigin<D> {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, HashStable_Generic)]
+pub enum DelegationParentGenerics {
+    UserSpecified(HirId),
+    NotGenerated,
+}
+
+impl From<HirId> for DelegationParentGenerics {
+    fn from(value: HirId) -> Self {
+        Self::UserSpecified(value)
+    }
+}
+
+impl Into<Option<HirId>> for DelegationParentGenerics {
+    fn into(self) -> Option<HirId> {
+        match self {
+            DelegationParentGenerics::UserSpecified(hir_id) => Some(hir_id),
+            _ => None,
+        }
+    }
+}
+
 // Ids of parent (or child) path segment that contains user-specified args
 #[derive(Debug, Clone, Copy, PartialEq, Eq, HashStable_Generic)]
 pub struct DelegationGenerics {
-    pub parent_args_segment_id: Option<HirId>,
+    pub parent_args_segment_id: Option<DelegationParentGenerics>,
     pub child_args_segment_id: Option<HirId>,
     pub self_ty_id: Option<HirId>,
     pub propagate_self_ty: bool,

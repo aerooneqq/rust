@@ -11,6 +11,7 @@ use std::collections::hash_map::Entry;
 use std::mem::{replace, swap, take};
 use std::ops::ControlFlow;
 
+use rustc_ast::node_id::NodeMap;
 use rustc_ast::visit::{
     AssocCtxt, BoundKind, FnCtxt, FnKind, Visitor, try_visit, visit_opt, walk_list,
 };
@@ -5396,6 +5397,96 @@ impl<'a, 'ast, 'ra, 'tcx> LateResolutionVisitor<'a, 'ast, 'ra, 'tcx> {
     }
 }
 
+struct AfterResolveItemInfoCollector<'a, 'ra, 'tcx> {
+    generics_ids: NodeMap<FxHashSet<LocalDefId>>,
+    fn_parents: NodeMap<NodeId>,
+    r: &'a mut Resolver<'ra, 'tcx>,
+}
+
+impl AfterResolveItemInfoCollector<'_, '_, '_> {
+    fn update_parent_params_reference_map(
+        &mut self,
+        id: NodeId,
+        decl: &FnDecl,
+        generics: &Generics,
+    ) {
+        let Some(parent) = self.fn_parents.get(&id) else { return };
+
+        struct ParentParamsUsageMarker<'a> {
+            partial_res_map: &'a NodeMap<PartialRes>,
+            generics_ids: &'a NodeMap<FxHashSet<LocalDefId>>,
+            references_parent_generics: bool,
+            parent: NodeId,
+        }
+
+        impl<'a> Visitor<'a> for ParentParamsUsageMarker<'a> {
+            fn visit_id(&mut self, id: NodeId) -> Self::Result {
+                if let Some(res) = self.partial_res_map.get(&id)
+                    && let Some(parent_params) = self.generics_ids.get(&self.parent)
+                    && let Some(def_id) = res.full_res().map(|r| r.opt_def_id()).flatten()
+                    && let Some(local_id) = def_id.as_local()
+                    && parent_params.contains(&local_id)
+                {
+                    self.references_parent_generics = true;
+                }
+            }
+        }
+
+        let mut visitor = ParentParamsUsageMarker {
+            references_parent_generics: false,
+            parent: *parent,
+            generics_ids: &self.generics_ids,
+            partial_res_map: &self.r.partial_res_map,
+        };
+
+        visitor.visit_fn_decl(decl);
+        visitor.visit_generics(generics);
+
+        self.r
+            .delegation_fn_sigs
+            .get_mut(&self.r.local_def_id(id))
+            .unwrap()
+            .references_parent_generics = visitor.references_parent_generics;
+    }
+}
+
+impl<'ast> Visitor<'ast> for AfterResolveItemInfoCollector<'_, '_, '_> {
+    fn visit_item(&mut self, item: &'ast Item) {
+        match &item.kind {
+            ItemKind::Trait(box Trait { generics, .. }) => {
+                if let ItemKind::Trait(box Trait { items, .. }) = &item.kind {
+                    self.generics_ids.insert(
+                        item.id,
+                        generics
+                            .params
+                            .iter()
+                            .map(|p| self.r.node_id_to_def_id[&p.id].key())
+                            .collect(),
+                    );
+
+                    for child in items {
+                        if matches!(child.kind, AssocItemKind::Fn { .. }) {
+                            self.fn_parents.insert(child.id, item.id);
+                        }
+                    }
+                }
+            }
+
+            _ => {}
+        }
+
+        visit::walk_item(self, item)
+    }
+
+    fn visit_assoc_item(&mut self, item: &'ast AssocItem, ctxt: AssocCtxt) {
+        if let AssocItemKind::Fn(box Fn { sig, generics, .. }) = &item.kind {
+            self.update_parent_params_reference_map(item.id, &sig.decl, generics);
+        }
+
+        visit::walk_assoc_item(self, item, ctxt);
+    }
+}
+
 /// Walks the whole crate in DFS order, visiting each item, counting the declared number of
 /// lifetime generic parameters and function parameters.
 struct ItemInfoCollector<'a, 'ra, 'tcx> {
@@ -5417,6 +5508,7 @@ impl ItemInfoCollector<'_, '_, '_> {
                 param_count: decl.inputs.len(),
                 has_self: decl.has_self(),
                 c_variadic: decl.c_variadic(),
+                references_parent_generics: false,
                 attrs: create_delegation_attrs(attrs),
             },
         );
@@ -5514,9 +5606,20 @@ impl<'ast> Visitor<'ast> for ItemInfoCollector<'_, '_, '_> {
 impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
     pub(crate) fn late_resolve_crate(&mut self, krate: &Crate) {
         visit::walk_crate(&mut ItemInfoCollector { r: self }, krate);
+
         let mut late_resolution_visitor = LateResolutionVisitor::new(self);
         late_resolution_visitor.resolve_doc_links(&krate.attrs, MaybeExported::Ok(CRATE_NODE_ID));
         visit::walk_crate(&mut late_resolution_visitor, krate);
+
+        visit::walk_crate(
+            &mut AfterResolveItemInfoCollector {
+                r: late_resolution_visitor.r,
+                generics_ids: Default::default(),
+                fn_parents: Default::default(),
+            },
+            krate,
+        );
+
         for (id, span) in late_resolution_visitor.diag_metadata.unused_labels.iter() {
             self.lint_buffer.buffer_lint(
                 lint::builtin::UNUSED_LABELS,

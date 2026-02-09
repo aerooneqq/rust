@@ -4,9 +4,9 @@
 
 use rustc_data_structures::debug_assert_matches;
 use rustc_data_structures::fx::FxHashMap;
-use rustc_hir::DelegationGenerics;
 use rustc_hir::def::DefKind;
 use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_hir::{DelegationGenerics, DelegationParentGenerics};
 use rustc_middle::ty::{
     self, EarlyBinder, GenericPredicates, Ty, TyCtxt, TypeFoldable, TypeFolder, TypeSuperFoldable,
     TypeVisitableExt,
@@ -196,7 +196,8 @@ fn create_mapping<'tcx>(
     args_index += get_delegation_parent_args_count_without_self(tcx, def_id, sig_id);
 
     let sig_generics = tcx.generics_of(sig_id);
-    let process_sig_parent_generics = matches!(callee_kind, FnKind::AssocTrait);
+    let process_sig_parent_generics =
+        matches!(callee_kind, FnKind::AssocTrait) && has_parent_params(tcx, def_id);
 
     if process_sig_parent_generics {
         for i in (sig_generics.has_self as usize)..sig_generics.parent_count {
@@ -246,6 +247,12 @@ fn create_mapping<'tcx>(
     }
 
     mapping
+}
+
+fn has_parent_params(tcx: TyCtxt<'_>, delegation_id: LocalDefId) -> bool {
+    get_delegation_generics_info(tcx, delegation_id)
+        .parent_args_segment_id
+        .is_none_or(|p| !matches!(p, DelegationParentGenerics::NotGenerated))
 }
 
 fn get_delegation_parent_args_count_without_self<'tcx>(
@@ -612,23 +619,27 @@ pub(crate) fn inherit_predicates_for_delegation_item<'tcx>(
 
     let collector = PredicatesCollector::new(tcx, args, folder, inh_kind.filter_all_self_preds());
 
-    // `explicit_predicates_of` is used here to avoid copying `Self: Trait` predicate.
-    // Note: `predicates_of` query can also add inferred outlives predicates, but that
-    // is not the case here as `sig_id` is either a trait or a function.
-    let preds = match inh_kind {
-        InheritanceKind::WithParent(SelfPredsFilterKind::OnlyExplicitTrait) => {
-            collector.with_preds(|def_id| tcx.explicit_predicates_of(def_id), sig_id)
-        }
+    let preds = if !has_parent_params(tcx, def_id) {
+        collector.with_own_preds(|def_id| tcx.predicates_of(def_id), sig_id).preds
+    } else {
+        // `explicit_predicates_of` is used here to avoid copying `Self: Trait` predicate.
+        // Note: `predicates_of` query can also add inferred outlives predicates, but that
+        // is not the case here as `sig_id` is either a trait or a function.
+        match inh_kind {
+            InheritanceKind::WithParent(SelfPredsFilterKind::OnlyExplicitTrait) => {
+                collector.with_preds(|def_id| tcx.explicit_predicates_of(def_id), sig_id)
+            }
 
-        InheritanceKind::WithParent(SelfPredsFilterKind::None | SelfPredsFilterKind::All) => {
-            collector.with_preds(|def_id| tcx.predicates_of(def_id), sig_id)
-        }
+            InheritanceKind::WithParent(SelfPredsFilterKind::None | SelfPredsFilterKind::All) => {
+                collector.with_preds(|def_id| tcx.predicates_of(def_id), sig_id)
+            }
 
-        InheritanceKind::Own => {
-            collector.with_own_preds(|def_id| tcx.predicates_of(def_id), sig_id)
+            InheritanceKind::Own => {
+                collector.with_own_preds(|def_id| tcx.predicates_of(def_id), sig_id)
+            }
         }
-    }
-    .preds;
+        .preds
+    };
 
     ty::GenericPredicates { parent, predicates: tcx.arena.alloc_from_iter(preds) }
 }

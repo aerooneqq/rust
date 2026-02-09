@@ -42,7 +42,7 @@ use ast::visit::Visitor;
 use hir::def::{DefKind, PartialRes, Res};
 use hir::{BodyId, HirId};
 use rustc_abi::ExternAbi;
-use rustc_ast::*;
+use rustc_ast::{Block, DUMMY_NODE_ID, Delegation, NodeId, StmtKind};
 use rustc_attr_parsing::{AttributeParser, ShouldEmit};
 use rustc_data_structures::fx::FxHashSet;
 use rustc_errors::ErrorGuaranteed;
@@ -191,6 +191,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
 
                 let body_id = self.lower_delegation_body(
                     delegation,
+                    &ids,
                     item_id,
                     is_method,
                     param_count,
@@ -538,6 +539,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
     fn lower_delegation_body(
         &mut self,
         delegation: &Delegation,
+        ids: &DelegationIds,
         item_id: NodeId,
         is_method: bool,
         param_count: usize,
@@ -572,7 +574,8 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 args.push(arg);
             }
 
-            let final_expr = this.finalize_body_lowering(delegation, item_id, args, generics, span);
+            let final_expr =
+                this.finalize_body_lowering(delegation, ids, item_id, args, generics, span);
 
             (this.arena.alloc_from_iter(parameters), final_expr)
         })
@@ -589,6 +592,39 @@ impl<'hir> LoweringContext<'_, 'hir> {
 
         let block = self.lower_block(block, false);
         self.mk_expr(hir::ExprKind::Block(block, None), block.span)
+    }
+
+    fn can_generate_method_call(
+        &self,
+        delegation: &Delegation,
+        ids: &DelegationIds,
+        args: &'hir [hir::Expr<'hir>],
+        item_id: NodeId,
+        span: Span,
+    ) -> bool {
+        let has_generic_args =
+            delegation.path.segments.iter().rev().skip(1).any(|segment| segment.args.is_some());
+
+        let is_method = self
+            .get_resolution_id(delegation.id)
+            .map(|def_id| self.is_method(def_id, span))
+            .unwrap_or_default();
+
+        let is_free_to_trait_reuse = self.is_free_to_trait_reuse(ids, item_id);
+
+        let root_fn_id = ids.root_function_id();
+        let references_parent_generics = if let Some(local_id) = root_fn_id.as_local() {
+            self.resolver.delegation_fn_sigs[&local_id].references_parent_generics
+        } else {
+            self.references_parent_generics_external(root_fn_id)
+        };
+
+        is_method
+            && !is_free_to_trait_reuse
+            && delegation.qself.is_none()
+            && !has_generic_args
+            && !args.is_empty()
+            && !references_parent_generics
     }
 
     // Generates expression for the resulting body. If possible, `MethodCall` is used
@@ -609,6 +645,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
     fn finalize_body_lowering(
         &mut self,
         delegation: &Delegation,
+        ids: &DelegationIds,
         item_id: NodeId,
         args: Vec<hir::Expr<'hir>>,
         generics: &mut GenericsGenerationResults<'hir>,
@@ -616,17 +653,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
     ) -> hir::Expr<'hir> {
         let args = self.arena.alloc_from_iter(args);
 
-        let has_generic_args =
-            delegation.path.segments.iter().rev().skip(1).any(|segment| segment.args.is_some());
-
-        let call = if self
-            .get_resolution_id(delegation.id)
-            .map(|def_id| self.is_method(def_id, span))
-            .unwrap_or_default()
-            && delegation.qself.is_none()
-            && !has_generic_args
-            && !args.is_empty()
-        {
+        let call = if self.can_generate_method_call(delegation, ids, args, item_id, span) {
             let ast_segment = delegation.path.segments.last().unwrap();
             let segment = self.lower_path_segment(
                 delegation.path.span,
@@ -641,6 +668,8 @@ impl<'hir> LoweringContext<'_, 'hir> {
             // in method call scenario.
             let segment = self.process_segment(item_id, span, &segment, &mut generics.child, false);
             let segment = self.arena.alloc(segment);
+
+            generics.parent.args_segment_id = Some(hir::DelegationParentGenerics::NotGenerated);
 
             self.arena.alloc(hir::Expr {
                 hir_id: self.next_id(),
@@ -665,14 +694,12 @@ impl<'hir> LoweringContext<'_, 'hir> {
 
                     new_path.segments = self.arena.alloc_from_iter(
                         new_path.segments.iter().enumerate().map(|(idx, segment)| {
-                            let mut process_segment = |result, add_lifetimes| {
-                                self.process_segment(item_id, span, segment, result, add_lifetimes)
-                            };
-
                             if idx + 2 == len {
-                                process_segment(&mut generics.parent, true)
+                                let parent = &mut generics.parent;
+                                self.process_segment(item_id, span, segment, parent, true)
                             } else if idx + 1 == len {
-                                process_segment(&mut generics.child, false)
+                                let child = &mut generics.child;
+                                self.process_segment(item_id, span, segment, child, false)
                             } else {
                                 segment.clone()
                             }
@@ -711,12 +738,12 @@ impl<'hir> LoweringContext<'_, 'hir> {
         self.mk_expr(hir::ExprKind::Block(block, None), span)
     }
 
-    fn process_segment(
+    fn process_segment<T: From<HirId>>(
         &mut self,
         item_id: NodeId,
         span: Span,
         segment: &hir::PathSegment<'hir>,
-        result: &mut GenericsGenerationResult<'hir>,
+        result: &mut GenericsGenerationResult<'hir, T>,
         add_lifetimes: bool,
     ) -> hir::PathSegment<'hir> {
         // The first condition is needed when there is SelfAndUserSpecified case,
@@ -736,7 +763,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
         };
 
         if result.generics.is_user_specified() {
-            result.args_segment_id = Some(segment.hir_id);
+            result.args_segment_id = Some(T::from(segment.hir_id));
         }
 
         segment

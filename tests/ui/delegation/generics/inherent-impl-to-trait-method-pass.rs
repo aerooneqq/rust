@@ -13,7 +13,7 @@ impl<T> Trait<T> for () {}
 struct S<T>(T, ());
 
 impl<T> S<T> {
-    reuse Trait::foo { self.1 }
+    reuse Trait::foo { &self.1 }
 }
 
 

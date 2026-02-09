@@ -1,0 +1,108 @@
+error[E0282]: type annotations needed
+  --> $DIR/method-call-parent-args.rs:15:22
+   |
+LL |         reuse Trait::foo::<String, false> as bar1 { Self::get() }
+   |                      ^^^ cannot infer type for type parameter `T` declared on the trait `Trait`
+
+error[E0282]: type annotations needed
+  --> $DIR/method-call-parent-args.rs:17:22
+   |
+LL |         reuse Trait::foo as bar2 { Self::get() }
+   |                      ^^^ cannot infer type for type parameter `T` declared on the trait `Trait`
+
+error[E0282]: type annotations needed
+  --> $DIR/method-call-parent-args.rs:19:22
+   |
+LL |         reuse Trait::foo::<String, false> as bar3 { self.get_self() }
+   |                      ^^^ cannot infer type for type parameter `T` declared on the trait `Trait`
+
+error[E0282]: type annotations needed
+  --> $DIR/method-call-parent-args.rs:21:22
+   |
+LL |         reuse Trait::foo as bar4 { self.get_self() }
+   |                      ^^^ cannot infer type for type parameter `T` declared on the trait `Trait`
+
+error[E0282]: type annotations needed
+  --> $DIR/method-call-parent-args.rs:41:22
+   |
+LL |         reuse Trait::foo::<String, false> as bar1 { Self::get() }
+   |                      ^^^ cannot infer type for type parameter `T` declared on the trait `Trait`
+
+error[E0282]: type annotations needed
+  --> $DIR/method-call-parent-args.rs:43:22
+   |
+LL |         reuse Trait::foo as bar2 { Self::get() }
+   |                      ^^^ cannot infer type for type parameter `T` declared on the trait `Trait`
+
+error[E0282]: type annotations needed
+  --> $DIR/method-call-parent-args.rs:45:22
+   |
+LL |         reuse Trait::foo::<String, false> as bar3 { self.get_self() }
+   |                      ^^^ cannot infer type for type parameter `T` declared on the trait `Trait`
+
+error[E0282]: type annotations needed
+  --> $DIR/method-call-parent-args.rs:47:22
+   |
+LL |         reuse Trait::foo as bar4 { self.get_self() }
+   |                      ^^^ cannot infer type for type parameter `T` declared on the trait `Trait`
+
+error[E0283]: type annotations needed
+  --> $DIR/method-call-parent-args.rs:92:22
+   |
+LL |         reuse Trait::foo::<String, false> as bar1 { Self::get() }
+   |                      ^^^ cannot infer type for type parameter `T` declared on the trait `Trait`
+   |
+note: multiple `impl`s satisfying `u8: test_3::Trait<'_, _>` found
+  --> $DIR/method-call-parent-args.rs:85:5
+   |
+LL |     impl Trait<'static, usize> for u8 {}
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL |     impl Trait<'static, String> for u8 {}
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0283]: type annotations needed
+  --> $DIR/method-call-parent-args.rs:94:22
+   |
+LL |         reuse Trait::foo as bar2 { Self::get() }
+   |                      ^^^ cannot infer type for type parameter `T` declared on the trait `Trait`
+   |
+note: multiple `impl`s satisfying `u8: test_3::Trait<'_, _>` found
+  --> $DIR/method-call-parent-args.rs:85:5
+   |
+LL |     impl Trait<'static, usize> for u8 {}
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL |     impl Trait<'static, String> for u8 {}
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0283]: type annotations needed
+  --> $DIR/method-call-parent-args.rs:96:22
+   |
+LL |         reuse Trait::foo::<String, false> as bar3 { self.get_self() }
+   |                      ^^^ cannot infer type for type parameter `T` declared on the trait `Trait`
+   |
+note: multiple `impl`s satisfying `u8: test_3::Trait<'_, _>` found
+  --> $DIR/method-call-parent-args.rs:85:5
+   |
+LL |     impl Trait<'static, usize> for u8 {}
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL |     impl Trait<'static, String> for u8 {}
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0283]: type annotations needed
+  --> $DIR/method-call-parent-args.rs:98:22
+   |
+LL |         reuse Trait::foo as bar4 { self.get_self() }
+   |                      ^^^ cannot infer type for type parameter `T` declared on the trait `Trait`
+   |
+note: multiple `impl`s satisfying `u8: test_3::Trait<'_, _>` found
+  --> $DIR/method-call-parent-args.rs:85:5
+   |
+LL |     impl Trait<'static, usize> for u8 {}
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL |     impl Trait<'static, String> for u8 {}
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: aborting due to 12 previous errors
+
+Some errors have detailed explanations: E0282, E0283.
+For more information about an error, try `rustc --explain E0282`.

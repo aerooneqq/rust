@@ -2879,7 +2879,8 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
             })
         };
 
-        let parent_args = get_segment(info.parent_args_segment_id).map(|(segment, def_id)| {
+        let parent_segment_hir_id = info.parent_args_segment_id.map(|p| p.into()).flatten();
+        let parent_args = get_segment(parent_segment_hir_id).map(|(segment, def_id)| {
             let self_ty = get_delegation_self_ty(self.tcx(), self.item_def_id());
 
             // FIXME(fn_delegation): execute this call with silenced dcx, as now warnings are duplicated, remove
