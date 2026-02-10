@@ -58,18 +58,16 @@ mod free_to_free {
         }
     }
 
-    // FIXME(fn_delegation): Uncomment this test when impl Traits in function params are supported
+    mod test_7 {
+        fn foo<T, U>(t: T, u: U, f: impl FnOnce(T, U) -> U) -> U {
+            f(t, u)
+        }
 
-    // mod test_7 {
-    //     fn foo<T, U>(f: impl FnOnce(T, U) -> U) {
-
-    //     }
-
-    //     pub fn check() {
-    //         reuse foo as bar;
-    //         bar::<i32, i32>(|x, y| y);
-    //     }
-    // }
+        pub fn check() {
+            reuse foo as bar;
+            assert_eq!(bar::<i32, i32>(1, 2, |x, y| y), 2);
+        }
+    }
 
     mod test_8 {
         pub fn check<T: Clone, U: Clone>() {
@@ -100,7 +98,7 @@ mod free_to_free {
         test_4::check::<i32, String>();
         test_5::check::<i32, String>();
         test_6::check::<i32, String>();
-        //test_7::check();
+        test_7::check();
         test_8::check::<i32, String>();
         test_9::check::<String, i32>();
     }
