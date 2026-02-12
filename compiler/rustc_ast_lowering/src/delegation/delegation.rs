@@ -721,7 +721,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
             && let Some(args) = result
                 .generics
                 .into_hir_generics(self, item_id, span)
-                .into_generic_args(self, add_lifetimes)
+                .into_generic_args(self, add_lifetimes, span)
         {
             let mut new_segment = segment.clone();
             new_segment.args = Some(args);
