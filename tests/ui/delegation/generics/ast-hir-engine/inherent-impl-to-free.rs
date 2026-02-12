@@ -5,7 +5,7 @@
 
 mod test_1 {
     mod to_reuse {
-        pub fn foo<'a: 'a, 'b: 'b, A, B, const N: usize>() {}
+        pub fn foo<'a: 'a, 'b: 'b, A, B, const N: usize>(f: impl FnOnce(A, B) -> B) {}
     }
 
     struct X1<'a, 'b, T, X, const N: usize>(&'a T, &'b X, &'a [i32; N]);
@@ -28,14 +28,14 @@ mod test_1 {
 
     pub fn check() {
         X1::<'static, 'static, i32, i32, 1>
-            ::foo::<'static, 'static, String, String, 123>();
-        X1::<'static, 'static, i32, i32, 1>::bar();
+            ::foo::<'static, 'static, String, String, 123>(|x, y| y);
+        X1::<'static, 'static, i32, i32, 1>::bar(|x, y| y);
 
-        X2::<i32, i32, 1>::foo::<'static, 'static, String, String, 123>();
-        X2::<i32, i32, 1>::bar();
+        X2::<i32, i32, 1>::foo::<'static, 'static, String, String, 123>(|x, y| y);
+        X2::<i32, i32, 1>::bar(|x, y| y);
 
-        X3::foo::<'static, 'static, String, String, 123>();
-        X3::bar();
+        X3::foo::<'static, 'static, String, String, 123>(|x, y| y);
+        X3::bar(|x, y| y);
     }
 }
 

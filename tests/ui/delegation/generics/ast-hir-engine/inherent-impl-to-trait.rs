@@ -4,12 +4,12 @@
 #![allow(warnings)]
 
 mod test_1 {
-    trait Trait<T> {
-        fn foo(&self) {}
+    trait Trait<T: ToString> {
+        fn foo(&self, f: impl FnOnce(T) -> String) {}
     }
 
     struct F;
-    impl<T> Trait<T> for F {}
+    impl<T: ToString> Trait<T> for F {}
 
     struct S<'a, 'b, 'c, A, B>(F, &'a A, &'b B, &'c B);
     impl<'a, 'b, 'c, A, B> S<'a, 'b, 'c, A, B> {
@@ -18,8 +18,8 @@ mod test_1 {
 
     pub fn check() {
         let s = S(F, &123, &123, &123);
-        S::<'static, 'static, 'static, i32, i32>::foo(&s);
-        s.foo();
+        S::<'static, 'static, 'static, i32, i32>::foo(&s, |t| t.to_string());
+        s.foo(|t| t.to_string());
     }
 }
 

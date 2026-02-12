@@ -5,11 +5,29 @@
 
 mod free_to_free {
     mod test_1 {
-        fn foo<'a: 'a, 'b: 'b, T: Clone, U: Clone, const N: usize>() {}
+        trait Bound1 {}
+        trait Bound2 {}
+        trait Bound3 {}
+
+        struct X {}
+
+        impl Bound1 for X {}
+        impl Bound2 for X {}
+        impl Bound3 for X {}
+
+        fn foo<'a: 'a, 'b: 'b, T: Clone, U: Clone, const N: usize>(
+            x: impl Bound1 + Bound2 + Bound3,
+            f: impl FnOnce(T) -> U,
+        ) {
+        }
 
         pub fn check() {
             reuse foo as bar;
-            bar::<i32, i32, 1>();
+            bar::<i32, i32, 1>(X {}, |x| x);
+
+            reuse foo::<'static, 'static, usize, String, 132> as bar1;
+
+            bar1(X {}, |x| x.to_string());
         }
     }
 

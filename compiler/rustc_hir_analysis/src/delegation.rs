@@ -421,12 +421,16 @@ fn create_generic_args<'tcx>(
     sig_id: DefId,
     delegation_id: LocalDefId,
     mut parent_args: &[ty::GenericArg<'tcx>],
-    child_args: &[ty::GenericArg<'tcx>],
+    mut child_args: &[ty::GenericArg<'tcx>],
 ) -> Vec<ty::GenericArg<'tcx>> {
     let (caller_kind, callee_kind) = get_caller_and_callee_kind(tcx, delegation_id, sig_id);
 
     let delegation_args = ty::GenericArgs::identity_for_item(tcx, delegation_id);
-    let delegation_parent_args_count = tcx.generics_of(delegation_id).parent_count;
+    let delegation_generics = tcx.generics_of(delegation_id);
+
+    let real_args_count = delegation_args.len() - delegation_generics.own_synthetic_params_count();
+    let synth_args = &delegation_args[real_args_count..];
+    let delegation_args = &delegation_args[..real_args_count];
 
     let deleg_parent_args_without_self_count =
         get_delegation_parent_args_count_without_self(tcx, delegation_id, sig_id);
@@ -442,14 +446,20 @@ fn create_generic_args<'tcx>(
             // Special case, as user specifies Trait args in impl trait header, we want to treat
             // them as parent args.
             parent_args = create_trait_impl_to_trait_parent_args(tcx, delegation_id);
-            tcx.mk_args(&delegation_args[delegation_parent_args_count..])
+
+            // Do not take child args into account as the resulting signature should be the same
+            // as in trait, if signature is incorrect then we should emit error.
+            child_args = &[];
+
+            &delegation_args[delegation_generics.parent_count..]
         }
 
         (FnKind::AssocInherentImpl, FnKind::AssocTrait) => {
             let self_ty = create_inherent_impl_to_trait_self_ty(tcx, delegation_id);
 
             tcx.mk_args_from_iter(
-                std::iter::once(ty::GenericArg::from(self_ty)).chain(delegation_args.iter()),
+                std::iter::once(ty::GenericArg::from(self_ty))
+                    .chain(delegation_args.iter().map(|a| *a)),
             )
         }
 
@@ -522,7 +532,7 @@ fn create_generic_args<'tcx>(
         new_args.extend_from_slice(&child_args[child_lifetimes_count..]);
     } else {
         if !parent_args.is_empty() {
-            let child_args = &delegation_args[delegation_parent_args_count..];
+            let child_args = &delegation_args[delegation_generics.parent_count..];
 
             let child_lifetimes_count =
                 child_args.iter().take_while(|a| a.as_region().is_some()).count();
@@ -538,6 +548,8 @@ fn create_generic_args<'tcx>(
             new_args.extend(child_args.iter().skip(child_lifetimes_count).skip(skip_self as usize));
         }
     }
+
+    new_args.extend(synth_args);
 
     new_args
 }

@@ -6,7 +6,7 @@
 mod free_to_trait {
     mod test_1 {
         trait Trait<'b, 'c, 'a, T, const N: usize>: Sized {
-            fn foo<'d: 'd, U, const M: bool>(self) {}
+            fn foo<'d: 'd, U, const M: bool>(self, f: impl FnOnce() -> ()) {}
         }
 
         impl Trait<'static, 'static, 'static, i32, 1> for u8 {}
@@ -14,12 +14,12 @@ mod free_to_trait {
         pub fn check() {
             fn no_ctx() {
                 reuse Trait::foo as bar;
-                bar::<'static, 'static, 'static, 'static, u8, i32, 1, String, true>(123);
+                bar::<'static, 'static, 'static, 'static, u8, i32, 1, String, true>(123, || ());
             }
 
             fn with_ctx<'a, 'b, 'c, A, B, C, const N: usize, const M: bool>() {
                 reuse Trait::foo as bar;
-                bar::<'static, 'static, 'static, 'a, u8, i32, 1, A, M>(123);
+                bar::<'static, 'static, 'static, 'a, u8, i32, 1, A, M>(123, || ());
             }
 
             no_ctx();

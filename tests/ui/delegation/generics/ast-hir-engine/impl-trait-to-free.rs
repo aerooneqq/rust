@@ -6,14 +6,14 @@
 mod test_1 {
     mod to_reuse {
         pub fn foo<'a: 'a, 'b: 'b, A, B, const N: usize>() {}
-        pub fn bar<'a: 'a, 'b: 'b, A, B, const N: usize>(x: &super::XX) {}
+        pub fn bar<'a: 'a, 'b: 'b, A, B, const N: usize>(x: &super::XX, f: impl FnOnce(A) -> B) {}
     }
 
     trait Trait<'a, 'b, 'c, A, B, const N: usize>: Sized {
         fn foo<'x: 'x, 'y: 'y, AA, BB, const NN: usize>() {}
-        fn bar<'x: 'x, 'y: 'y, AA, BB, const NN: usize>(&self) {}
+        fn bar<'x: 'x, 'y: 'y, AA, BB, const NN: usize>(&self, f: impl FnOnce(AA) -> BB) {}
         fn oof() {}
-        fn rab(&self) {}
+        fn rab(&self, f: impl FnOnce(A) -> B) {}
     }
 
     struct X<'x1, 'x2, 'x3, 'x4, X1, X2, const X3: usize>(
@@ -25,7 +25,7 @@ mod test_1 {
         reuse to_reuse::bar;
 
         reuse to_reuse::foo::<'a, 'c, A, String, 322> as oof;
-        reuse to_reuse::bar::<'a, 'c, i32, B, 223> as rab;
+        reuse to_reuse::bar::<'a, 'c, A, B, 223> as rab;
     }
 
     pub fn check() {
@@ -34,9 +34,9 @@ mod test_1 {
         <XX as Trait<'static, 'static, 'static, i32, i32, 1>>
             ::foo::<'static, 'static, i8, i16, 123>();
         <XX as Trait<'static, 'static, 'static, i32, i32, 1>>
-            ::bar::<'static, 'static, String, i16, 123>(&x);
+            ::bar::<'static, 'static, String, i16, 123>(&x, |x| 123);
         <XX as Trait<'static, 'static, 'static, i32, i32, 1>>::oof();
-        <XX as Trait<'static, 'static, 'static, i32, i32, 1>>::rab(&x);
+        <XX as Trait<'static, 'static, 'static, i32, String, 1>>::rab(&x, |x| 123.to_string());
     }
 }
 

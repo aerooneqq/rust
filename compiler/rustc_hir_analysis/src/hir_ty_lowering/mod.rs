@@ -645,6 +645,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
             span: Span,
             infer_args: bool,
             incorrect_args: &'a Result<(), GenericArgCountMismatch>,
+            add_synthetic_params: bool,
         }
 
         impl<'a, 'tcx> GenericArgsLowerer<'a, 'tcx> for GenericArgsCtxt<'a, 'tcx> {
@@ -737,7 +738,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
                     GenericParamDefKind::Lifetime => {
                         self.lowerer.re_infer(self.span, RegionInferReason::Param(param)).into()
                     }
-                    GenericParamDefKind::Type { has_default, .. } => {
+                    GenericParamDefKind::Type { has_default, synthetic } => {
                         if !infer_args && has_default {
                             // No type parameter provided, but a default exists.
                             if let Some(prev) =
@@ -753,6 +754,8 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
                                 .type_of(param.def_id)
                                 .instantiate(tcx, preceding_args)
                                 .into()
+                        } else if self.add_synthetic_params && synthetic {
+                            Ty::new_param(tcx, param.index, param.name).into()
                         } else if infer_args {
                             self.lowerer.ty_infer(Some(param), self.span).into()
                         } else {
@@ -783,6 +786,9 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
             }
         }
 
+        let add_synthetic_params =
+            matches!(pos, GenericArgPosition::MethodCall | GenericArgPosition::Value);
+
         let mut args_ctx = GenericArgsCtxt {
             lowerer: self,
             def_id,
@@ -790,6 +796,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
             generic_args: segment.args(),
             infer_args: segment.infer_args,
             incorrect_args: &arg_count.correct,
+            add_synthetic_params,
         };
 
         let args = lower_generic_args(
@@ -2923,7 +2930,10 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
                 )
                 .0;
 
-            &args[parent_args.len()..]
+            let synth_params_count =
+                self.tcx().generics_of(self.item_def_id()).own_synthetic_params_count();
+
+            &args[parent_args.len()..args.len() - synth_params_count]
         });
 
         (parent_args.unwrap_or(&[]), child_args.unwrap_or(&[]))
