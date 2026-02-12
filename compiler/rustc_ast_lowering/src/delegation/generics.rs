@@ -74,29 +74,6 @@ impl<'hir> LoweringContext<'_, 'hir> {
         })
     }
 
-    fn lower_ast_generics(
-        &mut self,
-        item_id: NodeId,
-        span: Span,
-        generics: &DelegationGenerics<Generics>,
-    ) -> DelegationGenerics<&'hir hir::Generics<'hir>> {
-        let mut process_params = |generics: &Option<Generics>| {
-            generics
-                .as_ref()
-                .map(|g| self.lower_delegation_generic_params(item_id, span, g.params.clone()))
-        };
-
-        match generics {
-            DelegationGenerics::UserSpecified => DelegationGenerics::UserSpecified,
-            DelegationGenerics::Default(generics) => {
-                DelegationGenerics::Default(process_params(generics))
-            }
-            DelegationGenerics::SelfAndUserSpecified(generics) => {
-                DelegationGenerics::SelfAndUserSpecified(process_params(generics))
-            }
-        }
-    }
-
     fn lower_delegation_generic_params(
         &mut self,
         item_id: NodeId,
@@ -378,9 +355,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
         };
 
         if add_self {
-            generics = Some(generics.unwrap_or(Generics::default()));
-
-            generics.as_mut().unwrap().params.insert(
+            generics.get_or_insert_default().params.insert(
                 0,
                 GenericParam {
                     id: self.next_node_id(),
@@ -411,10 +386,26 @@ impl<'hir> HirOrAstGenerics<'hir> {
         span: Span,
     ) -> &mut Self {
         match self {
-            HirOrAstGenerics::Ast(delegation_generics) => {
-                *self = Self::Hir(ctx.lower_ast_generics(item_id, span, delegation_generics));
+            HirOrAstGenerics::Ast(generics) => {
+                let mut process_params = |generics: &Option<Generics>| {
+                    generics.as_ref().map(|g| {
+                        ctx.lower_delegation_generic_params(item_id, span, g.params.clone())
+                    })
+                };
+
+                let hir_generics = match generics {
+                    DelegationGenerics::UserSpecified => DelegationGenerics::UserSpecified,
+                    DelegationGenerics::Default(generics) => {
+                        DelegationGenerics::Default(process_params(generics))
+                    }
+                    DelegationGenerics::SelfAndUserSpecified(generics) => {
+                        DelegationGenerics::SelfAndUserSpecified(process_params(generics))
+                    }
+                };
+
+                *self = Self::Hir(hir_generics);
             }
-            HirOrAstGenerics::Hir(_) => {}
+            Self::Hir(_) => {}
         }
 
         self
@@ -422,12 +413,12 @@ impl<'hir> HirOrAstGenerics<'hir> {
 
     fn hir_generics_or_empty(&self) -> &'hir hir::Generics<'hir> {
         match self {
-            HirOrAstGenerics::Ast(_) => hir::Generics::empty(),
-            HirOrAstGenerics::Hir(hir_generics) => match hir_generics {
+            Self::Ast(_) => hir::Generics::empty(),
+            Self::Hir(hir_generics) => match hir_generics {
                 DelegationGenerics::UserSpecified => hir::Generics::empty(),
                 DelegationGenerics::Default(generics)
                 | DelegationGenerics::SelfAndUserSpecified(generics) => {
-                    generics.as_ref().unwrap_or(&hir::Generics::empty())
+                    generics.unwrap_or(hir::Generics::empty())
                 }
             },
         }
@@ -440,8 +431,8 @@ impl<'hir> HirOrAstGenerics<'hir> {
         span: Span,
     ) -> Option<&'hir hir::GenericArgs<'hir>> {
         match self {
-            HirOrAstGenerics::Ast(_) => None,
-            HirOrAstGenerics::Hir(hir_generics) => match hir_generics {
+            Self::Ast(_) => None,
+            Self::Hir(hir_generics) => match hir_generics {
                 DelegationGenerics::UserSpecified => None,
                 DelegationGenerics::Default(generics)
                 | DelegationGenerics::SelfAndUserSpecified(generics) => generics.map(|generics| {
@@ -453,8 +444,8 @@ impl<'hir> HirOrAstGenerics<'hir> {
 
     pub(super) fn is_user_specified(&self) -> bool {
         match self {
-            HirOrAstGenerics::Ast(ast_generics) => ast_generics.is_user_specified(),
-            HirOrAstGenerics::Hir(hir_generics) => hir_generics.is_user_specified(),
+            Self::Ast(ast_generics) => ast_generics.is_user_specified(),
+            Self::Hir(hir_generics) => hir_generics.is_user_specified(),
         }
     }
 }
