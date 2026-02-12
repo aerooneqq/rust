@@ -290,21 +290,18 @@ pub(crate) fn get_delegation_self_ty<'tcx>(
                         .iter()
                         .skip_while(|a| a.as_region().is_some())
                         .next()
-                        .map(|a| a.as_type())
-                        .flatten()
+                        .and_then(|a| a.as_type())
                 }
                 SelfPositionKind::Zero => ty::GenericArgs::identity_for_item(tcx, delegation_id)
                     .first()
-                    .map(|a| a.as_type())
-                    .flatten(),
+                    .and_then(|a| a.as_type()),
             }
         }
 
         (FnKind::AssocTraitImpl, FnKind::AssocTrait) => {
             create_trait_impl_to_trait_parent_args(tcx, delegation_id)
                 .first()
-                .map(|a| a.as_type())
-                .flatten()
+                .and_then(|a| a.as_type())
         }
 
         (FnKind::AssocInherentImpl, FnKind::AssocTrait) => {
@@ -397,13 +394,13 @@ fn create_generic_args<'tcx>(
 
         match self_pos_kind {
             SelfPositionKind::AfterLifetimes => {
-                new_args.extend(parent_args.iter().skip(1).take(parent_args_lifetimes_count));
+                new_args.extend(&parent_args[1..1 + parent_args_lifetimes_count]);
 
                 lifetimes_end_pos = parent_args_lifetimes_count;
 
                 new_args.push(parent_args[0]);
 
-                new_args.extend(parent_args.iter().skip(1 + parent_args_lifetimes_count));
+                new_args.extend(&parent_args[1 + parent_args_lifetimes_count..]);
             }
             SelfPositionKind::Zero => {
                 lifetimes_end_pos = 1 /* Self */ + parent_args_lifetimes_count;
@@ -423,10 +420,8 @@ fn create_generic_args<'tcx>(
 
         lifetimes_end_pos = self_impact
             + deleg_parent_args_without_self_count
-            + args
+            + &args[self_impact + deleg_parent_args_without_self_count..]
                 .iter()
-                .skip(self_impact)
-                .skip(deleg_parent_args_without_self_count)
                 .filter(|a| a.as_region().is_some())
                 .count();
 
@@ -453,7 +448,7 @@ fn create_generic_args<'tcx>(
             }
 
             let skip_self = matches!(self_pos_kind, SelfPositionKind::AfterLifetimes);
-            new_args.extend(child_args.iter().skip(child_lifetimes_count).skip(skip_self as usize));
+            new_args.extend(&child_args[child_lifetimes_count + skip_self as usize..]);
         }
     }
 
