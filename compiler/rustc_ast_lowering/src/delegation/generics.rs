@@ -193,6 +193,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
         &mut self,
         params: &[hir::GenericParam<'hir>],
         add_lifetimes: bool,
+        span: Span,
     ) -> &'hir hir::GenericArgs<'hir> {
         self.arena.alloc(hir::GenericArgs {
             args: self.arena.alloc_from_iter(params.iter().filter_map(|p| {
@@ -258,7 +259,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
             })),
             constraints: &[],
             parenthesized: hir::GenericArgsParentheses::No,
-            span_ext: DUMMY_SP,
+            span_ext: span,
         })
     }
 
@@ -436,6 +437,7 @@ impl<'hir> HirOrAstGenerics<'hir> {
         &self,
         ctx: &mut LoweringContext<'_, 'hir>,
         add_lifetimes: bool,
+        span: Span,
     ) -> Option<&'hir hir::GenericArgs<'hir>> {
         match self {
             HirOrAstGenerics::Ast(_) => None,
@@ -443,7 +445,7 @@ impl<'hir> HirOrAstGenerics<'hir> {
                 DelegationGenerics::UserSpecified => None,
                 DelegationGenerics::Default(generics)
                 | DelegationGenerics::SelfAndUserSpecified(generics) => generics.map(|generics| {
-                    ctx.create_generics_args_from_params(generics.params, add_lifetimes)
+                    ctx.create_generics_args_from_params(generics.params, add_lifetimes, span)
                 }),
             },
         }
