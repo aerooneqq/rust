@@ -4,6 +4,7 @@
 
 use rustc_data_structures::debug_assert_matches;
 use rustc_data_structures::fx::FxHashMap;
+use rustc_hir::DelegationGenerics;
 use rustc_hir::def::DefKind;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_middle::ty::{
@@ -11,6 +12,8 @@ use rustc_middle::ty::{
     TypeVisitableExt,
 };
 use rustc_span::{ErrorGuaranteed, Span};
+
+use crate::collect::ItemCtxt;
 
 type RemapTable = FxHashMap<u32, u32>;
 
@@ -60,8 +63,15 @@ impl<'tcx> TypeFolder<TyCtxt<'tcx>> for ParamIndexRemapper<'tcx> {
     }
 }
 
+#[derive(Debug)]
+enum PropagateSelfTy {
+    Yes,
+    No,
+}
+
+#[derive(Debug)]
 enum SelfPositionKind {
-    AfterLifetimes,
+    AfterLifetimes(PropagateSelfTy),
     Zero,
     None,
 }
@@ -74,16 +84,30 @@ macro_rules! unsupported_caller_callee_kinds {
     };
 }
 
-fn create_self_position_kind(caller_kind: FnKind, callee_kind: FnKind) -> SelfPositionKind {
-    match (caller_kind, callee_kind) {
+fn create_self_position_kind(
+    tcx: TyCtxt<'_>,
+    def_id: LocalDefId,
+    sig_id: DefId,
+) -> SelfPositionKind {
+    match get_caller_and_callee_kind(tcx, def_id, sig_id) {
         (FnKind::AssocInherentImpl, FnKind::AssocTrait)
         | (FnKind::AssocTraitImpl, FnKind::AssocTrait)
         | (FnKind::AssocTrait, FnKind::AssocTrait)
         | (FnKind::AssocTrait, FnKind::Free) => SelfPositionKind::Zero,
 
-        (FnKind::Free, FnKind::AssocTrait) => SelfPositionKind::AfterLifetimes,
+        (FnKind::Free, FnKind::AssocTrait) => {
+            SelfPositionKind::AfterLifetimes(should_propagate_self_ty(tcx, def_id))
+        }
 
         _ => SelfPositionKind::None,
+    }
+}
+
+fn should_propagate_self_ty(tcx: TyCtxt<'_>, delegation_id: LocalDefId) -> PropagateSelfTy {
+    if get_delegation_generics_info(tcx, delegation_id).propagate_self_ty {
+        PropagateSelfTy::Yes
+    } else {
+        PropagateSelfTy::No
     }
 }
 
@@ -107,6 +131,13 @@ fn fn_kind<'tcx>(tcx: TyCtxt<'tcx>, def_id: DefId) -> FnKind {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum SelfPredsFilterKind {
+    None,
+    OnlyExplicitTrait,
+    All,
+}
+
 /// Given the current context(caller and callee `FnKind`), it specifies
 /// the policy of predicates and generic parameters inheritance.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -120,11 +151,17 @@ enum InheritanceKind {
     ///
     /// FIXME(fn_delegation): This often leads to type inference
     /// errors. Support providing generic arguments or restrict use sites.
-    WithParent(bool),
+    WithParent(SelfPredsFilterKind),
     /// The trait implementation should be compatible with the original trait.
     /// Therefore, for trait implementations only the method's own parameters
     /// and predicates are copied.
     Own,
+}
+
+impl InheritanceKind {
+    fn filter_all_self_preds(&self) -> bool {
+        matches!(self, Self::WithParent(SelfPredsFilterKind::All))
+    }
 }
 
 /// Maps sig generics into generic args of delegation. Delegation generics has the following pattern:
@@ -144,8 +181,8 @@ fn create_mapping<'tcx>(
 ) -> FxHashMap<u32, u32> {
     let mut mapping: FxHashMap<u32, u32> = Default::default();
 
-    let (caller_kind, callee_kind) = get_caller_and_callee_kind(tcx, def_id, sig_id);
-    let self_pos_kind = create_self_position_kind(caller_kind, callee_kind);
+    let (_, callee_kind) = get_caller_and_callee_kind(tcx, def_id, sig_id);
+    let self_pos_kind = create_self_position_kind(tcx, def_id, sig_id);
     let is_self_at_zero = matches!(self_pos_kind, SelfPositionKind::Zero);
 
     // Is self at zero? If so insert mapping, self in sig parent is always at 0.
@@ -186,7 +223,7 @@ fn create_mapping<'tcx>(
     }
 
     // If self after lifetimes insert mapping, relying that self is at 0 in sig parent
-    if matches!(self_pos_kind, SelfPositionKind::AfterLifetimes) {
+    if matches!(self_pos_kind, SelfPositionKind::AfterLifetimes { .. }) {
         mapping.insert(0, args_index as u32);
         args_index += 1;
     }
@@ -250,8 +287,16 @@ fn get_parent_and_inheritance_kind<'tcx>(
     sig_id: DefId,
 ) -> (Option<DefId>, InheritanceKind) {
     match get_caller_and_callee_kind(tcx, def_id, sig_id) {
-        (FnKind::Free, FnKind::Free) | (FnKind::Free, FnKind::AssocTrait) => {
-            (None, InheritanceKind::WithParent(true))
+        (FnKind::Free, FnKind::AssocTrait) => (
+            None,
+            InheritanceKind::WithParent(match should_propagate_self_ty(tcx, def_id) {
+                PropagateSelfTy::No => SelfPredsFilterKind::None,
+                PropagateSelfTy::Yes => SelfPredsFilterKind::All,
+            }),
+        ),
+
+        (FnKind::Free, FnKind::Free) => {
+            (None, InheritanceKind::WithParent(SelfPredsFilterKind::None))
         }
 
         (FnKind::AssocTraitImpl, FnKind::AssocTrait) => {
@@ -261,9 +306,10 @@ fn get_parent_and_inheritance_kind<'tcx>(
         (FnKind::AssocInherentImpl, FnKind::AssocTrait)
         | (FnKind::AssocTrait, FnKind::AssocTrait)
         | (FnKind::AssocInherentImpl, FnKind::Free)
-        | (FnKind::AssocTrait, FnKind::Free) => {
-            (Some(tcx.parent(def_id.into())), InheritanceKind::WithParent(false))
-        }
+        | (FnKind::AssocTrait, FnKind::Free) => (
+            Some(tcx.parent(def_id.into())),
+            InheritanceKind::WithParent(SelfPredsFilterKind::OnlyExplicitTrait),
+        ),
 
         unsupported_caller_callee_kinds!() => unreachable!(),
     }
@@ -283,16 +329,17 @@ pub(crate) fn get_delegation_self_ty<'tcx>(
         | (FnKind::AssocInherentImpl, FnKind::Free)
         | (FnKind::AssocTrait, FnKind::Free)
         | (FnKind::AssocTrait, FnKind::AssocTrait) => {
-            match create_self_position_kind(caller_kind, callee_kind) {
+            match create_self_position_kind(tcx, delegation_id, sig_id) {
                 SelfPositionKind::None => None,
-                SelfPositionKind::AfterLifetimes => {
-                    ty::GenericArgs::identity_for_item(tcx, delegation_id)
+                SelfPositionKind::AfterLifetimes(propagate_self_ty) => match propagate_self_ty {
+                    PropagateSelfTy::Yes => Some(get_delegation_self_ty_or_err(tcx, delegation_id)),
+                    PropagateSelfTy::No => ty::GenericArgs::identity_for_item(tcx, delegation_id)
                         .iter()
                         .skip_while(|a| a.as_region().is_some())
                         .next()
                         .map(|a| a.as_type())
-                        .flatten()
-                }
+                        .flatten(),
+                },
                 SelfPositionKind::Zero => ty::GenericArgs::identity_for_item(tcx, delegation_id)
                     .first()
                     .map(|a| a.as_type())
@@ -313,6 +360,22 @@ pub(crate) fn get_delegation_self_ty<'tcx>(
 
         unsupported_caller_callee_kinds!() => unreachable!(),
     }
+}
+
+fn get_delegation_self_ty_or_err(tcx: TyCtxt<'_>, delegation_id: LocalDefId) -> Ty<'_> {
+    get_delegation_generics_info(tcx, delegation_id)
+        .self_ty_id
+        .map(|id| {
+            let ctx = ItemCtxt::new(tcx, delegation_id);
+            ctx.lower_ty(tcx.hir_node(id).expect_ty())
+        })
+        .unwrap_or_else(|| {
+            Ty::new_error_with_message(
+                tcx,
+                tcx.def_span(delegation_id),
+                "The self type must be provided",
+            )
+        })
 }
 
 fn create_trait_impl_to_trait_parent_args<'tcx>(
@@ -388,7 +451,7 @@ fn create_generic_args<'tcx>(
 
     let mut new_args = vec![];
 
-    let self_pos_kind = create_self_position_kind(caller_kind, callee_kind);
+    let self_pos_kind = create_self_position_kind(tcx, delegation_id, sig_id);
     let mut lifetimes_end_pos;
 
     if !parent_args.is_empty() {
@@ -396,7 +459,7 @@ fn create_generic_args<'tcx>(
             parent_args.iter().filter(|a| a.as_region().is_some()).count();
 
         match self_pos_kind {
-            SelfPositionKind::AfterLifetimes => {
+            SelfPositionKind::AfterLifetimes { .. } => {
                 new_args.extend(parent_args.iter().skip(1).take(parent_args_lifetimes_count));
 
                 lifetimes_end_pos = parent_args_lifetimes_count;
@@ -431,6 +494,15 @@ fn create_generic_args<'tcx>(
                 .count();
 
         new_args.extend_from_slice(args);
+
+        // Parent args are empty, then if we should propagate self ty (meaning Self generic arg
+        // was not generated) then we should insert it, as it won't be in `args`
+        if matches!(self_pos_kind, SelfPositionKind::AfterLifetimes(PropagateSelfTy::Yes)) {
+            new_args.insert(
+                lifetimes_end_pos,
+                ty::GenericArg::from(get_delegation_self_ty_or_err(tcx, delegation_id)),
+            );
+        }
     }
 
     if !child_args.is_empty() {
@@ -452,7 +524,10 @@ fn create_generic_args<'tcx>(
                 new_args.insert(lifetimes_end_pos + i, child_args[i]);
             }
 
-            let skip_self = matches!(self_pos_kind, SelfPositionKind::AfterLifetimes);
+            // If self_ty is propagated it means that Self generic param was not generated.
+            let skip_self =
+                matches!(self_pos_kind, SelfPositionKind::AfterLifetimes(PropagateSelfTy::No));
+
             new_args.extend(child_args.iter().skip(child_lifetimes_count).skip(skip_self as usize));
         }
     }
@@ -472,6 +547,7 @@ pub(crate) fn inherit_predicates_for_delegation_item<'tcx>(
         preds: Vec<(ty::Clause<'tcx>, Span)>,
         args: Vec<ty::GenericArg<'tcx>>,
         folder: ParamIndexRemapper<'tcx>,
+        filter_out_self_preds: bool,
     }
 
     impl<'tcx> PredicatesCollector<'tcx> {
@@ -479,8 +555,9 @@ pub(crate) fn inherit_predicates_for_delegation_item<'tcx>(
             tcx: TyCtxt<'tcx>,
             args: Vec<ty::GenericArg<'tcx>>,
             folder: ParamIndexRemapper<'tcx>,
+            filter_out_self_preds: bool,
         ) -> PredicatesCollector<'tcx> {
-            PredicatesCollector { tcx, preds: vec![], args, folder }
+            PredicatesCollector { tcx, preds: vec![], args, folder, filter_out_self_preds }
         }
 
         fn with_own_preds(
@@ -492,6 +569,14 @@ pub(crate) fn inherit_predicates_for_delegation_item<'tcx>(
             let mut new_predicates = vec![];
 
             for pred in preds.predicates {
+                if self.filter_out_self_preds
+                    && let Some(trait_pred) = pred.0.as_trait_clause()
+                    // Rely that Self has zero index.
+                    && trait_pred.self_ty().skip_binder().is_param(0)
+                {
+                    continue;
+                }
+
                 new_predicates.push((pred.0.fold_with(&mut self.folder), pred.1));
             }
 
@@ -523,20 +608,22 @@ pub(crate) fn inherit_predicates_for_delegation_item<'tcx>(
     }
 
     let (folder, args) = create_folder_and_args(tcx, def_id, sig_id, parent_args, child_args);
-    let collector = PredicatesCollector::new(tcx, args, folder);
-
     let (parent, inh_kind) = get_parent_and_inheritance_kind(tcx, def_id, sig_id);
+
+    let collector = PredicatesCollector::new(tcx, args, folder, inh_kind.filter_all_self_preds());
 
     // `explicit_predicates_of` is used here to avoid copying `Self: Trait` predicate.
     // Note: `predicates_of` query can also add inferred outlives predicates, but that
     // is not the case here as `sig_id` is either a trait or a function.
     let preds = match inh_kind {
-        InheritanceKind::WithParent(false) => {
+        InheritanceKind::WithParent(SelfPredsFilterKind::OnlyExplicitTrait) => {
             collector.with_preds(|def_id| tcx.explicit_predicates_of(def_id), sig_id)
         }
-        InheritanceKind::WithParent(true) => {
+
+        InheritanceKind::WithParent(SelfPredsFilterKind::None | SelfPredsFilterKind::All) => {
             collector.with_preds(|def_id| tcx.predicates_of(def_id), sig_id)
         }
+
         InheritanceKind::Own => {
             collector.with_own_preds(|def_id| tcx.predicates_of(def_id), sig_id)
         }
@@ -603,4 +690,16 @@ pub(crate) fn inherit_sig_for_delegation_item<'tcx>(
     let sig = caller_sig.instantiate(tcx, args.as_slice()).skip_binder();
     let sig_iter = sig.inputs().iter().cloned().chain(std::iter::once(sig.output()));
     tcx.arena.alloc_from_iter(sig_iter)
+}
+
+pub(crate) fn get_delegation_generics_info(
+    tcx: TyCtxt<'_>,
+    delegation_id: LocalDefId,
+) -> &DelegationGenerics {
+    tcx.hir_node(tcx.local_def_id_to_hir_id(delegation_id))
+        .fn_sig()
+        .expect("Processing delegation")
+        .decl
+        .opt_delegation_generics_info()
+        .expect("Processing delegation")
 }

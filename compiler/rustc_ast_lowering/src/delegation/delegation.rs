@@ -186,7 +186,8 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 // we need a function to extract this information
                 let (param_count, c_variadic) = self.param_count(root_function_id);
 
-                let mut generics = self.lower_delegation_generics(delegation, &ids, item_id);
+                let mut generics =
+                    self.lower_delegation_generics(delegation, &ids, item_id, is_method);
 
                 let body_id = self.lower_delegation_body(
                     delegation,
@@ -687,6 +688,12 @@ impl<'hir> LoweringContext<'_, 'hir> {
                     hir::QPath::TypeRelative(ty, self.arena.alloc(segment))
                 }
             };
+
+            generics.self_ty_id = match new_path {
+                hir::QPath::Resolved(ty, _) => ty,
+                hir::QPath::TypeRelative(ty, _) => Some(ty),
+            }
+            .map(|ty| ty.hir_id);
 
             let callee_path = self.arena.alloc(self.mk_expr(hir::ExprKind::Path(new_path), span));
             self.arena.alloc(self.mk_expr(hir::ExprKind::Call(callee_path, args), span))
