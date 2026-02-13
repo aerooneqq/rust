@@ -1,5 +1,57 @@
+error[E0107]: function takes 2 generic arguments but 1 generic argument was supplied
+  --> $DIR/wrong-args-count-ice.rs:12:11
+   |
+LL |     reuse bar::<i32> as foo;
+   |           ^^^   --- supplied 1 generic argument
+   |           |
+   |           expected 2 generic arguments
+   |
+note: function defined here, with 2 generic parameters: `A`, `B`
+  --> $DIR/wrong-args-count-ice.rs:8:12
+   |
+LL |     pub fn bar<'a: 'a, 'b: 'b, A, B>(x: &super::X) {}
+   |            ^^^                 -  -
+help: add missing generic argument
+   |
+LL |     reuse bar::<i32, B> as foo;
+   |                    +++
+
+error[E0121]: the placeholder `_` is not allowed within types on item signatures for functions
+  --> $DIR/wrong-args-count-ice.rs:15:11
+   |
+LL |     reuse bar::<'static, 'static> as foo1;
+   |           ^^^ not allowed in type signatures
+
+error[E0107]: function takes 2 generic arguments but 9 generic arguments were supplied
+  --> $DIR/wrong-args-count-ice.rs:18:11
+   |
+LL |     reuse bar::<i32, i32, i32, i32, i32, i32, i32, i32, i32> as foo2;
+   |           ^^^           ----------------------------------- help: remove the unnecessary generic arguments
+   |           |
+   |           expected 2 generic arguments
+   |
+note: function defined here, with 2 generic parameters: `A`, `B`
+  --> $DIR/wrong-args-count-ice.rs:8:12
+   |
+LL |     pub fn bar<'a: 'a, 'b: 'b, A, B>(x: &super::X) {}
+   |            ^^^                 -  -
+
+error[E0107]: function takes 2 generic arguments but 10 generic arguments were supplied
+  --> $DIR/wrong-args-count-ice.rs:21:11
+   |
+LL |     reuse bar::<'static, 123, 'static, i32, i32, i32, i32, i32, i32, i32, i32, i32> as foo3;
+   |           ^^^                             ---------------------------------------- help: remove the unnecessary generic arguments
+   |           |
+   |           expected 2 generic arguments
+   |
+note: function defined here, with 2 generic parameters: `A`, `B`
+  --> $DIR/wrong-args-count-ice.rs:8:12
+   |
+LL |     pub fn bar<'a: 'a, 'b: 'b, A, B>(x: &super::X) {}
+   |            ^^^                 -  -
+
 error[E0049]: method `bar4` has 0 type parameters but its trait declaration has 3 type parameters
-  --> $DIR/wrong-args-count-ice.rs:35:21
+  --> $DIR/wrong-args-count-ice.rs:48:21
    |
 LL |     fn bar4<X, Y, Z>(&self) {}
    |             -  -  -
@@ -9,8 +61,83 @@ LL |     fn bar4<X, Y, Z>(&self) {}
 LL |     reuse to_reuse::bar2::<i32, i32, i32, i32, i32, i32, 123, true> as bar4;
    |                     ^^^^ found 0 type parameters
 
+error[E0107]: method takes 0 generic arguments but 8 generic arguments were supplied
+  --> $DIR/wrong-args-count-ice.rs:64:41
+   |
+LL |     reuse Trait::<'a, 'b, 'c, A, B, N>::bar2::<i32, i32, i32, i32, i32, i32, 123, true> as bar3;
+   |                                         ^^^^------------------------------------------- help: remove the unnecessary generics
+   |                                         |
+   |                                         expected 0 generic arguments
+   |
+note: method defined here, with 0 generic parameters
+  --> $DIR/wrong-args-count-ice.rs:28:8
+   |
+LL |     fn bar2(&self) {}
+   |        ^^^^
+
+error[E0049]: method `bar4` has 0 type parameters but its trait declaration has 3 type parameters
+  --> $DIR/wrong-args-count-ice.rs:67:41
+   |
+LL |     fn bar4<X, Y, Z>(&self) {}
+   |             -  -  -
+   |             |
+   |             expected 3 type parameters
+...
+LL |     reuse Trait::<'a, 'b, 'c, A, B, N>::bar2::<i32, i32, i32, i32, i32, i32, 123, true> as bar4;
+   |                                         ^^^^ found 0 type parameters
+
+error: generic arg X is not found in delegation
+  --> $DIR/wrong-args-count-ice.rs:48:21
+   |
+LL |     reuse to_reuse::bar2::<i32, i32, i32, i32, i32, i32, 123, true> as bar4;
+   |                     ^^^^
+
+error: generic arg Y is not found in delegation
+  --> $DIR/wrong-args-count-ice.rs:48:21
+   |
+LL |     reuse to_reuse::bar2::<i32, i32, i32, i32, i32, i32, 123, true> as bar4;
+   |                     ^^^^
+
+error: generic arg Z is not found in delegation
+  --> $DIR/wrong-args-count-ice.rs:48:21
+   |
+LL |     reuse to_reuse::bar2::<i32, i32, i32, i32, i32, i32, 123, true> as bar4;
+   |                     ^^^^
+
+error[E0107]: method takes 0 generic arguments but 8 generic arguments were supplied
+  --> $DIR/wrong-args-count-ice.rs:67:41
+   |
+LL |     reuse Trait::<'a, 'b, 'c, A, B, N>::bar2::<i32, i32, i32, i32, i32, i32, 123, true> as bar4;
+   |                                         ^^^^------------------------------------------- help: remove the unnecessary generics
+   |                                         |
+   |                                         expected 0 generic arguments
+   |
+note: method defined here, with 0 generic parameters
+  --> $DIR/wrong-args-count-ice.rs:28:8
+   |
+LL |     fn bar2(&self) {}
+   |        ^^^^
+
+error: generic arg X is not found in delegation
+  --> $DIR/wrong-args-count-ice.rs:67:41
+   |
+LL |     reuse Trait::<'a, 'b, 'c, A, B, N>::bar2::<i32, i32, i32, i32, i32, i32, 123, true> as bar4;
+   |                                         ^^^^
+
+error: generic arg Y is not found in delegation
+  --> $DIR/wrong-args-count-ice.rs:67:41
+   |
+LL |     reuse Trait::<'a, 'b, 'c, A, B, N>::bar2::<i32, i32, i32, i32, i32, i32, 123, true> as bar4;
+   |                                         ^^^^
+
+error: generic arg Z is not found in delegation
+  --> $DIR/wrong-args-count-ice.rs:67:41
+   |
+LL |     reuse Trait::<'a, 'b, 'c, A, B, N>::bar2::<i32, i32, i32, i32, i32, i32, 123, true> as bar4;
+   |                                         ^^^^
+
 error[E0107]: function takes at most 2 generic arguments but 3 generic arguments were supplied
-  --> $DIR/wrong-args-count-ice.rs:23:21
+  --> $DIR/wrong-args-count-ice.rs:36:21
    |
 LL |     fn bar<'x: 'x, 'y: 'y, AA, BB, const NN: usize>(&self) {}
    |                                  ----------------- help: remove the unnecessary generic argument
@@ -19,56 +146,56 @@ LL |     reuse to_reuse::bar;
    |                     ^^^ expected at most 2 generic arguments
    |
 note: function defined here, with at most 2 generic parameters: `A`, `B`
-  --> $DIR/wrong-args-count-ice.rs:5:12
+  --> $DIR/wrong-args-count-ice.rs:8:12
    |
-LL |     pub fn bar<'a: 'a, 'b: 'b, A, B>(x: &super::XX) {}
+LL |     pub fn bar<'a: 'a, 'b: 'b, A, B>(x: &super::X) {}
    |            ^^^                 -  -
 
 error[E0107]: function takes 0 generic arguments but 3 generic arguments were supplied
-  --> $DIR/wrong-args-count-ice.rs:26:21
+  --> $DIR/wrong-args-count-ice.rs:39:21
    |
 LL |     reuse to_reuse::bar1;
    |                     ^^^^ expected 0 generic arguments
    |
 note: function defined here, with 0 generic parameters
-  --> $DIR/wrong-args-count-ice.rs:6:12
+  --> $DIR/wrong-args-count-ice.rs:9:12
    |
-LL |     pub fn bar1(x: &super::XX) {}
+LL |     pub fn bar1(x: &super::X) {}
    |            ^^^^
 
 error[E0284]: type annotations needed
-  --> $DIR/wrong-args-count-ice.rs:29:21
+  --> $DIR/wrong-args-count-ice.rs:42:21
    |
 LL |     reuse to_reuse::bar2;
-   |                     ^^^^ cannot infer the value of the const parameter `X` declared on the function `bar2`
+   |                     ^^^^ cannot infer the value of the const parameter `M` declared on the function `bar2`
    |
 note: required by a const generic parameter in `bar2`
-  --> $DIR/wrong-args-count-ice.rs:7:35
+  --> $DIR/wrong-args-count-ice.rs:10:35
    |
-LL |     pub fn bar2<A, B, C, D, E, F, const X: usize, const Y: bool>(x: &super::XX) {}
+LL |     pub fn bar2<A, B, C, D, E, F, const M: usize, const Y: bool>(x: &super::X) {}
    |                                   ^^^^^^^^^^^^^^ required by this const generic parameter in `bar2`
 help: consider specifying the generic arguments
    |
-LL |     reuse to_reuse::bar2::<A, B, C, D, E, F, X, Y>;
+LL |     reuse to_reuse::bar2::<A, B, C, D, E, F, M, Y>;
    |                         ++++++++++++++++++++++++++
 
 error[E0284]: type annotations needed
-  --> $DIR/wrong-args-count-ice.rs:29:21
+  --> $DIR/wrong-args-count-ice.rs:42:21
    |
 LL |     reuse to_reuse::bar2;
    |                     ^^^^ cannot infer the value of the const parameter `Y` declared on the function `bar2`
    |
 note: required by a const generic parameter in `bar2`
-  --> $DIR/wrong-args-count-ice.rs:7:51
+  --> $DIR/wrong-args-count-ice.rs:10:51
    |
-LL |     pub fn bar2<A, B, C, D, E, F, const X: usize, const Y: bool>(x: &super::XX) {}
+LL |     pub fn bar2<A, B, C, D, E, F, const M: usize, const Y: bool>(x: &super::X) {}
    |                                                   ^^^^^^^^^^^^^ required by this const generic parameter in `bar2`
 help: consider specifying the generic arguments
    |
-LL |     reuse to_reuse::bar2::<A, B, C, D, E, F, X, Y>;
+LL |     reuse to_reuse::bar2::<A, B, C, D, E, F, M, Y>;
    |                         ++++++++++++++++++++++++++
 
-error: aborting due to 5 previous errors
+error: aborting due to 18 previous errors
 
-Some errors have detailed explanations: E0049, E0107, E0284.
+Some errors have detailed explanations: E0049, E0107, E0121, E0284.
 For more information about an error, try `rustc --explain E0049`.

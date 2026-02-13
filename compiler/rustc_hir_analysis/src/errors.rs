@@ -1878,3 +1878,20 @@ pub(crate) struct ImplUnpinForPinProjectedType {
     pub adt_span: Span,
     pub adt_name: Symbol,
 }
+
+#[derive(Diagnostic)]
+#[diag("unexpected generic arg in delegation, expected {$expected_name}, found {$actual_name}")]
+pub(crate) struct DelegationGenericArgMismatch {
+    #[primary_span]
+    pub span: Span,
+    pub expected_name: Symbol,
+    pub actual_name: String,
+}
+
+#[derive(Diagnostic)]
+#[diag("generic arg {$arg_name} is not found in delegation")]
+pub(crate) struct DelegationGenericArgOutOfBounds {
+    #[primary_span]
+    pub span: Span,
+    pub arg_name: Symbol,
+}

@@ -10,13 +10,15 @@ use rustc_middle::ty::{
     self, EarlyBinder, GenericPredicates, Ty, TyCtxt, TypeFoldable, TypeFolder, TypeSuperFoldable,
     TypeVisitableExt,
 };
-use rustc_span::{ErrorGuaranteed, Span};
+use rustc_span::{ErrorGuaranteed, Span, Symbol};
 
 type RemapTable = FxHashMap<u32, u32>;
 
 struct ParamIndexRemapper<'tcx> {
+    delegation_id: LocalDefId,
     tcx: TyCtxt<'tcx>,
     remap_table: RemapTable,
+    args: Vec<ty::GenericArg<'tcx>>,
 }
 
 impl<'tcx> TypeFolder<TyCtxt<'tcx>> for ParamIndexRemapper<'tcx> {
@@ -30,10 +32,16 @@ impl<'tcx> TypeFolder<TyCtxt<'tcx>> for ParamIndexRemapper<'tcx> {
         }
 
         if let ty::Param(param) = ty.kind()
-            && let Some(index) = self.remap_table.get(&param.index)
+            && let Some(index) = self.remap_table.get(&param.index).copied()
         {
-            return Ty::new_param(self.tcx, *index, param.name);
+            if let Some(err) = self.check_mapped_param(index, param.name, |a| a.as_type().is_some())
+            {
+                return Ty::new_error(self.tcx, err);
+            }
+
+            return Ty::new_param(self.tcx, index, param.name);
         }
+
         ty.super_fold_with(self)
     }
 
@@ -41,6 +49,12 @@ impl<'tcx> TypeFolder<TyCtxt<'tcx>> for ParamIndexRemapper<'tcx> {
         if let ty::ReEarlyParam(param) = r.kind()
             && let Some(index) = self.remap_table.get(&param.index).copied()
         {
+            if let Some(err) =
+                self.check_mapped_param(index, param.name, |a| a.as_region().is_some())
+            {
+                return ty::Region::new_error(self.tcx, err);
+            }
+
             return ty::Region::new_early_param(
                 self.tcx,
                 ty::EarlyParamRegion { index, name: param.name },
@@ -51,12 +65,41 @@ impl<'tcx> TypeFolder<TyCtxt<'tcx>> for ParamIndexRemapper<'tcx> {
 
     fn fold_const(&mut self, ct: ty::Const<'tcx>) -> ty::Const<'tcx> {
         if let ty::ConstKind::Param(param) = ct.kind()
-            && let Some(idx) = self.remap_table.get(&param.index)
+            && let Some(idx) = self.remap_table.get(&param.index).copied()
         {
-            let param = ty::ParamConst::new(*idx, param.name);
-            return ty::Const::new_param(self.tcx, param);
+            if let Some(err) = self.check_mapped_param(idx, param.name, |a| a.as_const().is_some())
+            {
+                return ty::Const::new_error(self.tcx, err);
+            }
+
+            return ty::Const::new_param(self.tcx, ty::ParamConst::new(idx, param.name));
         }
+
         ct.super_fold_with(self)
+    }
+}
+
+impl<'tcx> ParamIndexRemapper<'tcx> {
+    fn check_mapped_param(
+        &self,
+        mapped_index: u32,
+        arg_name: Symbol,
+        kind_checker: impl FnOnce(ty::GenericArg<'tcx>) -> bool,
+    ) -> Option<ErrorGuaranteed> {
+        if mapped_index >= self.args.len() as u32 {
+            Some(self.tcx.dcx().emit_err(crate::errors::DelegationGenericArgOutOfBounds {
+                span: self.tcx.def_span(self.delegation_id),
+                arg_name,
+            }))
+        } else if !kind_checker(self.args[mapped_index as usize]) {
+            Some(self.tcx.dcx().emit_err(crate::errors::DelegationGenericArgMismatch {
+                span: self.tcx.def_span(self.delegation_id),
+                expected_name: arg_name,
+                actual_name: self.args[mapped_index as usize].to_string(),
+            }))
+        } else {
+            None
+        }
     }
 }
 
@@ -348,7 +391,7 @@ fn create_generic_args<'tcx>(
     sig_id: DefId,
     delegation_id: LocalDefId,
     mut parent_args: &[ty::GenericArg<'tcx>],
-    child_args: &[ty::GenericArg<'tcx>],
+    mut child_args: &[ty::GenericArg<'tcx>],
 ) -> Vec<ty::GenericArg<'tcx>> {
     let (caller_kind, callee_kind) = get_caller_and_callee_kind(tcx, delegation_id, sig_id);
 
@@ -369,6 +412,8 @@ fn create_generic_args<'tcx>(
             // Special case, as user specifies Trait args in impl trait header, we want to treat
             // them as parent args.
             parent_args = create_trait_impl_to_trait_parent_args(tcx, delegation_id);
+            child_args = &[];
+
             tcx.mk_args(&delegation_args[delegation_parent_args_count..])
         }
 
@@ -465,17 +510,12 @@ pub(crate) fn inherit_predicates_for_delegation_item<'tcx>(
     struct PredicatesCollector<'tcx> {
         tcx: TyCtxt<'tcx>,
         preds: Vec<(ty::Clause<'tcx>, Span)>,
-        args: Vec<ty::GenericArg<'tcx>>,
         folder: ParamIndexRemapper<'tcx>,
     }
 
     impl<'tcx> PredicatesCollector<'tcx> {
-        fn new(
-            tcx: TyCtxt<'tcx>,
-            args: Vec<ty::GenericArg<'tcx>>,
-            folder: ParamIndexRemapper<'tcx>,
-        ) -> PredicatesCollector<'tcx> {
-            PredicatesCollector { tcx, preds: vec![], args, folder }
+        fn new(tcx: TyCtxt<'tcx>, folder: ParamIndexRemapper<'tcx>) -> PredicatesCollector<'tcx> {
+            PredicatesCollector { tcx, preds: vec![], folder }
         }
 
         fn with_own_preds(
@@ -496,7 +536,7 @@ pub(crate) fn inherit_predicates_for_delegation_item<'tcx>(
             };
 
             let preds = EarlyBinder::bind(preds.predicates)
-                .iter_instantiated_copied(self.tcx, self.args.as_slice());
+                .iter_instantiated_copied(self.tcx, self.folder.args.as_slice());
 
             self.preds.extend(preds);
 
@@ -517,8 +557,8 @@ pub(crate) fn inherit_predicates_for_delegation_item<'tcx>(
         }
     }
 
-    let (folder, args) = create_folder_and_args(tcx, def_id, sig_id, parent_args, child_args);
-    let collector = PredicatesCollector::new(tcx, args, folder);
+    let folder = create_folder(tcx, def_id, sig_id, parent_args, child_args);
+    let collector = PredicatesCollector::new(tcx, folder);
 
     let (parent, inh_kind) = get_parent_and_inheritance_kind(tcx, def_id, sig_id);
 
@@ -541,17 +581,17 @@ pub(crate) fn inherit_predicates_for_delegation_item<'tcx>(
     ty::GenericPredicates { parent, predicates: tcx.arena.alloc_from_iter(preds) }
 }
 
-fn create_folder_and_args<'tcx>(
+fn create_folder<'tcx>(
     tcx: TyCtxt<'tcx>,
-    def_id: LocalDefId,
+    delegation_id: LocalDefId,
     sig_id: DefId,
     parent_args: &'tcx [ty::GenericArg<'tcx>],
     child_args: &'tcx [ty::GenericArg<'tcx>],
-) -> (ParamIndexRemapper<'tcx>, Vec<ty::GenericArg<'tcx>>) {
-    let args = create_generic_args(tcx, sig_id, def_id, parent_args, child_args);
-    let remap_table = create_mapping(tcx, sig_id, def_id, &args);
+) -> ParamIndexRemapper<'tcx> {
+    let args = create_generic_args(tcx, sig_id, delegation_id, parent_args, child_args);
+    let remap_table = create_mapping(tcx, sig_id, delegation_id, &args);
 
-    (ParamIndexRemapper { tcx, remap_table }, args)
+    ParamIndexRemapper { delegation_id, tcx, remap_table, args }
 }
 
 fn check_constraints<'tcx>(
@@ -592,10 +632,10 @@ pub(crate) fn inherit_sig_for_delegation_item<'tcx>(
         return tcx.arena.alloc_from_iter((0..sig_len).map(|_| err_type));
     }
 
-    let (mut folder, args) = create_folder_and_args(tcx, def_id, sig_id, parent_args, child_args);
+    let mut folder = create_folder(tcx, def_id, sig_id, parent_args, child_args);
     let caller_sig = EarlyBinder::bind(caller_sig.skip_binder().fold_with(&mut folder));
 
-    let sig = caller_sig.instantiate(tcx, args.as_slice()).skip_binder();
+    let sig = caller_sig.instantiate(tcx, folder.args.as_slice()).skip_binder();
     let sig_iter = sig.inputs().iter().cloned().chain(std::iter::once(sig.output()));
     tcx.arena.alloc_from_iter(sig_iter)
 }
