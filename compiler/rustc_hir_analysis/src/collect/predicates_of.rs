@@ -16,7 +16,7 @@ use tracing::{debug, instrument, trace};
 use super::item_bounds::explicit_item_bounds_with_filter;
 use crate::collect::ItemCtxt;
 use crate::constrained_generic_params as cgp;
-use crate::delegation::inherit_predicates_for_delegation_item;
+use crate::delegation::{inherit_predicates_for_delegation_item, opt_delegation_sig_id};
 use crate::hir_ty_lowering::{
     HirTyLowerer, ImpliedBoundsContext, OverlappingAsssocItemConstraints, PredicateFilter,
     RegionInferReason,
@@ -139,9 +139,7 @@ fn gather_explicit_predicates_of(tcx: TyCtxt<'_>, def_id: LocalDefId) -> ty::Gen
 
     let icx = ItemCtxt::new(tcx, def_id);
 
-    if let Some(sig) = node.fn_sig()
-        && let Some(sig_id) = sig.decl.opt_delegation_sig_id()
-    {
+    if let Some(sig_id) = opt_delegation_sig_id(&node) {
         let (parent_args, child_args) = icx.lowerer().get_delegation_user_specified_args();
 
         return inherit_predicates_for_delegation_item(

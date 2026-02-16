@@ -6,7 +6,7 @@ use rustc_data_structures::debug_assert_matches;
 use rustc_data_structures::fx::FxHashMap;
 use rustc_hir::def::DefKind;
 use rustc_hir::def_id::{DefId, LocalDefId};
-use rustc_hir::{DelegationGenerics, DelegationParentGenerics};
+use rustc_hir::{DelegationGenerics, DelegationParentGenerics, Node};
 use rustc_middle::ty::{
     self, EarlyBinder, GenericPredicates, Ty, TyCtxt, TypeFoldable, TypeFolder, TypeSuperFoldable,
     TypeVisitableExt,
@@ -725,4 +725,8 @@ pub(crate) fn get_delegation_generics_info(
         .decl
         .opt_delegation_generics_info()
         .expect("Processing delegation")
+}
+
+pub(crate) fn opt_delegation_sig_id(node: &Node<'_>) -> Option<DefId> {
+    node.fn_sig().and_then(|sig| sig.decl.opt_delegation_sig_id())
 }
