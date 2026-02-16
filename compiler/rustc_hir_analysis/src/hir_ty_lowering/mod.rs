@@ -2931,8 +2931,6 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
         let parent_args = get_segment(info.parent_args_segment_id).map(|(segment, def_id)| {
             let self_ty = get_delegation_self_ty(self.tcx(), self.item_def_id());
 
-            // FIXME(fn_delegation): execute this call with silenced dcx, as now warnings are duplicated, remove
-            // diagnostics deduplication in `free-fn-to-trait-infer.rs` and `generics-gen-args-errors.rs`.
             self.lower_generic_args_of_path(
                 segment.ident.span,
                 def_id,
@@ -2956,8 +2954,6 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
                 &[]
             };
 
-            // FIXME(fn_delegation): execute this call with silenced dcx, as now warnings are duplicated, remove
-            // diagnostics deduplication in `free-fn-to-trait-infer.rs` and `generics-gen-args-errors.rs`.
             let args = self
                 .lower_generic_args_of_path(
                     segment.ident.span,
