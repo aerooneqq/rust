@@ -10,7 +10,7 @@ use rustc_middle::ty::{
     self, EarlyBinder, GenericPredicates, Ty, TyCtxt, TypeFoldable, TypeFolder, TypeSuperFoldable,
     TypeVisitableExt,
 };
-use rustc_span::{ErrorGuaranteed, Span};
+use rustc_span::{ErrorGuaranteed, Span, kw};
 
 type RemapTable = FxHashMap<u32, u32>;
 
@@ -185,7 +185,7 @@ fn create_mapping<'tcx>(
         args_index += 1;
     }
 
-    // If self after lifetimes insert mapping, relying that self is at 0 in sig parent
+    // If self after lifetimes insert mapping, relying that self is at 0 in sig parent.
     if matches!(self_pos_kind, SelfPositionKind::AfterLifetimes) {
         mapping.insert(0, args_index as u32);
         args_index += 1;
@@ -277,35 +277,25 @@ pub(crate) fn get_delegation_self_ty<'tcx>(
     let (caller_kind, callee_kind) = get_caller_and_callee_kind(tcx, delegation_id, sig_id);
 
     match (caller_kind, callee_kind) {
-        (FnKind::Free, FnKind::Free) => None,
-
         (FnKind::Free, FnKind::AssocTrait)
         | (FnKind::AssocInherentImpl, FnKind::Free)
+        | (FnKind::Free, FnKind::Free)
         | (FnKind::AssocTrait, FnKind::Free)
         | (FnKind::AssocTrait, FnKind::AssocTrait) => {
             match create_self_position_kind(caller_kind, callee_kind) {
                 SelfPositionKind::None => None,
                 SelfPositionKind::AfterLifetimes => {
-                    ty::GenericArgs::identity_for_item(tcx, delegation_id)
-                        .iter()
-                        .skip_while(|a| a.as_region().is_some())
-                        .next()
-                        .and_then(|a| a.as_type())
+                    // Both sig parent and child lifetimes are in included in this count.
+                    Some(tcx.generics_of(delegation_id).own_counts().lifetimes)
                 }
-                SelfPositionKind::Zero => ty::GenericArgs::identity_for_item(tcx, delegation_id)
-                    .first()
-                    .and_then(|a| a.as_type()),
+                SelfPositionKind::Zero => Some(0),
             }
+            .map(|self_index| Ty::new_param(tcx, self_index as u32, kw::SelfUpper))
         }
 
-        (FnKind::AssocTraitImpl, FnKind::AssocTrait) => {
-            create_trait_impl_to_trait_parent_args(tcx, delegation_id)
-                .first()
-                .and_then(|a| a.as_type())
-        }
-
-        (FnKind::AssocInherentImpl, FnKind::AssocTrait) => {
-            Some(create_inherent_impl_to_trait_self_ty(tcx, delegation_id))
+        (FnKind::AssocTraitImpl, FnKind::AssocTrait)
+        | (FnKind::AssocInherentImpl, FnKind::AssocTrait) => {
+            Some(create_parent_self_ty(tcx, delegation_id))
         }
 
         unsupported_caller_callee_kinds!() => unreachable!(),
@@ -320,10 +310,7 @@ fn create_trait_impl_to_trait_parent_args<'tcx>(
     tcx.impl_trait_header(parent).trait_ref.instantiate_identity().args
 }
 
-fn create_inherent_impl_to_trait_self_ty<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    delegation_id: LocalDefId,
-) -> Ty<'tcx> {
+fn create_parent_self_ty<'tcx>(tcx: TyCtxt<'tcx>, delegation_id: LocalDefId) -> Ty<'tcx> {
     let parent = tcx.parent(delegation_id.into());
     tcx.type_of(parent).instantiate_identity()
 }
@@ -373,7 +360,7 @@ fn create_generic_args<'tcx>(
         }
 
         (FnKind::AssocInherentImpl, FnKind::AssocTrait) => {
-            let self_ty = create_inherent_impl_to_trait_self_ty(tcx, delegation_id);
+            let self_ty = create_parent_self_ty(tcx, delegation_id);
 
             tcx.mk_args_from_iter(
                 std::iter::once(ty::GenericArg::from(self_ty)).chain(delegation_args.iter()),
@@ -436,20 +423,18 @@ fn create_generic_args<'tcx>(
         }
 
         new_args.extend_from_slice(&child_args[child_lifetimes_count..]);
-    } else {
-        if !parent_args.is_empty() {
-            let child_args = &delegation_args[delegation_parent_args_count..];
+    } else if !parent_args.is_empty() {
+        let child_args = &delegation_args[delegation_parent_args_count..];
 
-            let child_lifetimes_count =
-                child_args.iter().take_while(|a| a.as_region().is_some()).count();
+        let child_lifetimes_count =
+            child_args.iter().take_while(|a| a.as_region().is_some()).count();
 
-            for i in 0..child_lifetimes_count {
-                new_args.insert(lifetimes_end_pos + i, child_args[i]);
-            }
-
-            let skip_self = matches!(self_pos_kind, SelfPositionKind::AfterLifetimes);
-            new_args.extend(&child_args[child_lifetimes_count + skip_self as usize..]);
+        for i in 0..child_lifetimes_count {
+            new_args.insert(lifetimes_end_pos + i, child_args[i]);
         }
+
+        let skip_self = matches!(self_pos_kind, SelfPositionKind::AfterLifetimes);
+        new_args.extend(&child_args[child_lifetimes_count + skip_self as usize..]);
     }
 
     new_args

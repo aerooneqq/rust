@@ -78,9 +78,9 @@ impl<'hir> LoweringContext<'_, 'hir> {
         &mut self,
         item_id: NodeId,
         span: Span,
-        mut params: ThinVec<GenericParam>,
+        params: &mut ThinVec<GenericParam>,
     ) -> &'hir hir::Generics<'hir> {
-        for p in &mut params {
+        for p in params.iter_mut() {
             // We want to create completely new params, so we generate
             // a new id, otherwise assertions will be triggered.
             p.id = self.next_node_id();
@@ -337,7 +337,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
     ) -> Option<Generics> {
         let id = if let Some(id) = id { id } else { return None };
 
-        // If args are user-specified we still maybe need to add self
+        // If args are user-specified we still maybe need to add self.
         let mut generics = if user_specified {
             None
         } else {
@@ -387,10 +387,10 @@ impl<'hir> HirOrAstGenerics<'hir> {
     ) -> &mut Self {
         match self {
             HirOrAstGenerics::Ast(generics) => {
-                let mut process_params = |generics: &Option<Generics>| {
-                    generics.as_ref().map(|g| {
-                        ctx.lower_delegation_generic_params(item_id, span, g.params.clone())
-                    })
+                let mut process_params = |generics: &mut Option<Generics>| {
+                    generics
+                        .as_mut()
+                        .map(|g| ctx.lower_delegation_generic_params(item_id, span, &mut g.params))
                 };
 
                 let hir_generics = match generics {

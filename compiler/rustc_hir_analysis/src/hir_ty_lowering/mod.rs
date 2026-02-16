@@ -2948,14 +2948,12 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
         let child_args = get_segment(info.child_args_segment_id).map(|(segment, def_id)| {
             let parent_args = if let Some(parent_args) = parent_args {
                 parent_args
+            } else if let Some(parent) = self.tcx().opt_parent(def_id)
+                && matches!(self.tcx().def_kind(parent), DefKind::Trait)
+            {
+                ty::GenericArgs::identity_for_item(self.tcx(), parent).as_slice()
             } else {
-                if let Some(parent) = self.tcx().opt_parent(def_id)
-                    && matches!(self.tcx().def_kind(parent), DefKind::Trait)
-                {
-                    ty::GenericArgs::identity_for_item(self.tcx(), parent).as_slice()
-                } else {
-                    &[]
-                }
+                &[]
             };
 
             // FIXME(fn_delegation): execute this call with silenced dcx, as now warnings are duplicated, remove
