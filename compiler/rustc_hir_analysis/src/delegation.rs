@@ -7,8 +7,7 @@ use rustc_data_structures::fx::FxHashMap;
 use rustc_hir::def::DefKind;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_middle::ty::{
-    self, EarlyBinder, GenericPredicates, Ty, TyCtxt, TypeFoldable, TypeFolder, TypeSuperFoldable,
-    TypeVisitableExt,
+    self, EarlyBinder, Ty, TyCtxt, TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitableExt,
 };
 use rustc_span::{ErrorGuaranteed, Span, kw};
 
@@ -469,21 +468,12 @@ pub(crate) fn inherit_predicates_for_delegation_item<'tcx>(
             def_id: DefId,
         ) -> Self {
             let preds = f(def_id);
-            let mut new_predicates = vec![];
+            let args = self.args.as_slice();
 
             for pred in preds.predicates {
-                new_predicates.push((pred.0.fold_with(&mut self.folder), pred.1));
+                let new_pred = pred.0.fold_with(&mut self.folder);
+                self.preds.push((EarlyBinder::bind(new_pred).instantiate(self.tcx, args), pred.1));
             }
-
-            let preds = GenericPredicates {
-                parent: preds.parent.clone(),
-                predicates: self.tcx.arena.alloc_slice(new_predicates.as_slice()),
-            };
-
-            let preds = EarlyBinder::bind(preds.predicates)
-                .iter_instantiated_copied(self.tcx, self.args.as_slice());
-
-            self.preds.extend(preds);
 
             self
         }
