@@ -110,7 +110,7 @@ type DelegationIdsVec = SmallVec<[DefId; 1]>;
 // of the following type: reuse (current delegation) <- reuse (delegee_id) <- ... <- reuse <- function (root_function_id).
 // In its most basic and widely used form: reuse (current delegation) <- function (delegee_id, root_function_id)
 pub(super) struct DelegationIds {
-    path: DelegationIdsVec,
+    pub(super) path: DelegationIdsVec,
 }
 
 impl DelegationIds {
@@ -147,6 +147,21 @@ impl<'hir> LoweringContext<'_, 'hir> {
         }
     }
 
+    pub(super) fn is_delegation_a_method(&self, path: &[DefId], span: Span) -> bool {
+        let root_fn_id = path.last().expect("Delegation ids path must not be empty");
+        if !self.is_method(*root_fn_id, span) {
+            return false;
+        }
+
+        for id in path[..path.len() - 1].iter().rev() {
+            if self.is_free_ctx(*id) {
+                return false;
+            }
+        }
+
+        true
+    }
+
     pub(crate) fn lower_delegation(
         &mut self,
         delegation: &Delegation,
@@ -180,14 +195,13 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 // `is_method` is used to choose the name of the first parameter (`self` or `arg0`),
                 // if the original function is not a method (without `self`), then it can not be added
                 // during chain of reuses, so we use `root_function_id` here
-                let is_method = self.is_method(root_function_id, span);
+                let is_method = self.is_delegation_a_method(&ids.path, span);
 
                 // Here we use `root_function_id` as we can not get params information out of potential delegation reuse,
                 // we need a function to extract this information
                 let (param_count, c_variadic) = self.param_count(root_function_id);
 
-                let mut generics =
-                    self.lower_delegation_generics(delegation, &ids, item_id, is_method);
+                let mut generics = self.lower_delegation_generics(delegation, &ids, item_id, span);
 
                 let body_id = self.lower_delegation_body(
                     delegation,
@@ -390,7 +404,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
     }
 
     // Function parameter count, including C variadic `...` if present.
-    fn param_count(&self, def_id: DefId) -> (usize, bool /*c_variadic*/) {
+    pub(super) fn param_count(&self, def_id: DefId) -> (usize, bool /*c_variadic*/) {
         if let Some(local_sig_id) = def_id.as_local() {
             match self.resolver.delegation_fn_sigs.get(&local_sig_id) {
                 Some(sig) => (sig.param_count, sig.c_variadic),
@@ -594,36 +608,35 @@ impl<'hir> LoweringContext<'_, 'hir> {
         self.mk_expr(hir::ExprKind::Block(block, None), block.span)
     }
 
-    fn can_generate_method_call(
+    pub(super) fn can_generate_method_call(
         &self,
         delegation: &Delegation,
-        ids: &DelegationIds,
-        args: &'hir [hir::Expr<'hir>],
-        item_id: NodeId,
-        span: Span,
+        is_method: bool,
+        root_fn_id: DefId,
+        delegee_id: DefId,
+        args_count: usize,
+        delegation_item_id: LocalDefId,
     ) -> bool {
         let has_generic_args =
             delegation.path.segments.iter().rev().skip(1).any(|segment| segment.args.is_some());
 
-        let is_method = self
-            .get_resolution_id(delegation.id)
-            .map(|def_id| self.is_method(def_id, span))
-            .unwrap_or_default();
+        let is_free_to_trait_reuse = self.is_free_to_trait_reuse(delegation_item_id, delegee_id);
 
-        let is_free_to_trait_reuse = self.is_free_to_trait_reuse(ids, item_id);
-
-        let root_fn_id = ids.root_function_id();
-        let references_parent_generics = if let Some(local_id) = root_fn_id.as_local() {
-            self.resolver.delegation_fn_sigs[&local_id].references_parent_generics
+        let references_parent_generics = if delegee_id == root_fn_id {
+            if let Some(local_id) = root_fn_id.as_local() {
+                self.resolver.delegation_fn_sigs[&local_id].references_parent_generics
+            } else {
+                self.references_parent_generics_external(root_fn_id)
+            }
         } else {
-            self.references_parent_generics_external(root_fn_id)
+            false
         };
 
         is_method
             && !is_free_to_trait_reuse
             && delegation.qself.is_none()
             && !has_generic_args
-            && !args.is_empty()
+            && args_count > 0
             && !references_parent_generics
     }
 
@@ -653,7 +666,14 @@ impl<'hir> LoweringContext<'_, 'hir> {
     ) -> hir::Expr<'hir> {
         let args = self.arena.alloc_from_iter(args);
 
-        let call = if self.can_generate_method_call(delegation, ids, args, item_id, span) {
+        let call = if self.can_generate_method_call(
+            delegation,
+            self.is_delegation_a_method(&ids.path, span),
+            ids.root_function_id(),
+            ids.delegee_id(),
+            args.len(),
+            self.local_def_id(item_id),
+        ) {
             let ast_segment = delegation.path.segments.last().unwrap();
             let segment = self.lower_path_segment(
                 delegation.path.span,

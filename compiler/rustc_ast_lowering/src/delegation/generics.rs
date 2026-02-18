@@ -15,34 +15,96 @@ use thin_vec::thin_vec;
 use crate::delegation::delegation::DelegationIds;
 use crate::{AstOwner, LoweringContext};
 
+struct DelegationArgsInfo {
+    generate_self: bool,
+    can_add_generics_to_parent: bool,
+    parent_user_specified: bool,
+    child_user_specified: bool,
+    propagate_self_ty: bool,
+}
+
 impl<'hir> LoweringContext<'_, 'hir> {
     pub(super) fn lower_delegation_generics(
         &mut self,
-        delegation: &Delegation,
+        _delegation: &Delegation,
         ids: &DelegationIds,
         item_id: NodeId,
-        is_method: bool,
+        span: Span,
     ) -> GenericsGenerationResults<'hir> {
-        let free_to_trait_delegation = self.is_free_to_trait_reuse(ids, item_id);
-        let generate_self = free_to_trait_delegation && is_method && delegation.qself.is_none();
-        let root_function_id = ids.root_function_id();
+        let mut prev_child_generics = None;
+        let mut parent;
+        let mut child;
 
-        let parent_generics_factory = |this: &mut Self, user_specified: bool| {
-            this.get_parent_generics(
-                this.tcx.opt_parent(root_function_id),
-                generate_self,
-                user_specified,
-            )
-        };
+        let (param_count, _) = self.param_count(ids.root_function_id());
+        let mut selfs_count = 0;
 
-        let segments = &delegation.path.segments;
-        let len = segments.len();
+        for i in (2..ids.path.len() + 1).rev() {
+            let [delegation_id, sig_id] = ids.path[i - 2..i] else { unreachable!() };
+            let delegation_id = delegation_id.expect_local();
+            let is_method = self.is_delegation_a_method(&ids.path[i - 1..], span);
 
-        let parent_generics = if len >= 2 && self.can_add_generics_to(segments[len - 2].id) {
-            if segments[len - 2].args.is_some() {
-                if generate_self {
+            (parent, child) = self.do_step(delegation_id, sig_id, is_method, prev_child_generics);
+
+            let will_generate_method_call = self.can_generate_method_call(
+                self.get_delegation(delegation_id),
+                is_method,
+                ids.root_function_id(),
+                sig_id,
+                param_count,
+                delegation_id,
+            );
+
+            let empty_parent = DelegationGenerics::empty_generics(DelegationGenericsKind::Default);
+
+            let mut new_generics = Self::create_generics(
+                if will_generate_method_call { &empty_parent } else { &parent },
+                &child,
+            );
+
+            for p in &mut new_generics.generics.params {
+                if p.ident.name == kw::SelfUpper {
+                    let name = format!("{}{}", kw::SelfUpper, selfs_count + 1);
+                    p.ident.name = Symbol::intern(name.as_str());
+                    selfs_count += 1;
+                }
+            }
+
+            prev_child_generics = Some(new_generics);
+        }
+
+        let (delegation_id, sig_id) = (self.local_def_id(item_id), ids.delegee_id());
+        let is_method = self.is_delegation_a_method(&ids.path, span);
+
+        (parent, child) = self.do_step(delegation_id, sig_id, is_method, prev_child_generics);
+
+        let args_info = self.get_delegation_args_info(delegation_id, sig_id, is_method);
+
+        GenericsGenerationResults {
+            parent: GenericsGenerationResult::new(parent),
+            child: GenericsGenerationResult::new(child),
+            self_ty_id: None,
+            propagate_self_ty: args_info.propagate_self_ty,
+        }
+    }
+
+    fn do_step(
+        &mut self,
+        delegation_id: LocalDefId,
+        sig_id: DefId,
+        is_method: bool,
+        prev_child_generics: Option<AstGenerics>,
+    ) -> (DelegationGenerics<AstGenerics>, DelegationGenerics<AstGenerics>) {
+        let args_info = self.get_delegation_args_info(delegation_id, sig_id, is_method);
+
+        let parent_generics = if args_info.can_add_generics_to_parent {
+            if args_info.parent_user_specified {
+                if args_info.generate_self {
                     DelegationGenerics::new(
-                        parent_generics_factory(self, true),
+                        self.get_parent_generics(
+                            self.tcx.opt_parent(sig_id),
+                            args_info.generate_self,
+                            true,
+                        ),
                         DelegationGenericsKind::SelfAndUserSpecified,
                     )
                 } else {
@@ -50,7 +112,11 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 }
             } else {
                 DelegationGenerics::new(
-                    parent_generics_factory(self, false),
+                    self.get_parent_generics(
+                        self.tcx.opt_parent(sig_id),
+                        args_info.generate_self,
+                        false,
+                    ),
                     DelegationGenericsKind::Default,
                 )
             }
@@ -58,22 +124,58 @@ impl<'hir> LoweringContext<'_, 'hir> {
             DelegationGenerics::empty_generics(DelegationGenericsKind::Default)
         };
 
-        let child_generics = if segments[len - 1].args.is_some() {
+        let child_generics = if args_info.child_user_specified {
             DelegationGenerics::new(
-                self.create_synth_params_only_ast_generics(root_function_id),
+                self.create_synth_params_only_ast_generics(sig_id),
                 DelegationGenericsKind::UserSpecified,
             )
         } else {
             DelegationGenerics::new(
-                self.get_fn_like_generics(root_function_id),
+                prev_child_generics.or_else(|| self.get_fn_like_generics(sig_id)),
                 DelegationGenericsKind::Default,
             )
         };
 
-        GenericsGenerationResults {
-            parent: GenericsGenerationResult::new(parent_generics),
-            child: GenericsGenerationResult::new(child_generics),
-            self_ty_id: None,
+        (parent_generics, child_generics)
+    }
+
+    fn create_generics(
+        parent_generics: &DelegationGenerics<AstGenerics>,
+        child_generics: &DelegationGenerics<AstGenerics>,
+    ) -> AstGenerics {
+        AstGenerics {
+            generics: Generics {
+                params: parent_generics
+                    .all_lifetimes()
+                    .chain(child_generics.all_lifetimes())
+                    .chain(parent_generics.all_types_and_consts())
+                    .chain(child_generics.all_types_and_consts())
+                    .map(|p| p.clone())
+                    .collect(),
+                ..Default::default()
+            },
+            synthetic_params: child_generics.all_synthetic_names().map(|s| *s).collect(),
+        }
+    }
+
+    fn get_delegation_args_info(
+        &self,
+        delegation_id: LocalDefId,
+        sig_id: DefId,
+        is_method: bool,
+    ) -> DelegationArgsInfo {
+        let delegation = self.get_delegation(delegation_id);
+        let free_to_trait_delegation = self.is_free_to_trait_reuse(delegation_id, sig_id);
+        let generate_self = free_to_trait_delegation && is_method && delegation.qself.is_none();
+
+        let segments = &delegation.path.segments;
+        let len = segments.len();
+
+        DelegationArgsInfo {
+            generate_self,
+            can_add_generics_to_parent: len >= 2 && self.can_add_generics_to(segments[len - 2].id),
+            parent_user_specified: len >= 2 && segments[len - 2].args.is_some(),
+            child_user_specified: segments[len - 1].args.is_some(),
             propagate_self_ty: free_to_trait_delegation && !generate_self,
         }
     }
@@ -89,18 +191,31 @@ impl<'hir> LoweringContext<'_, 'hir> {
         }
     }
 
-    pub(super) fn is_free_to_trait_reuse(&self, ids: &DelegationIds, item_id: NodeId) -> bool {
-        let delegation_in_free_ctx = self
-            .tcx
-            .opt_parent(self.local_def_id(item_id).to_def_id())
-            .is_none_or(|p| !matches!(self.tcx.def_kind(p), DefKind::Trait | DefKind::Impl { .. }));
+    fn get_delegation(&self, delegation_id: LocalDefId) -> &Delegation {
+        match self.ast_accessor.get(delegation_id).unwrap() {
+            AstOwner::Item(item) if let ItemKind::Delegation(d) = &item.kind => d.as_ref(),
+            AstOwner::AssocItem(item, _) if let AssocItemKind::Delegation(d) = &item.kind => {
+                d.as_ref()
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    pub(super) fn is_free_to_trait_reuse(&self, delegation_id: LocalDefId, sig_id: DefId) -> bool {
+        let delegation_in_free_ctx = self.is_free_ctx(delegation_id.into());
 
         let root_function_in_trait = self
             .tcx
-            .opt_parent(ids.root_function_id())
+            .opt_parent(sig_id)
             .is_some_and(|p| matches!(self.tcx.def_kind(p), DefKind::Trait));
 
         delegation_in_free_ctx && root_function_in_trait
+    }
+
+    pub(super) fn is_free_ctx(&self, id: DefId) -> bool {
+        self.tcx
+            .opt_parent(id)
+            .is_none_or(|p| !matches!(self.tcx.def_kind(p), DefKind::Trait | DefKind::Impl { .. }))
     }
 
     fn can_add_generics_to(&self, node_id: NodeId) -> bool {
@@ -749,6 +864,24 @@ pub(super) enum DelegationGenericsKind {
     UserSpecified,
     Default,
     SelfAndUserSpecified,
+}
+
+impl DelegationGenerics<AstGenerics> {
+    fn all_lifetimes(&self) -> impl Iterator<Item = &GenericParam> {
+        self.all_params().filter(|p| p.kind.is_lifetime())
+    }
+
+    fn all_types_and_consts(&self) -> impl Iterator<Item = &GenericParam> {
+        self.all_params().filter(|p| !p.kind.is_lifetime())
+    }
+
+    fn all_params(&self) -> impl Iterator<Item = &GenericParam> {
+        self.generics.as_ref().map(|g| g.generics.params.as_slice()).unwrap_or(&[]).iter()
+    }
+
+    fn all_synthetic_names(&self) -> impl Iterator<Item = &Symbol> {
+        self.generics.as_ref().map(|g| g.synthetic_params.as_slice()).unwrap_or(&[]).iter()
+    }
 }
 
 impl<T> DelegationGenerics<T> {

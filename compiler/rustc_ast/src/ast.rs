@@ -440,6 +440,12 @@ pub enum GenericParamKind {
     },
 }
 
+impl GenericParamKind {
+    pub fn is_lifetime(&self) -> bool {
+        matches!(self, Self::Lifetime)
+    }
+}
+
 #[derive(Clone, Encodable, Decodable, Debug, Walkable)]
 pub struct GenericParam {
     pub id: NodeId,
