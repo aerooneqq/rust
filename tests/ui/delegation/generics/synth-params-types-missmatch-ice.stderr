@@ -1,0 +1,47 @@
+error[E0308]: mismatched types
+  --> $DIR/synth-params-types-missmatch-ice.rs:9:24
+   |
+LL |     reuse foo as bar { self.get_self() }
+   |           ---          ^^^^^^^^^^^^^^^
+   |           |            |
+   |           |            expected `&_`, found type parameter `impl Trait<T, T, T>`
+   |           |            found this type parameter
+   |           arguments to this function are incorrect
+   |
+   = note:   expected reference `&_`
+           found type parameter `impl Trait<T, T, T>`
+note: function defined here
+  --> $DIR/synth-params-types-missmatch-ice.rs:4:4
+   |
+LL | fn foo<T, const N: bool>(x: &impl Trait<T, T, T>) {}
+   |    ^^^                   -----------------------
+help: consider borrowing here
+   |
+LL |     reuse foo as bar { &self.get_self() }
+   |                        +
+
+error[E0308]: mismatched types
+  --> $DIR/synth-params-types-missmatch-ice.rs:11:36
+   |
+LL |     reuse foo::<A, true> as bar1 { self.get_self() }
+   |           ---                      ^^^^^^^^^^^^^^^
+   |           |                        |
+   |           |                        expected `&_`, found type parameter `impl Trait<T, T, T>`
+   |           |                        found this type parameter
+   |           arguments to this function are incorrect
+   |
+   = note:   expected reference `&_`
+           found type parameter `impl Trait<T, T, T>`
+note: function defined here
+  --> $DIR/synth-params-types-missmatch-ice.rs:4:4
+   |
+LL | fn foo<T, const N: bool>(x: &impl Trait<T, T, T>) {}
+   |    ^^^                   -----------------------
+help: consider borrowing here
+   |
+LL |     reuse foo::<A, true> as bar1 { &self.get_self() }
+   |                                    +
+
+error: aborting due to 2 previous errors
+
+For more information about this error, try `rustc --explain E0308`.
