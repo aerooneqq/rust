@@ -105,9 +105,20 @@ impl<'a> AstIndexAccessor<'a> {
     }
 }
 
+struct HirIndexAccessor<'a>(&'a IndexVec<LocalDefId, hir::MaybeOwner<'a>>);
+
+impl<'a> HirIndexAccessor<'a> {
+    pub(crate) fn generics_of(&self, id: LocalDefId) -> Option<&'a hir::Generics<'a>> {
+        self.0.get(id)?.as_owner().map(|i| &i.nodes)?.nodes[HirId::make_owner(id).local_id]
+            .node
+            .generics()
+    }
+}
+
 struct LoweringContext<'a, 'hir> {
     tcx: TyCtxt<'hir>,
     ast_accessor: AstIndexAccessor<'a>,
+    hir_accessor: HirIndexAccessor<'a>,
 
     resolver: &'a mut ResolverAstLowering,
     disambiguator: DisambiguatorState,
@@ -172,6 +183,7 @@ impl<'a, 'hir> LoweringContext<'a, 'hir> {
     fn new(
         tcx: TyCtxt<'hir>,
         ast_index: &'a IndexSlice<LocalDefId, AstOwner<'a>>,
+        hir_index: &'a IndexVec<LocalDefId, hir::MaybeOwner<'hir>>,
         resolver: &'a mut ResolverAstLowering,
     ) -> Self {
         let registered_tools = tcx.registered_tools(()).iter().map(|x| x.name).collect();
@@ -179,6 +191,7 @@ impl<'a, 'hir> LoweringContext<'a, 'hir> {
             // Pseudo-globals.
             tcx,
             ast_accessor: AstIndexAccessor(ast_index),
+            hir_accessor: HirIndexAccessor(hir_index),
             resolver,
             disambiguator: DisambiguatorState::new(),
             arena: tcx.hir_arena,
@@ -542,7 +555,28 @@ pub fn lower_to_hir(tcx: TyCtxt<'_>, (): ()) -> hir::Crate<'_> {
         ast_index: &ast_index,
         owners: &mut owners,
     };
+
+    let mut delayed_lowering_ids = vec![];
+
     for def_id in ast_index.indices() {
+        let owner = &ast_index[def_id];
+        let delay_lowering = match owner {
+            AstOwner::Item(item) => matches!(item.kind, ItemKind::Delegation { .. }),
+            AstOwner::AssocItem(item, _) => {
+                matches!(item.kind, AssocItemKind::Delegation { .. })
+            }
+            _ => false,
+        };
+
+        if delay_lowering {
+            delayed_lowering_ids.push(def_id);
+            continue;
+        }
+
+        lowerer.lower_node(def_id);
+    }
+
+    for def_id in delayed_lowering_ids {
         lowerer.lower_node(def_id);
     }
 

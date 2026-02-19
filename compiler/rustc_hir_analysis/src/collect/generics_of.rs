@@ -3,7 +3,6 @@ use std::ops::ControlFlow;
 use rustc_data_structures::assert_matches;
 use rustc_hir::def::DefKind;
 use rustc_hir::def_id::LocalDefId;
-use rustc_hir::definitions::DisambiguatorState;
 use rustc_hir::intravisit::{self, Visitor, VisitorExt};
 use rustc_hir::{self as hir, AmbigArg, GenericParamKind, HirId, Node};
 use rustc_middle::span_bug;
@@ -12,7 +11,6 @@ use rustc_session::lint;
 use rustc_span::{Span, Symbol, kw};
 use tracing::{debug, instrument};
 
-use crate::delegation::opt_delegation_sig_id;
 use crate::middle::resolve_bound_vars as rbv;
 
 #[instrument(level = "debug", skip(tcx), ret)]
@@ -364,24 +362,6 @@ pub(super) fn generics_of(tcx: TyCtxt<'_>, def_id: LocalDefId) -> ty::Generics {
             pure_wrt_drop: false,
             kind: ty::GenericParamDefKind::Lifetime,
         }))
-    }
-
-    // Add synthetic params from the source function in case of delegation
-    if let Some(sig_id) = opt_delegation_sig_id(&node) {
-        let generics = tcx.generics_of(sig_id);
-        let mut disambig = DisambiguatorState::new();
-
-        for param in generics.own_params.iter().filter(|p| p.kind.is_synthetic()) {
-            let mut cloned_param = param.clone();
-
-            cloned_param.index = parent_count as u32 + own_params.len() as u32;
-            cloned_param.def_id = tcx
-                .create_def(def_id, Some(param.name), DefKind::TyParam, None, &mut disambig)
-                .def_id()
-                .to_def_id();
-
-            own_params.push(cloned_param);
-        }
     }
 
     let param_def_id_to_index =

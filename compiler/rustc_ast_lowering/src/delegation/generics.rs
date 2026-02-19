@@ -9,8 +9,8 @@ use rustc_middle::ty::{
 };
 use rustc_span::sym::{self};
 use rustc_span::symbol::kw;
-use rustc_span::{DUMMY_SP, Ident, Span};
-use thin_vec::{ThinVec, thin_vec};
+use rustc_span::{DUMMY_SP, Ident, Span, Symbol};
+use thin_vec::thin_vec;
 
 use crate::delegation::delegation::DelegationIds;
 use crate::{AstOwner, LoweringContext};
@@ -25,10 +25,11 @@ impl<'hir> LoweringContext<'_, 'hir> {
     ) -> GenericsGenerationResults<'hir> {
         let free_to_trait_delegation = self.is_free_to_trait_reuse(ids, item_id);
         let generate_self = free_to_trait_delegation && is_method && delegation.qself.is_none();
+        let root_function_id = ids.root_function_id();
 
         let parent_generics_factory = |this: &mut Self, user_specified: bool| {
             this.get_parent_generics(
-                this.tcx.opt_parent(ids.root_function_id()),
+                this.tcx.opt_parent(root_function_id),
                 generate_self,
                 user_specified,
             )
@@ -40,21 +41,33 @@ impl<'hir> LoweringContext<'_, 'hir> {
         let parent_generics = if len >= 2 && self.can_add_generics_to(segments[len - 2].id) {
             if segments[len - 2].args.is_some() {
                 if generate_self {
-                    DelegationGenerics::SelfAndUserSpecified(parent_generics_factory(self, true))
+                    DelegationGenerics::new(
+                        parent_generics_factory(self, true),
+                        DelegationGenericsKind::SelfAndUserSpecified,
+                    )
                 } else {
-                    DelegationGenerics::UserSpecified
+                    DelegationGenerics::empty_generics(DelegationGenericsKind::UserSpecified)
                 }
             } else {
-                DelegationGenerics::Default(parent_generics_factory(self, false))
+                DelegationGenerics::new(
+                    parent_generics_factory(self, false),
+                    DelegationGenericsKind::Default,
+                )
             }
         } else {
-            DelegationGenerics::Default(None)
+            DelegationGenerics::empty_generics(DelegationGenericsKind::Default)
         };
 
         let child_generics = if segments[len - 1].args.is_some() {
-            DelegationGenerics::UserSpecified
+            DelegationGenerics::new(
+                self.create_synth_params_only_ast_generics(root_function_id),
+                DelegationGenericsKind::UserSpecified,
+            )
         } else {
-            DelegationGenerics::Default(self.get_fn_like_generics(ids.root_function_id()))
+            DelegationGenerics::new(
+                self.get_fn_like_generics(root_function_id),
+                DelegationGenericsKind::Default,
+            )
         };
 
         GenericsGenerationResults {
@@ -62,6 +75,17 @@ impl<'hir> LoweringContext<'_, 'hir> {
             child: GenericsGenerationResult::new(child_generics),
             self_ty_id: None,
             propagate_self_ty: free_to_trait_delegation && !generate_self,
+        }
+    }
+
+    fn create_synth_params_only_ast_generics(&self, id: DefId) -> Option<AstGenerics> {
+        if let Some(local_id) = id.as_local() {
+            Some(AstGenerics {
+                generics: Default::default(),
+                synthetic_params: self.get_synthetic_params_symbols(local_id),
+            })
+        } else {
+            self.get_external_synth_only_generics(id)
         }
     }
 
@@ -85,35 +109,14 @@ impl<'hir> LoweringContext<'_, 'hir> {
         })
     }
 
-    fn lower_ast_generics(
-        &mut self,
-        item_id: NodeId,
-        span: Span,
-        generics: &DelegationGenerics<Generics>,
-    ) -> DelegationGenerics<&'hir hir::Generics<'hir>> {
-        let mut process_params = |generics: &Option<Generics>| {
-            generics
-                .as_ref()
-                .map(|g| self.lower_delegation_generic_params(item_id, span, g.params.clone()))
-        };
-
-        match generics {
-            DelegationGenerics::UserSpecified => DelegationGenerics::UserSpecified,
-            DelegationGenerics::Default(generics) => {
-                DelegationGenerics::Default(process_params(generics))
-            }
-            DelegationGenerics::SelfAndUserSpecified(generics) => {
-                DelegationGenerics::SelfAndUserSpecified(process_params(generics))
-            }
-        }
-    }
-
     fn lower_delegation_generic_params(
         &mut self,
         item_id: NodeId,
         span: Span,
-        mut params: ThinVec<GenericParam>,
+        generics: &AstGenerics,
     ) -> &'hir hir::Generics<'hir> {
+        let mut params = generics.generics.params.clone();
+
         for p in &mut params {
             // We want to create completely new params, so we generate
             // a new id, otherwise assertions will be triggered.
@@ -127,29 +130,30 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 GenericParamKind::Const { default, .. } => *default = None,
             }
 
-            // Note that we use self.disambiguator here, if we will create new every time
-            // we will get ICE if params have the same name.
-            self.resolver.node_id_to_def_id.insert(
+            self.create_generic_param_def_id(
+                item_id,
                 p.id,
-                self.tcx
-                    .create_def(
-                        self.resolver.node_id_to_def_id[&item_id],
-                        Some(p.ident.name),
-                        match p.kind {
-                            GenericParamKind::Lifetime => DefKind::LifetimeParam,
-                            GenericParamKind::Type { .. } => DefKind::TyParam,
-                            GenericParamKind::Const { .. } => DefKind::ConstParam,
-                        },
-                        None,
-                        &mut self.disambiguator,
-                    )
-                    .def_id(),
+                p.ident.name,
+                match p.kind {
+                    GenericParamKind::Lifetime => DefKind::LifetimeParam,
+                    GenericParamKind::Type { .. } => DefKind::TyParam,
+                    GenericParamKind::Const { .. } => DefKind::ConstParam,
+                },
             );
         }
 
+        let synth_params = generics
+            .synthetic_params
+            .iter()
+            .map(|name| self.create_hir_synthetic_generic_param(item_id, *name))
+            .collect::<Vec<_>>();
+
         // Fallback to default generic param lowering, we modified them in the loop above.
         let params = self.arena.alloc_from_iter(
-            params.iter().map(|p| self.lower_generic_param(p, hir::GenericParamSource::Generics)),
+            params
+                .iter()
+                .map(|p| self.lower_generic_param(p, hir::GenericParamSource::Generics))
+                .chain(synth_params),
         );
 
         // HACK: for now we generate predicates such that all lifetimes are early bound,
@@ -167,6 +171,51 @@ impl<'hir> LoweringContext<'_, 'hir> {
             where_clause_span: span,
             span,
         })
+    }
+
+    fn create_generic_param_def_id(
+        &mut self,
+        item_id: NodeId,
+        node_id: NodeId,
+        name: Symbol,
+        def_kind: DefKind,
+    ) -> LocalDefId {
+        // Note that we use self.disambiguator here, if we will create new every time
+        // we will get ICE if params have the same name.
+        let def_id = self
+            .tcx
+            .create_def(
+                self.resolver.node_id_to_def_id[&item_id],
+                Some(name),
+                def_kind,
+                None,
+                &mut self.disambiguator,
+            )
+            .def_id();
+
+        self.resolver.node_id_to_def_id.insert(node_id, def_id);
+
+        def_id
+    }
+
+    fn create_hir_synthetic_generic_param(
+        &mut self,
+        item_id: NodeId,
+        name: Symbol,
+    ) -> hir::GenericParam<'hir> {
+        let node_id = self.next_node_id();
+        let def_id = self.create_generic_param_def_id(item_id, node_id, name, DefKind::TyParam);
+
+        hir::GenericParam {
+            hir_id: self.lower_node_id(node_id),
+            def_id,
+            name: hir::ParamName::Plain(Ident::with_dummy_span(name)),
+            pure_wrt_drop: false,
+            span: DUMMY_SP,
+            kind: hir::GenericParamKind::Type { default: None, synthetic: true },
+            colon_span: None,
+            source: hir::GenericParamSource::Generics,
+        }
     }
 
     fn generate_lifetime_predicate(
@@ -208,8 +257,8 @@ impl<'hir> LoweringContext<'_, 'hir> {
     ) -> &'hir hir::GenericArgs<'hir> {
         self.arena.alloc(hir::GenericArgs {
             args: self.arena.alloc_from_iter(params.iter().filter_map(|p| {
-                // Skip self generic arg, we do not need to propagate it.
-                if p.name.ident().name == kw::SelfUpper {
+                // Skip self generic arg or synthetic args, we do not need to propagate them.
+                if p.name.ident().name == kw::SelfUpper || p.is_impl_trait() {
                     return None;
                 }
 
@@ -274,12 +323,29 @@ impl<'hir> LoweringContext<'_, 'hir> {
         })
     }
 
-    fn get_fn_like_generics(&mut self, id: DefId) -> Option<Generics> {
+    fn get_fn_like_generics(&mut self, id: DefId) -> Option<AstGenerics> {
         if let Some(local_id) = id.as_local() {
-            self.get_fn(local_id).map(|f| f.generics.clone())
+            self.get_fn(local_id).map(|f| AstGenerics {
+                generics: f.generics.clone(),
+                synthetic_params: self.get_synthetic_params_symbols(local_id),
+            })
         } else {
             self.get_external_generics(id, false)
         }
+    }
+
+    fn get_synthetic_params_symbols(&self, local_id: LocalDefId) -> Vec<Symbol> {
+        self.hir_accessor
+            .generics_of(local_id)
+            .map(|g| {
+                g.params
+                    .iter()
+                    .filter_map(
+                        |p| if p.is_impl_trait() { Some(p.name.ident().name) } else { None },
+                    )
+                    .collect()
+            })
+            .unwrap_or(vec![])
     }
 
     pub(super) fn get_fn(&self, local_id: LocalDefId) -> Option<&Box<Fn>> {
@@ -290,7 +356,24 @@ impl<'hir> LoweringContext<'_, 'hir> {
         }
     }
 
-    fn get_external_generics(&mut self, id: DefId, processing_parent: bool) -> Option<Generics> {
+    fn get_external_synth_only_generics(&self, id: DefId) -> Option<AstGenerics> {
+        let generics = self.tcx.generics_of(id);
+        if generics.own_params.is_empty() {
+            return None;
+        }
+
+        Some(AstGenerics {
+            generics: Default::default(),
+            synthetic_params: generics
+                .own_params
+                .iter()
+                .filter(|p| p.kind.is_synthetic())
+                .map(|p| p.name)
+                .collect(),
+        })
+    }
+
+    fn get_external_generics(&mut self, id: DefId, processing_parent: bool) -> Option<AstGenerics> {
         let generics = self.tcx.generics_of(id);
         if generics.own_params.is_empty() {
             return None;
@@ -299,30 +382,34 @@ impl<'hir> LoweringContext<'_, 'hir> {
         // Skip first Self parameter if we are in trait, it will be added later.
         let to_skip = (processing_parent && generics.has_self) as usize;
 
-        Some(Generics {
-            params: generics
-                .own_params
-                .iter()
-                .skip(to_skip)
-                .filter(|p| !p.kind.is_synthetic())
-                .map(|p| GenericParam {
+        let mut params = thin_vec![];
+        let mut synth_idents = vec![];
+
+        for param in generics.own_params.iter().skip(to_skip) {
+            if param.kind.is_synthetic() {
+                synth_idents.push(param.name);
+            } else {
+                params.push(GenericParam {
                     attrs: Default::default(),
                     bounds: Default::default(),
                     colon_span: None,
                     id: self.next_node_id(),
-                    ident: Ident::with_dummy_span(p.name),
+                    ident: Ident::with_dummy_span(param.name),
                     is_placeholder: false,
-                    kind: match p.kind {
+                    kind: match param.kind {
                         GenericParamDefKind::Lifetime => GenericParamKind::Lifetime,
                         GenericParamDefKind::Type { .. } => {
                             GenericParamKind::Type { default: None }
                         }
-                        GenericParamDefKind::Const { .. } => self.map_const_kind(p),
+                        GenericParamDefKind::Const { .. } => self.map_const_kind(param),
                     },
-                })
-                .collect(),
-            where_clause: Default::default(),
-            span: DUMMY_SP,
+                });
+            }
+        }
+
+        Some(AstGenerics {
+            generics: Generics { params, where_clause: Default::default(), span: DUMMY_SP },
+            synthetic_params: synth_idents,
         })
     }
 
@@ -369,7 +456,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
         id: Option<DefId>,
         add_self: bool,
         user_specified: bool,
-    ) -> Option<Generics> {
+    ) -> Option<AstGenerics> {
         let id = if let Some(id) = id { id } else { return None };
 
         // If args are user-specified we still maybe need to add self
@@ -380,7 +467,10 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 if let Some(AstOwner::Item(item)) = self.ast_accessor.get(local_id)
                     && matches!(item.kind, ItemKind::Trait(..))
                 {
-                    item.opt_generics().cloned()
+                    item.opt_generics().cloned().map(|generics| AstGenerics {
+                        generics,
+                        synthetic_params: self.get_synthetic_params_symbols(local_id),
+                    })
                 } else {
                     None
                 }
@@ -390,9 +480,9 @@ impl<'hir> LoweringContext<'_, 'hir> {
         };
 
         if add_self {
-            generics = Some(generics.unwrap_or(Generics::default()));
+            generics = Some(generics.unwrap_or_default());
 
-            generics.as_mut().unwrap().params.insert(
+            generics.as_mut().unwrap().generics.params.insert(
                 0,
                 GenericParam {
                     id: self.next_node_id(),
@@ -474,8 +564,14 @@ impl<'hir> LoweringContext<'_, 'hir> {
     }
 }
 
+#[derive(Debug, Default)]
+pub(super) struct AstGenerics {
+    generics: Generics,
+    synthetic_params: Vec<Symbol>,
+}
+
 pub(super) enum HirOrAstGenerics<'hir> {
-    Ast(DelegationGenerics<Generics>),
+    Ast(DelegationGenerics<AstGenerics>),
     Hir(DelegationGenerics<&'hir hir::Generics<'hir>>),
 }
 
@@ -487,13 +583,24 @@ impl<'hir> HirOrAstGenerics<'hir> {
         span: Span,
     ) -> &mut Self {
         match self {
-            HirOrAstGenerics::Ast(delegation_generics) => {
-                *self = Self::Hir(ctx.lower_ast_generics(item_id, span, delegation_generics));
+            HirOrAstGenerics::Ast(generics) => {
+                *self = Self::to_hir_generics(generics, ctx, item_id, span);
             }
             HirOrAstGenerics::Hir(_) => {}
         }
 
         self
+    }
+
+    fn to_hir_generics(
+        generics: &DelegationGenerics<AstGenerics>,
+        ctx: &mut LoweringContext<'_, 'hir>,
+        item_id: NodeId,
+        span: Span,
+    ) -> Self {
+        Self::Hir(
+            generics.map(|generics| ctx.lower_delegation_generic_params(item_id, span, generics)),
+        )
     }
 
     pub(super) fn into_hir_generics_self_user_specified_only(
@@ -504,9 +611,9 @@ impl<'hir> HirOrAstGenerics<'hir> {
     ) -> &mut Self {
         match self {
             HirOrAstGenerics::Ast(generics)
-                if matches!(generics, DelegationGenerics::SelfAndUserSpecified { .. }) =>
+                if matches!(generics.kind, DelegationGenericsKind::SelfAndUserSpecified) =>
             {
-                *self = Self::Hir(ctx.lower_ast_generics(item_id, span, generics));
+                *self = Self::to_hir_generics(generics, ctx, item_id, span);
             }
             _ => {}
         }
@@ -517,13 +624,9 @@ impl<'hir> HirOrAstGenerics<'hir> {
     fn hir_generics_or_empty(&self) -> &'hir hir::Generics<'hir> {
         match self {
             HirOrAstGenerics::Ast(_) => hir::Generics::empty(),
-            HirOrAstGenerics::Hir(hir_generics) => match hir_generics {
-                DelegationGenerics::UserSpecified => hir::Generics::empty(),
-                DelegationGenerics::Default(generics)
-                | DelegationGenerics::SelfAndUserSpecified(generics) => {
-                    generics.as_ref().unwrap_or(&hir::Generics::empty())
-                }
-            },
+            HirOrAstGenerics::Hir(hir_generics) => {
+                hir_generics.generics.as_ref().unwrap_or(&hir::Generics::empty())
+            }
         }
     }
 
@@ -535,13 +638,9 @@ impl<'hir> HirOrAstGenerics<'hir> {
     ) -> Option<&'hir hir::GenericArgs<'hir>> {
         match self {
             HirOrAstGenerics::Ast(_) => None,
-            HirOrAstGenerics::Hir(hir_generics) => match hir_generics {
-                DelegationGenerics::UserSpecified => None,
-                DelegationGenerics::Default(generics)
-                | DelegationGenerics::SelfAndUserSpecified(generics) => generics.map(|generics| {
-                    ctx.create_generics_args_from_params(generics.params, add_lifetimes, span)
-                }),
-            },
+            HirOrAstGenerics::Hir(hir_generics) => hir_generics.generics.map(|generics| {
+                ctx.create_generics_args_from_params(generics.params, add_lifetimes, span)
+            }),
         }
     }
 
@@ -559,7 +658,7 @@ pub(super) struct GenericsGenerationResult<'hir, T: From<HirId>> {
 }
 
 impl<'a, T: From<HirId>> GenericsGenerationResult<'a, T> {
-    fn new(generics: DelegationGenerics<Generics>) -> Self {
+    fn new(generics: DelegationGenerics<AstGenerics>) -> Self {
         Self { generics: HirOrAstGenerics::Ast(generics), args_segment_id: None }
     }
 }
@@ -585,7 +684,12 @@ impl<'hir> GenericsGenerationResults<'hir> {
             .hir_generics_or_empty()
             .params;
 
-        let child = self.child.generics.hir_generics_or_empty().params;
+        let child = self
+            .child
+            .generics
+            .into_hir_generics(ctx, item_id, span)
+            .hir_generics_or_empty()
+            .params;
 
         // Order generics, firstly we have parent and child lifetimes,
         // then parent and child types and consts.
@@ -620,14 +724,38 @@ impl<'hir> GenericsGenerationResults<'hir> {
     }
 }
 
-pub(super) enum DelegationGenerics<T> {
+#[derive(Debug)]
+pub(super) struct DelegationGenerics<T> {
+    generics: Option<T>,
+    kind: DelegationGenericsKind,
+}
+
+impl<T> DelegationGenerics<T> {
+    fn new(generics: Option<T>, kind: DelegationGenericsKind) -> Self {
+        Self { generics, kind }
+    }
+
+    fn empty_generics(kind: DelegationGenericsKind) -> Self {
+        Self::new(None, kind)
+    }
+
+    fn map<U>(&self, f: impl FnOnce(&T) -> U) -> DelegationGenerics<U> {
+        DelegationGenerics::<U> { generics: self.generics.as_ref().map(f), kind: self.kind }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(super) enum DelegationGenericsKind {
     UserSpecified,
-    Default(Option<T>),
-    SelfAndUserSpecified(Option<T>),
+    Default,
+    SelfAndUserSpecified,
 }
 
 impl<T> DelegationGenerics<T> {
     fn is_user_specified(&self) -> bool {
-        matches!(self, Self::UserSpecified | Self::SelfAndUserSpecified { .. })
+        matches!(
+            self.kind,
+            DelegationGenericsKind::UserSpecified | DelegationGenericsKind::SelfAndUserSpecified
+        )
     }
 }
