@@ -38,15 +38,15 @@ impl<'hir> LoweringContext<'_, 'hir> {
         let (param_count, _) = self.param_count(ids.root_function_id());
         let mut selfs_count = 0;
 
-        for i in (2..ids.path.len() + 1).rev() {
-            let [delegation_id, sig_id] = ids.path[i - 2..i] else { unreachable!() };
+        for i in (2..ids.sig_path.len() + 1).rev() {
+            let [delegation_id, sig_id] = ids.sig_path[i - 2..i] else { unreachable!() };
             let delegation_id = delegation_id.expect_local();
-            let is_method = self.is_delegation_a_method(&ids.path[i - 1..], span);
+            let is_method = self.is_delegation_a_method(&ids.sig_path[i - 1..], span);
 
             (parent, child) = self.do_step(delegation_id, sig_id, is_method, prev_child_generics);
 
             let will_generate_method_call = self.can_generate_method_call(
-                self.get_delegation(delegation_id),
+                self.get_delegation(delegation_id).expect("Must be delegation"),
                 is_method,
                 ids.root_function_id(),
                 sig_id,
@@ -73,7 +73,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
         }
 
         let (delegation_id, sig_id) = (self.local_def_id(item_id), ids.delegee_id());
-        let is_method = self.is_delegation_a_method(&ids.path, span);
+        let is_method = self.is_delegation_a_method(&ids.sig_path, span);
 
         (parent, child) = self.do_step(delegation_id, sig_id, is_method, prev_child_generics);
 
@@ -164,7 +164,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
         sig_id: DefId,
         is_method: bool,
     ) -> DelegationArgsInfo {
-        let delegation = self.get_delegation(delegation_id);
+        let delegation = self.get_delegation(delegation_id).expect("Must be delegation");
         let free_to_trait_delegation = self.is_free_to_trait_reuse(delegation_id, sig_id);
         let generate_self = free_to_trait_delegation && is_method && delegation.qself.is_none();
 
@@ -191,13 +191,13 @@ impl<'hir> LoweringContext<'_, 'hir> {
         }
     }
 
-    fn get_delegation(&self, delegation_id: LocalDefId) -> &Delegation {
+    pub(super) fn get_delegation(&self, delegation_id: LocalDefId) -> Option<&Delegation> {
         match self.ast_accessor.get(delegation_id).unwrap() {
-            AstOwner::Item(item) if let ItemKind::Delegation(d) = &item.kind => d.as_ref(),
+            AstOwner::Item(item) if let ItemKind::Delegation(d) = &item.kind => Some(d.as_ref()),
             AstOwner::AssocItem(item, _) if let AssocItemKind::Delegation(d) = &item.kind => {
-                d.as_ref()
+                Some(d.as_ref())
             }
-            _ => unreachable!(),
+            _ => None,
         }
     }
 
@@ -282,7 +282,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                     .iter()
                     .filter_map(|p| p.is_lifetime().then(|| self.generate_lifetime_predicate(p))),
             ),
-            has_where_clause_predicates: false,
+            has_where_clause_predicates: true,
             where_clause_span: span,
             span,
         })

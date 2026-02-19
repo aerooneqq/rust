@@ -110,24 +110,25 @@ type DelegationIdsVec = SmallVec<[DefId; 1]>;
 // of the following type: reuse (current delegation) <- reuse (delegee_id) <- ... <- reuse <- function (root_function_id).
 // In its most basic and widely used form: reuse (current delegation) <- function (delegee_id, root_function_id)
 pub(super) struct DelegationIds {
-    pub(super) path: DelegationIdsVec,
+    pub(super) sig_path: DelegationIdsVec,
+    pub(super) method_path: DelegationIdsVec,
 }
 
 impl DelegationIds {
-    fn new(path: DelegationIdsVec) -> Self {
-        assert!(!path.is_empty());
-        Self { path }
+    fn new(sig_path: DelegationIdsVec, method_path: DelegationIdsVec) -> Self {
+        assert!(!sig_path.is_empty());
+        Self { sig_path, method_path }
     }
 
     // Id of the first function in (non)local crate that is being reused
     pub(super) fn root_function_id(&self) -> DefId {
-        *self.path.last().expect("Ids vector can't be empty")
+        *self.sig_path.last().expect("Ids vector can't be empty")
     }
 
     // Id of the first definition which is being reused,
     // can be either function, in this case `root_id == delegee_id`, or other delegation
     pub(super) fn delegee_id(&self) -> DefId {
-        *self.path.first().expect("Ids vector can't be empty")
+        *self.sig_path.first().expect("Ids vector can't be empty")
     }
 }
 
@@ -173,7 +174,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
         let ids = if let Some(delegation_info) =
             self.resolver.delegation_infos.get(&self.local_def_id(item_id))
         {
-            self.get_delegation_ids(delegation_info.resolution_node, span)
+            self.get_delegation_ids(delegation_info.resolution_node, delegation.id, span)
         } else {
             return self.generate_delegation_error(
                 self.dcx().span_delayed_bug(
@@ -195,7 +196,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 // `is_method` is used to choose the name of the first parameter (`self` or `arg0`),
                 // if the original function is not a method (without `self`), then it can not be added
                 // during chain of reuses, so we use `root_function_id` here
-                let is_method = self.is_delegation_a_method(&ids.path, span);
+                let is_method = self.is_delegation_a_method(&ids.sig_path, span);
 
                 // Here we use `root_function_id` as we can not get params information out of potential delegation reuse,
                 // we need a function to extract this information
@@ -270,7 +271,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
         existing_attrs: Option<&&[hir::Attribute]>,
     ) -> Vec<hir::Attribute> {
         let defs_orig_attrs = ids
-            .path
+            .sig_path
             .iter()
             .map(|def_id| (*def_id, self.parse_local_original_attrs(*def_id)))
             .collect::<Vec<_>>();
@@ -357,9 +358,39 @@ impl<'hir> LoweringContext<'_, 'hir> {
 
     fn get_delegation_ids(
         &self,
-        mut node_id: NodeId,
+        sig_node_id: NodeId,
+        method_node_id: NodeId,
         span: Span,
     ) -> Result<DelegationIds, ErrorGuaranteed> {
+        let sig_path = self.get_ids_path(sig_node_id, span, |def_id| {
+            if let Some(local_id) = def_id.as_local()
+                && let Some(delegation_info) = self.resolver.delegation_infos.get(&local_id)
+            {
+                Some(delegation_info.resolution_node)
+            } else {
+                None
+            }
+        })?;
+
+        let method_path = self.get_ids_path(method_node_id, span, |def_id| {
+            if let Some(local_id) = def_id.as_local()
+                && let Some(delegation) = self.get_delegation(local_id)
+            {
+                Some(delegation.id)
+            } else {
+                None
+            }
+        })?;
+
+        Ok(DelegationIds::new(sig_path, method_path))
+    }
+
+    fn get_ids_path(
+        &self,
+        mut node_id: NodeId,
+        span: Span,
+        next: impl Fn(DefId) -> Option<NodeId>,
+    ) -> Result<DelegationIdsVec, ErrorGuaranteed> {
         let mut visited: FxHashSet<NodeId> = Default::default();
         let mut path: DelegationIdsVec = Default::default();
 
@@ -381,10 +412,8 @@ impl<'hir> LoweringContext<'_, 'hir> {
             // If def_id is in local crate and it corresponds to another delegation
             // it means that we refer to another delegation as a callee, so in order to obtain
             // a signature DefId we obtain NodeId of the callee delegation and try to get signature from it.
-            if let Some(local_id) = def_id.as_local()
-                && let Some(delegation_info) = self.resolver.delegation_infos.get(&local_id)
-            {
-                node_id = delegation_info.resolution_node;
+            if let Some(next_node_id) = next(def_id) {
+                node_id = next_node_id;
                 if visited.contains(&node_id) {
                     // We encountered a cycle in the resolution, or delegation callee refers to non-existent
                     // entity, in this case emit an error.
@@ -394,7 +423,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                     });
                 }
             } else {
-                return Ok(DelegationIds::new(path));
+                return Ok(path);
             }
         }
     }
@@ -668,7 +697,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
 
         let call = if self.can_generate_method_call(
             delegation,
-            self.is_delegation_a_method(&ids.path, span),
+            self.is_delegation_a_method(&ids.method_path, span),
             ids.root_function_id(),
             ids.delegee_id(),
             args.len(),
