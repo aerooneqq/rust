@@ -403,9 +403,9 @@ impl<'hir> HirOrAstGenerics<'hir> {
                     }
                 };
 
-                *self = Self::Hir(hir_generics);
+                *self = HirOrAstGenerics::Hir(hir_generics);
             }
-            Self::Hir(_) => {}
+            HirOrAstGenerics::Hir(_) => {}
         }
 
         self
@@ -413,8 +413,8 @@ impl<'hir> HirOrAstGenerics<'hir> {
 
     fn hir_generics_or_empty(&self) -> &'hir hir::Generics<'hir> {
         match self {
-            Self::Ast(_) => hir::Generics::empty(),
-            Self::Hir(hir_generics) => match hir_generics {
+            HirOrAstGenerics::Ast(_) => hir::Generics::empty(),
+            HirOrAstGenerics::Hir(hir_generics) => match hir_generics {
                 DelegationGenerics::UserSpecified => hir::Generics::empty(),
                 DelegationGenerics::Default(generics)
                 | DelegationGenerics::SelfAndUserSpecified(generics) => {
@@ -431,8 +431,8 @@ impl<'hir> HirOrAstGenerics<'hir> {
         span: Span,
     ) -> Option<&'hir hir::GenericArgs<'hir>> {
         match self {
-            Self::Ast(_) => None,
-            Self::Hir(hir_generics) => match hir_generics {
+            HirOrAstGenerics::Ast(_) => None,
+            HirOrAstGenerics::Hir(hir_generics) => match hir_generics {
                 DelegationGenerics::UserSpecified => None,
                 DelegationGenerics::Default(generics)
                 | DelegationGenerics::SelfAndUserSpecified(generics) => generics.map(|generics| {
@@ -444,8 +444,8 @@ impl<'hir> HirOrAstGenerics<'hir> {
 
     pub(super) fn is_user_specified(&self) -> bool {
         match self {
-            Self::Ast(ast_generics) => ast_generics.is_user_specified(),
-            Self::Hir(hir_generics) => hir_generics.is_user_specified(),
+            HirOrAstGenerics::Ast(ast_generics) => ast_generics.is_user_specified(),
+            HirOrAstGenerics::Hir(hir_generics) => hir_generics.is_user_specified(),
         }
     }
 }
@@ -526,6 +526,9 @@ pub(super) enum DelegationGenerics<T> {
 
 impl<T> DelegationGenerics<T> {
     fn is_user_specified(&self) -> bool {
-        matches!(self, Self::UserSpecified | Self::SelfAndUserSpecified { .. })
+        matches!(
+            self,
+            DelegationGenerics::UserSpecified | DelegationGenerics::SelfAndUserSpecified { .. }
+        )
     }
 }
