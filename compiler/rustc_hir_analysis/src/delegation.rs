@@ -6,10 +6,14 @@ use rustc_data_structures::debug_assert_matches;
 use rustc_data_structures::fx::FxHashMap;
 use rustc_hir::def::DefKind;
 use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_hir::{HirId, PathSegment};
 use rustc_middle::ty::{
     self, EarlyBinder, Ty, TyCtxt, TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitableExt,
 };
 use rustc_span::{ErrorGuaranteed, Span, kw};
+
+use crate::collect::ItemCtxt;
+use crate::hir_ty_lowering::{GenericArgPosition, HirTyLowerer};
 
 type RemapTable = FxHashMap<u32, u32>;
 
@@ -268,10 +272,7 @@ fn get_parent_and_inheritance_kind<'tcx>(
     }
 }
 
-pub(crate) fn get_delegation_self_ty<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    delegation_id: LocalDefId,
-) -> Option<Ty<'tcx>> {
+fn get_delegation_self_ty<'tcx>(tcx: TyCtxt<'tcx>, delegation_id: LocalDefId) -> Option<Ty<'tcx>> {
     let sig_id = tcx.hir_opt_delegation_sig_id(delegation_id).expect("Delegation must have sig_id");
     let (caller_kind, callee_kind) = get_caller_and_callee_kind(tcx, delegation_id, sig_id);
 
@@ -443,8 +444,6 @@ pub(crate) fn inherit_predicates_for_delegation_item<'tcx>(
     tcx: TyCtxt<'tcx>,
     def_id: LocalDefId,
     sig_id: DefId,
-    parent_args: &'tcx [ty::GenericArg<'tcx>],
-    child_args: &'tcx [ty::GenericArg<'tcx>],
 ) -> ty::GenericPredicates<'tcx> {
     struct PredicatesCollector<'tcx> {
         tcx: TyCtxt<'tcx>,
@@ -492,6 +491,7 @@ pub(crate) fn inherit_predicates_for_delegation_item<'tcx>(
         }
     }
 
+    let (parent_args, child_args) = get_delegation_user_specified_args(tcx, def_id);
     let (folder, args) = create_folder_and_args(tcx, def_id, sig_id, parent_args, child_args);
     let collector = PredicatesCollector::new(tcx, args, folder);
 
@@ -554,10 +554,8 @@ fn check_constraints<'tcx>(
 
 pub(crate) fn inherit_sig_for_delegation_item<'tcx>(
     tcx: TyCtxt<'tcx>,
-    input: (LocalDefId, &'tcx [ty::GenericArg<'tcx>], &'tcx [ty::GenericArg<'tcx>]),
+    def_id: LocalDefId,
 ) -> &'tcx [Ty<'tcx>] {
-    let (def_id, parent_args, child_args) = input;
-
     let sig_id = tcx.hir_opt_delegation_sig_id(def_id).expect("Delegation must have sig_id");
     let caller_sig = tcx.fn_sig(sig_id);
 
@@ -567,10 +565,83 @@ pub(crate) fn inherit_sig_for_delegation_item<'tcx>(
         return tcx.arena.alloc_from_iter((0..sig_len).map(|_| err_type));
     }
 
+    let (parent_args, child_args) = get_delegation_user_specified_args(tcx, def_id);
     let (mut folder, args) = create_folder_and_args(tcx, def_id, sig_id, parent_args, child_args);
     let caller_sig = EarlyBinder::bind(caller_sig.skip_binder().fold_with(&mut folder));
 
     let sig = caller_sig.instantiate(tcx, args.as_slice()).skip_binder();
     let sig_iter = sig.inputs().iter().cloned().chain(std::iter::once(sig.output()));
     tcx.arena.alloc_from_iter(sig_iter)
+}
+
+// Creates user-specified generic arguments from delegation path,
+// they will be used during delegation signature and predicates inheritance.
+// Example: reuse Trait::<'static, i32, 1>::foo::<A, B>
+// we want to extract [Self, 'static, i32, 1] for parent and [A, B] for child.
+fn get_delegation_user_specified_args<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    delegation_id: LocalDefId,
+) -> (&'tcx [ty::GenericArg<'tcx>], &'tcx [ty::GenericArg<'tcx>]) {
+    let info = tcx
+        .hir_node(tcx.local_def_id_to_hir_id(delegation_id))
+        .fn_sig()
+        .expect("Lowering delegation")
+        .decl
+        .opt_delegation_generics_info()
+        .expect("Lowering delegation");
+
+    let get_segment = |hir_id: Option<HirId>| -> Option<(&'tcx PathSegment<'tcx>, DefId)> {
+        hir_id.map(|hir_id| {
+            let segment = tcx.hir_node(hir_id).expect_path_segment();
+            let def_id = segment.res.def_id();
+
+            (segment, def_id)
+        })
+    };
+
+    let ctx = ItemCtxt::new(tcx, delegation_id);
+    let lowerer = ctx.lowerer();
+
+    let parent_args = get_segment(info.parent_args_segment_id).map(|(segment, def_id)| {
+        let self_ty = get_delegation_self_ty(tcx, delegation_id);
+
+        lowerer
+            .lower_generic_args_of_path(
+                segment.ident.span,
+                def_id,
+                &[],
+                segment,
+                self_ty,
+                GenericArgPosition::Type,
+            )
+            .0
+            .as_slice()
+    });
+
+    let child_args = get_segment(info.child_args_segment_id).map(|(segment, def_id)| {
+        let parent_args = if let Some(parent_args) = parent_args {
+            parent_args
+        } else if let Some(parent) = tcx.opt_parent(def_id)
+            && matches!(tcx.def_kind(parent), DefKind::Trait)
+        {
+            ty::GenericArgs::identity_for_item(tcx, parent).as_slice()
+        } else {
+            &[]
+        };
+
+        let args = lowerer
+            .lower_generic_args_of_path(
+                segment.ident.span,
+                def_id,
+                parent_args,
+                segment,
+                None,
+                GenericArgPosition::Value,
+            )
+            .0;
+
+        &args[parent_args.len()..]
+    });
+
+    (parent_args.unwrap_or(&[]), child_args.unwrap_or(&[]))
 }

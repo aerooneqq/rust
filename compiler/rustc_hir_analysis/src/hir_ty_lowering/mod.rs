@@ -51,7 +51,6 @@ use tracing::{debug, instrument};
 
 use crate::check::check_abi;
 use crate::check_c_variadic_abi;
-use crate::delegation::get_delegation_self_ty;
 use crate::errors::{AmbiguousLifetimeBound, BadReturnTypeNotation};
 use crate::hir_ty_lowering::errors::{GenericsArgsErrExtend, prohibit_assoc_item_constraint};
 use crate::hir_ty_lowering::generics::{check_generic_arg_count, lower_generic_args};
@@ -600,7 +599,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
     /// type itself: `['a]`. The returned `GenericArgsRef` concatenates these two
     /// lists: `[Vec<u8>, u8, 'a]`.
     #[instrument(level = "debug", skip(self, span), ret)]
-    fn lower_generic_args_of_path(
+    pub(crate) fn lower_generic_args_of_path(
         &self,
         span: Span,
         def_id: DefId,
@@ -2903,82 +2902,8 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
         }
     }
 
-    // Creates user-specified generic arguments from delegation path,
-    // they will be used during delegation signature and predicates inheritance.
-    // Example: reuse Trait::<'static, i32, 1>::foo::<A, B>
-    // we want to extract [Self, 'static, i32, 1] for parent and [A, B] for child.
-    pub fn get_delegation_user_specified_args(
-        &self,
-    ) -> (&'tcx [ty::GenericArg<'tcx>], &'tcx [ty::GenericArg<'tcx>]) {
-        let info = self
-            .tcx()
-            .hir_node(self.tcx().local_def_id_to_hir_id(self.item_def_id()))
-            .fn_sig()
-            .expect("Lowering delegation")
-            .decl
-            .opt_delegation_generics_info()
-            .expect("Lowering delegation");
-
-        let get_segment = |hir_id: Option<HirId>| -> Option<(&'tcx hir::PathSegment<'tcx>, DefId)> {
-            hir_id.map(|hir_id| {
-                let segment = self.tcx().hir_node(hir_id).expect_path_segment();
-                let def_id = segment.res.def_id();
-
-                (segment, def_id)
-            })
-        };
-
-        let parent_args = get_segment(info.parent_args_segment_id).map(|(segment, def_id)| {
-            let self_ty = get_delegation_self_ty(self.tcx(), self.item_def_id());
-
-            self.lower_generic_args_of_path(
-                segment.ident.span,
-                def_id,
-                &[],
-                segment,
-                self_ty,
-                GenericArgPosition::Type,
-            )
-            .0
-            .as_slice()
-        });
-
-        let child_args = get_segment(info.child_args_segment_id).map(|(segment, def_id)| {
-            let parent_args = if let Some(parent_args) = parent_args {
-                parent_args
-            } else if let Some(parent) = self.tcx().opt_parent(def_id)
-                && matches!(self.tcx().def_kind(parent), DefKind::Trait)
-            {
-                ty::GenericArgs::identity_for_item(self.tcx(), parent).as_slice()
-            } else {
-                &[]
-            };
-
-            let args = self
-                .lower_generic_args_of_path(
-                    segment.ident.span,
-                    def_id,
-                    parent_args,
-                    segment,
-                    None,
-                    GenericArgPosition::Value,
-                )
-                .0;
-
-            &args[parent_args.len()..]
-        });
-
-        (parent_args.unwrap_or(&[]), child_args.unwrap_or(&[]))
-    }
-
     fn lower_delegation_ty(&self, idx: hir::InferDelegationKind<'tcx>) -> Ty<'tcx> {
-        let (parent_args, child_args) = self.get_delegation_user_specified_args();
-
-        let delegation_sig = self.tcx().inherit_sig_for_delegation_item((
-            self.item_def_id(),
-            parent_args,
-            child_args,
-        ));
+        let delegation_sig = self.tcx().inherit_sig_for_delegation_item(self.item_def_id());
 
         match idx {
             hir::InferDelegationKind::Input(idx) => delegation_sig[idx],
