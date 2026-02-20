@@ -12,6 +12,180 @@ use thin_vec::{ThinVec, thin_vec};
 
 use crate::{AstOwner, LoweringContext};
 
+/// Used for storing either AST generics or their lowered HIR version. Firstly we obtain
+/// AST generics either from local function from AST index or from external function
+/// through `tcx`. Next, at some point of generics processing we need to lower those
+/// generics to HIR, for this purpose we use `into_hir_generics` that lowers AST generics
+/// and replaces Ast variant with Hir. Such approach is useful as we can call this method
+/// at any time knowing that lowering will occur at most only once. Then, in order to obtain generic
+/// params or args we use `hir_generics_or_empty` or `into_generic_args` functions.
+/// There also may be situations when we obtained AST generics but never lowered them to HIR,
+/// meaning we did not propagate them and thus we do not need to generate generic params
+/// (i.e., method call scenarios), in such a case this approach helps
+/// a lot as if `into_hir_generics` will not be called then lowering will not happen.
+pub(super) enum HirOrAstGenerics<'hir> {
+    Ast(DelegationGenerics<Generics>),
+    Hir(DelegationGenerics<&'hir hir::Generics<'hir>>),
+}
+
+pub(super) enum DelegationGenerics<T> {
+    UserSpecified,
+    Default(Option<T>),
+    SelfAndUserSpecified(Option<T>),
+}
+
+pub(super) struct GenericsGenerationResults<'hir> {
+    pub(super) parent: GenericsGenerationResult<'hir>,
+    pub(super) child: GenericsGenerationResult<'hir>,
+}
+
+pub(super) struct GenericsGenerationResult<'hir> {
+    pub(super) generics: HirOrAstGenerics<'hir>,
+    pub(super) args_segment_id: Option<HirId>,
+}
+
+impl<'hir> HirOrAstGenerics<'hir> {
+    pub(super) fn into_hir_generics(
+        &mut self,
+        ctx: &mut LoweringContext<'_, 'hir>,
+        item_id: NodeId,
+        span: Span,
+    ) -> &mut Self {
+        match self {
+            HirOrAstGenerics::Ast(generics) => {
+                let mut process_params = |generics: &mut Option<Generics>| {
+                    generics
+                        .as_mut()
+                        .map(|g| ctx.lower_delegation_generic_params(item_id, span, &mut g.params))
+                };
+
+                let hir_generics = match generics {
+                    DelegationGenerics::UserSpecified => DelegationGenerics::UserSpecified,
+                    DelegationGenerics::Default(generics) => {
+                        DelegationGenerics::Default(process_params(generics))
+                    }
+                    DelegationGenerics::SelfAndUserSpecified(generics) => {
+                        DelegationGenerics::SelfAndUserSpecified(process_params(generics))
+                    }
+                };
+
+                *self = HirOrAstGenerics::Hir(hir_generics);
+            }
+            HirOrAstGenerics::Hir(_) => {}
+        }
+
+        self
+    }
+
+    fn hir_generics_or_empty(&self) -> &'hir hir::Generics<'hir> {
+        match self {
+            HirOrAstGenerics::Ast(_) => hir::Generics::empty(),
+            HirOrAstGenerics::Hir(hir_generics) => match hir_generics {
+                DelegationGenerics::UserSpecified => hir::Generics::empty(),
+                DelegationGenerics::Default(generics)
+                | DelegationGenerics::SelfAndUserSpecified(generics) => {
+                    generics.unwrap_or(hir::Generics::empty())
+                }
+            },
+        }
+    }
+
+    pub(super) fn into_generic_args(
+        &self,
+        ctx: &mut LoweringContext<'_, 'hir>,
+        add_lifetimes: bool,
+        span: Span,
+    ) -> Option<&'hir hir::GenericArgs<'hir>> {
+        match self {
+            HirOrAstGenerics::Ast(_) => None,
+            HirOrAstGenerics::Hir(hir_generics) => match hir_generics {
+                DelegationGenerics::UserSpecified => None,
+                DelegationGenerics::Default(generics)
+                | DelegationGenerics::SelfAndUserSpecified(generics) => generics.map(|generics| {
+                    ctx.create_generics_args_from_params(generics.params, add_lifetimes, span)
+                }),
+            },
+        }
+    }
+
+    pub(super) fn is_user_specified(&self) -> bool {
+        match self {
+            HirOrAstGenerics::Ast(ast_generics) => ast_generics.is_user_specified(),
+            HirOrAstGenerics::Hir(hir_generics) => hir_generics.is_user_specified(),
+        }
+    }
+}
+
+impl<'a> GenericsGenerationResult<'a> {
+    fn new(generics: DelegationGenerics<Generics>) -> Self {
+        Self { generics: HirOrAstGenerics::Ast(generics), args_segment_id: None }
+    }
+}
+
+impl<'hir> GenericsGenerationResults<'hir> {
+    pub(super) fn all_params(
+        &mut self,
+        item_id: NodeId,
+        span: Span,
+        ctx: &mut LoweringContext<'_, 'hir>,
+    ) -> impl Iterator<Item = hir::GenericParam<'hir>> {
+        // Now we always call `into_hir_generics` both on child and parent,
+        // however in future we would not do that, when scenarios like
+        // method call will be supported.
+        let parent = self
+            .parent
+            .generics
+            .into_hir_generics(ctx, item_id, span)
+            .hir_generics_or_empty()
+            .params;
+
+        let child = self
+            .child
+            .generics
+            .into_hir_generics(ctx, item_id, span)
+            .hir_generics_or_empty()
+            .params;
+
+        // Order generics, firstly we have parent and child lifetimes,
+        // then parent and child types and consts.
+        // `generics_of` in `rustc_hir_analysis` will order them anyway,
+        // however we want the order to be consistent in HIR too.
+        parent
+            .iter()
+            .filter(|p| p.is_lifetime())
+            .chain(child.iter().filter(|p| p.is_lifetime()))
+            .chain(parent.iter().filter(|p| !p.is_lifetime()))
+            .chain(child.iter().filter(|p| !p.is_lifetime()))
+            .map(|p| *p)
+    }
+
+    pub(super) fn all_predicates(&self) -> impl Iterator<Item = hir::WherePredicate<'hir>> {
+        self.parent
+            .generics
+            .hir_generics_or_empty()
+            .predicates
+            .into_iter()
+            .chain(self.child.generics.hir_generics_or_empty().predicates.into_iter())
+            .map(|p| *p)
+    }
+
+    pub(super) fn create_hir_delegation_generics(&self) -> hir::DelegationGenerics {
+        hir::DelegationGenerics {
+            child_args_segment_id: self.child.args_segment_id,
+            parent_args_segment_id: self.parent.args_segment_id,
+        }
+    }
+}
+
+impl<T> DelegationGenerics<T> {
+    fn is_user_specified(&self) -> bool {
+        matches!(
+            self,
+            DelegationGenerics::UserSpecified | DelegationGenerics::SelfAndUserSpecified { .. }
+        )
+    }
+}
+
 impl<'hir> LoweringContext<'_, 'hir> {
     pub(super) fn lower_delegation_generics(
         &mut self,
@@ -370,165 +544,5 @@ impl<'hir> LoweringContext<'_, 'hir> {
         }
 
         generics
-    }
-}
-
-pub(super) enum HirOrAstGenerics<'hir> {
-    Ast(DelegationGenerics<Generics>),
-    Hir(DelegationGenerics<&'hir hir::Generics<'hir>>),
-}
-
-impl<'hir> HirOrAstGenerics<'hir> {
-    pub(super) fn into_hir_generics(
-        &mut self,
-        ctx: &mut LoweringContext<'_, 'hir>,
-        item_id: NodeId,
-        span: Span,
-    ) -> &mut Self {
-        match self {
-            HirOrAstGenerics::Ast(generics) => {
-                let mut process_params = |generics: &mut Option<Generics>| {
-                    generics
-                        .as_mut()
-                        .map(|g| ctx.lower_delegation_generic_params(item_id, span, &mut g.params))
-                };
-
-                let hir_generics = match generics {
-                    DelegationGenerics::UserSpecified => DelegationGenerics::UserSpecified,
-                    DelegationGenerics::Default(generics) => {
-                        DelegationGenerics::Default(process_params(generics))
-                    }
-                    DelegationGenerics::SelfAndUserSpecified(generics) => {
-                        DelegationGenerics::SelfAndUserSpecified(process_params(generics))
-                    }
-                };
-
-                *self = HirOrAstGenerics::Hir(hir_generics);
-            }
-            HirOrAstGenerics::Hir(_) => {}
-        }
-
-        self
-    }
-
-    fn hir_generics_or_empty(&self) -> &'hir hir::Generics<'hir> {
-        match self {
-            HirOrAstGenerics::Ast(_) => hir::Generics::empty(),
-            HirOrAstGenerics::Hir(hir_generics) => match hir_generics {
-                DelegationGenerics::UserSpecified => hir::Generics::empty(),
-                DelegationGenerics::Default(generics)
-                | DelegationGenerics::SelfAndUserSpecified(generics) => {
-                    generics.unwrap_or(hir::Generics::empty())
-                }
-            },
-        }
-    }
-
-    pub(super) fn into_generic_args(
-        &self,
-        ctx: &mut LoweringContext<'_, 'hir>,
-        add_lifetimes: bool,
-        span: Span,
-    ) -> Option<&'hir hir::GenericArgs<'hir>> {
-        match self {
-            HirOrAstGenerics::Ast(_) => None,
-            HirOrAstGenerics::Hir(hir_generics) => match hir_generics {
-                DelegationGenerics::UserSpecified => None,
-                DelegationGenerics::Default(generics)
-                | DelegationGenerics::SelfAndUserSpecified(generics) => generics.map(|generics| {
-                    ctx.create_generics_args_from_params(generics.params, add_lifetimes, span)
-                }),
-            },
-        }
-    }
-
-    pub(super) fn is_user_specified(&self) -> bool {
-        match self {
-            HirOrAstGenerics::Ast(ast_generics) => ast_generics.is_user_specified(),
-            HirOrAstGenerics::Hir(hir_generics) => hir_generics.is_user_specified(),
-        }
-    }
-}
-
-pub(super) struct GenericsGenerationResult<'hir> {
-    pub(super) generics: HirOrAstGenerics<'hir>,
-    pub(super) args_segment_id: Option<HirId>,
-}
-
-impl<'a> GenericsGenerationResult<'a> {
-    fn new(generics: DelegationGenerics<Generics>) -> Self {
-        Self { generics: HirOrAstGenerics::Ast(generics), args_segment_id: None }
-    }
-}
-
-pub(super) struct GenericsGenerationResults<'hir> {
-    pub(super) parent: GenericsGenerationResult<'hir>,
-    pub(super) child: GenericsGenerationResult<'hir>,
-}
-
-impl<'hir> GenericsGenerationResults<'hir> {
-    pub(super) fn all_params(
-        &mut self,
-        item_id: NodeId,
-        span: Span,
-        ctx: &mut LoweringContext<'_, 'hir>,
-    ) -> impl Iterator<Item = hir::GenericParam<'hir>> {
-        let parent = self
-            .parent
-            .generics
-            .into_hir_generics(ctx, item_id, span)
-            .hir_generics_or_empty()
-            .params;
-
-        let child = self
-            .child
-            .generics
-            .into_hir_generics(ctx, item_id, span)
-            .hir_generics_or_empty()
-            .params;
-
-        // Order generics, firstly we have parent and child lifetimes,
-        // then parent and child types and consts.
-        // `generics_of` in `rustc_hir_analysis` will order them anyway,
-        // however we want the order to be consistent in HIR too.
-        parent
-            .iter()
-            .filter(|p| p.is_lifetime())
-            .chain(child.iter().filter(|p| p.is_lifetime()))
-            .chain(parent.iter().filter(|p| !p.is_lifetime()))
-            .chain(child.iter().filter(|p| !p.is_lifetime()))
-            .map(|p| *p)
-    }
-
-    pub(super) fn all_predicates(&self) -> impl Iterator<Item = hir::WherePredicate<'hir>> {
-        self.parent
-            .generics
-            .hir_generics_or_empty()
-            .predicates
-            .into_iter()
-            .chain(self.child.generics.hir_generics_or_empty().predicates.into_iter())
-            .map(|p| *p)
-    }
-
-    pub(super) fn create_hir_delegation_generics(&self) -> hir::DelegationGenerics {
-        hir::DelegationGenerics {
-            child_args_segment_id: self.child.args_segment_id,
-            parent_args_segment_id: self.parent.args_segment_id,
-        }
-    }
-}
-
-pub(super) enum DelegationGenerics<T> {
-    UserSpecified,
-    Default(Option<T>),
-    SelfAndUserSpecified(Option<T>),
-}
-
-impl<T> DelegationGenerics<T> {
-    fn is_user_specified(&self) -> bool {
-        matches!(
-            self,
-            DelegationGenerics::UserSpecified | DelegationGenerics::SelfAndUserSpecified { .. }
-        )
     }
 }
