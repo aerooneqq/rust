@@ -242,7 +242,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
 
     fn get_fn_like_generics(&mut self, id: DefId) -> Option<Generics> {
         if let Some(local_id) = id.as_local() {
-            match self.ast_accessor.get(local_id) {
+            match self.ast_index.get(local_id) {
                 Some(AstOwner::Item(item)) if let ItemKind::Fn(f) = &item.kind => {
                     Some(f.generics.clone())
                 }
@@ -342,7 +342,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
             None
         } else {
             if let Some(local_id) = id.as_local() {
-                if let Some(AstOwner::Item(item)) = self.ast_accessor.get(local_id)
+                if let Some(AstOwner::Item(item)) = self.ast_index.get(local_id)
                     && matches!(item.kind, ItemKind::Trait(..))
                 {
                     item.opt_generics().cloned()
