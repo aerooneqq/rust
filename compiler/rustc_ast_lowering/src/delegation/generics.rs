@@ -216,7 +216,12 @@ impl<'hir> LoweringContext<'_, 'hir> {
         let segments = &delegation.path.segments;
         let len = segments.len();
 
-        let parent_generics = if len >= 2 && self.can_add_generics_to(segments[len - 2].id) {
+        let can_add_generics_to_parent = len >= 2
+            && self.get_resolution_id(segments[len - 2].id).is_some_and(|def_id| {
+                matches!(self.tcx.def_kind(def_id), DefKind::Trait | DefKind::TraitAlias)
+            });
+
+        let parent_generics = if can_add_generics_to_parent {
             if segments[len - 2].args.is_some() {
                 if generate_self {
                     DelegationGenerics::SelfAndUserSpecified(parent_generics_factory(self, true))
@@ -240,12 +245,6 @@ impl<'hir> LoweringContext<'_, 'hir> {
             parent: GenericsGenerationResult::new(parent_generics),
             child: GenericsGenerationResult::new(child_generics),
         }
-    }
-
-    fn can_add_generics_to(&self, node_id: NodeId) -> bool {
-        self.get_resolution_id(node_id).is_some_and(|def_id| {
-            matches!(self.tcx.def_kind(def_id), DefKind::Trait | DefKind::TraitAlias)
-        })
     }
 
     fn lower_delegation_generic_params(

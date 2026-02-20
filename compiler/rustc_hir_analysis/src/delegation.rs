@@ -98,7 +98,9 @@ enum FnKind {
     AssocTraitImpl,
 }
 
-fn fn_kind<'tcx>(tcx: TyCtxt<'tcx>, def_id: DefId) -> FnKind {
+fn fn_kind<'tcx>(tcx: TyCtxt<'tcx>, def_id: impl Into<DefId>) -> FnKind {
+    let def_id = def_id.into();
+
     debug_assert_matches!(tcx.def_kind(def_id), DefKind::Fn | DefKind::AssocFn);
 
     let parent = tcx.parent(def_id);
@@ -147,7 +149,7 @@ fn create_mapping<'tcx>(
 ) -> FxHashMap<u32, u32> {
     let mut mapping: FxHashMap<u32, u32> = Default::default();
 
-    let (caller_kind, callee_kind) = get_caller_and_callee_kind(tcx, def_id, sig_id);
+    let (caller_kind, callee_kind) = (fn_kind(tcx, def_id), fn_kind(tcx, sig_id));
     let self_pos_kind = create_self_position_kind(caller_kind, callee_kind);
     let is_self_at_zero = matches!(self_pos_kind, SelfPositionKind::Zero);
 
@@ -221,7 +223,7 @@ fn get_delegation_parent_args_count_without_self<'tcx>(
 ) -> usize {
     let delegation_parent_args_count = tcx.generics_of(delegation_id).parent_count;
 
-    match get_caller_and_callee_kind(tcx, delegation_id, sig_id) {
+    match (fn_kind(tcx, delegation_id), fn_kind(tcx, sig_id)) {
         (FnKind::Free, FnKind::Free)
         | (FnKind::Free, FnKind::AssocTrait)
         | (FnKind::AssocTraitImpl, FnKind::AssocTrait) => 0,
@@ -239,20 +241,12 @@ fn get_delegation_parent_args_count_without_self<'tcx>(
     }
 }
 
-fn get_caller_and_callee_kind<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    def_id: LocalDefId,
-    sig_id: DefId,
-) -> (FnKind, FnKind) {
-    (fn_kind(tcx, def_id.into()), fn_kind(tcx, sig_id))
-}
-
 fn get_parent_and_inheritance_kind<'tcx>(
     tcx: TyCtxt<'tcx>,
     def_id: LocalDefId,
     sig_id: DefId,
 ) -> (Option<DefId>, InheritanceKind) {
-    match get_caller_and_callee_kind(tcx, def_id, sig_id) {
+    match (fn_kind(tcx, def_id), fn_kind(tcx, sig_id)) {
         (FnKind::Free, FnKind::Free) | (FnKind::Free, FnKind::AssocTrait) => {
             (None, InheritanceKind::WithParent(true))
         }
@@ -274,7 +268,7 @@ fn get_parent_and_inheritance_kind<'tcx>(
 
 fn get_delegation_self_ty<'tcx>(tcx: TyCtxt<'tcx>, delegation_id: LocalDefId) -> Option<Ty<'tcx>> {
     let sig_id = tcx.hir_opt_delegation_sig_id(delegation_id).expect("Delegation must have sig_id");
-    let (caller_kind, callee_kind) = get_caller_and_callee_kind(tcx, delegation_id, sig_id);
+    let (caller_kind, callee_kind) = (fn_kind(tcx, delegation_id), fn_kind(tcx, sig_id));
 
     match (caller_kind, callee_kind) {
         (FnKind::Free, FnKind::AssocTrait)
@@ -337,7 +331,7 @@ fn create_generic_args<'tcx>(
     mut parent_args: &[ty::GenericArg<'tcx>],
     child_args: &[ty::GenericArg<'tcx>],
 ) -> Vec<ty::GenericArg<'tcx>> {
-    let (caller_kind, callee_kind) = get_caller_and_callee_kind(tcx, delegation_id, sig_id);
+    let (caller_kind, callee_kind) = (fn_kind(tcx, delegation_id), fn_kind(tcx, sig_id));
 
     let delegation_args = ty::GenericArgs::identity_for_item(tcx, delegation_id);
     let delegation_parent_args_count = tcx.generics_of(delegation_id).parent_count;
