@@ -21,6 +21,7 @@ use crate::hir::{ModuleItems, nested_filter};
 use crate::middle::debugger_visualizer::DebuggerVisualizerFile;
 use crate::query::LocalCrate;
 use crate::ty::TyCtxt;
+use crate::ty::layout::HasTyCtxt;
 
 /// An iterator that walks up the ancestor tree of a given `HirId`.
 /// Constructed using `tcx.hir_parent_iter(hir_id)`.
@@ -1010,7 +1011,7 @@ impl<'tcx> TyCtxt<'tcx> {
             Node::PathSegment(seg) => {
                 let ident_span = seg.ident.span;
                 ident_span.with_hi(
-                    seg.args.opt_args().map_or_else(|| ident_span.hi(), |args| args.span_ext.hi()),
+                    seg.args.opt_args(&self.tcx()).map_or_else(|| ident_span.hi(), |args| args.span_ext.hi()),
                 )
             }
             Node::Ty(ty) => ty.span,
@@ -1114,11 +1115,15 @@ impl<'tcx> intravisit::HirTyCtxt<'tcx> for TyCtxt<'tcx> {
     fn hir_foreign_item(&self, id: ForeignItemId) -> &'tcx ForeignItem<'tcx> {
         (*self).hir_foreign_item(id)
     }
+
+    fn get_delegation_args(&self, _sig_id: DefId) -> Option<&'tcx GenericArgs<'tcx>> {
+        None
+    }
 }
 
-impl<'tcx> pprust_hir::PpAnn for TyCtxt<'tcx> {
-    fn nested(&self, state: &mut pprust_hir::State<'_>, nested: pprust_hir::Nested) {
-        pprust_hir::PpAnn::nested(&(self as &dyn intravisit::HirTyCtxt<'_>), state, nested)
+impl<'tcx> pprust_hir::PpAnn<'tcx> for TyCtxt<'tcx> {
+    fn nested(&self, state: &mut pprust_hir::State<'tcx, '_>, nested: pprust_hir::Nested) {
+        pprust_hir::PpAnn::nested(&(self as &dyn intravisit::HirTyCtxt<'tcx>), state, nested)
     }
 }
 

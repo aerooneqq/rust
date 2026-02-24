@@ -66,7 +66,7 @@
 
 use rustc_ast::Label;
 use rustc_ast::visit::{VisitorResult, try_visit, visit_opt, walk_list};
-use rustc_span::def_id::LocalDefId;
+use rustc_span::def_id::{DefId, LocalDefId};
 use rustc_span::{Ident, Span, Symbol};
 
 use crate::hir::*;
@@ -117,6 +117,8 @@ pub trait HirTyCtxt<'hir> {
     fn hir_trait_item(&self, id: TraitItemId) -> &'hir TraitItem<'hir>;
     fn hir_impl_item(&self, id: ImplItemId) -> &'hir ImplItem<'hir>;
     fn hir_foreign_item(&self, id: ForeignItemId) -> &'hir ForeignItem<'hir>;
+
+    fn get_delegation_args(&self, sig_id: DefId) -> Option<&'hir GenericArgs<'hir>>;
 }
 
 // Used when no tcx is actually available, forcing manual implementation of nested visitors.
@@ -137,6 +139,10 @@ impl<'hir> HirTyCtxt<'hir> for ! {
         unreachable!();
     }
     fn hir_foreign_item(&self, _: ForeignItemId) -> &'hir ForeignItem<'hir> {
+        unreachable!();
+    }
+
+    fn get_delegation_args(&self, _: DefId) -> Option<&'hir GenericArgs<'hir>> {
         unreachable!();
     }
 }
@@ -1485,7 +1491,7 @@ pub fn walk_path_segment<'v, V: Visitor<'v>>(
     let PathSegment { ident, hir_id, res: _, args, infer_args: _ } = segment;
     try_visit!(visitor.visit_ident(*ident));
     try_visit!(visitor.visit_id(*hir_id));
-    visit_opt!(visitor, visit_generic_args, args.opt_args());
+    visit_opt!(visitor, visit_generic_args, args.opt_args(&visitor.maybe_tcx()));
     V::Result::output()
 }
 

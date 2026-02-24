@@ -2609,7 +2609,7 @@ pub(crate) fn provide(providers: &mut Providers) {
 /// Whenever possible, prefer to evaluate the constant first and try to
 /// use a different method for pretty-printing. Ideally this function
 /// should only ever be used as a fallback.
-pub fn rendered_const<'tcx>(tcx: TyCtxt<'tcx>, body: &hir::Body<'_>, def_id: LocalDefId) -> String {
+pub fn rendered_const<'tcx>(tcx: TyCtxt<'tcx>, body: &hir::Body<'tcx>, def_id: LocalDefId) -> String {
     let value = body.value;
 
     #[derive(PartialEq, Eq)]
@@ -2621,7 +2621,7 @@ pub fn rendered_const<'tcx>(tcx: TyCtxt<'tcx>, body: &hir::Body<'_>, def_id: Loc
 
     use Classification::*;
 
-    fn classify(expr: &hir::Expr<'_>) -> Classification {
+    fn classify<'tcx>(expr: &hir::Expr<'tcx>, tcx: TyCtxt<'tcx>) -> Classification {
         match &expr.kind {
             hir::ExprKind::Unary(hir::UnOp::Neg, expr) => {
                 if matches!(expr.kind, hir::ExprKind::Lit(_)) { Literal } else { Complex }
@@ -2629,14 +2629,14 @@ pub fn rendered_const<'tcx>(tcx: TyCtxt<'tcx>, body: &hir::Body<'_>, def_id: Loc
             hir::ExprKind::Lit(_) => Literal,
             hir::ExprKind::Tup([]) => Simple,
             hir::ExprKind::Block(hir::Block { stmts: [], expr: Some(expr), .. }, _) => {
-                if classify(expr) == Complex { Complex } else { Simple }
+                if classify(expr, tcx) == Complex { Complex } else { Simple }
             }
             // Paths with a self-type or arguments are too “complex” following our measure since
             // they may leak private fields of structs (with feature `adt_const_params`).
             // Consider: `<Self as Trait<{ Struct { private: () } }>>::CONSTANT`.
             // Paths without arguments are definitely harmless though.
             hir::ExprKind::Path(hir::QPath::Resolved(_, hir::Path { segments, .. })) => {
-                if segments.iter().all(|segment| segment.args.opt_args().is_none()) {
+                if segments.iter().all(|segment| segment.args.opt_args(&tcx).is_none()) {
                     Simple
                 } else {
                     Complex
@@ -2649,7 +2649,7 @@ pub fn rendered_const<'tcx>(tcx: TyCtxt<'tcx>, body: &hir::Body<'_>, def_id: Loc
         }
     }
 
-    match classify(value) {
+    match classify(value, tcx) {
         // For non-macro literals, we avoid invoking the pretty-printer and use the source snippet
         // instead to preserve certain stylistic choices the user likely made for the sake of
         // legibility, like:
@@ -2668,7 +2668,7 @@ pub fn rendered_const<'tcx>(tcx: TyCtxt<'tcx>, body: &hir::Body<'_>, def_id: Loc
 
         // Otherwise we prefer pretty-printing to get rid of extraneous whitespace, comments and
         // other formatting artifacts.
-        Literal | Simple => id_to_string(&tcx, body.id().hir_id),
+        Literal | Simple => id_to_string(&tcx, &tcx, body.id().hir_id),
 
         // FIXME: Omit the curly braces if the enclosing expression is an array literal
         //        with a repeated element (an `ExprKind::Repeat`) as in such case it

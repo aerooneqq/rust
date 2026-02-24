@@ -780,34 +780,35 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
                     // We do this to avoid suggesting code that ends up as `T: 'a'b`,
                     // instead we suggest `T: 'a + 'b` in that case.
                     let hir_generics = self.tcx.hir_get_generics(scope).unwrap();
-                    let sugg_span = match hir_generics.bounds_span_for_suggestions(def_id) {
-                        Some((span, open_paren_sp)) => {
-                            Some((span, LifetimeSuggestion::NeedsPlus(open_paren_sp)))
-                        }
-                        // If `param` corresponds to `Self`, no usable suggestion span.
-                        None if generics.has_self && param.index == 0 => None,
-                        None => {
-                            let mut colon_flag = false;
-                            let span = if let Some(param) =
-                                hir_generics.params.iter().find(|param| param.def_id == def_id)
-                                && let ParamName::Plain(ident) = param.name
-                            {
-                                if let Some(sp) = param.colon_span {
-                                    colon_flag = true;
-                                    sp.shrink_to_hi()
-                                } else {
-                                    ident.span.shrink_to_hi()
-                                }
-                            } else {
-                                let span = self.tcx.def_span(def_id);
-                                span.shrink_to_hi()
-                            };
-                            match colon_flag {
-                                true => Some((span, LifetimeSuggestion::HasColon)),
-                                false => Some((span, LifetimeSuggestion::NeedsColon)),
+                    let sugg_span =
+                        match hir_generics.bounds_span_for_suggestions(def_id, &self.tcx) {
+                            Some((span, open_paren_sp)) => {
+                                Some((span, LifetimeSuggestion::NeedsPlus(open_paren_sp)))
                             }
-                        }
-                    };
+                            // If `param` corresponds to `Self`, no usable suggestion span.
+                            None if generics.has_self && param.index == 0 => None,
+                            None => {
+                                let mut colon_flag = false;
+                                let span = if let Some(param) =
+                                    hir_generics.params.iter().find(|param| param.def_id == def_id)
+                                    && let ParamName::Plain(ident) = param.name
+                                {
+                                    if let Some(sp) = param.colon_span {
+                                        colon_flag = true;
+                                        sp.shrink_to_hi()
+                                    } else {
+                                        ident.span.shrink_to_hi()
+                                    }
+                                } else {
+                                    let span = self.tcx.def_span(def_id);
+                                    span.shrink_to_hi()
+                                };
+                                match colon_flag {
+                                    true => Some((span, LifetimeSuggestion::HasColon)),
+                                    false => Some((span, LifetimeSuggestion::NeedsColon)),
+                                }
+                            }
+                        };
                     (scope, sugg_span)
                 }
                 _ => (generic_param_scope, None),
@@ -894,7 +895,7 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
             && let hir::def::Res::Def(_, def_id) = path.res
             && Some(def_id) == self.tcx.lang_items().owned_box()
             && let [segment] = path.segments
-            && let Some(args) = segment.args.opt_args()
+            && let Some(args) = segment.args.opt_args(&self.tcx)
             && let [hir::GenericArg::Type(ty)] = args.args
             && let hir::TyKind::TraitObject(_, tagged_ref) = ty.kind
             && let hir::LifetimeKind::ImplicitObjectLifetimeDefault = tagged_ref.pointer().kind

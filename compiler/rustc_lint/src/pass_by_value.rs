@@ -20,7 +20,7 @@ declare_tool_lint! {
 declare_lint_pass!(PassByValue => [PASS_BY_VALUE]);
 
 impl<'tcx> LateLintPass<'tcx> for PassByValue {
-    fn check_ty(&mut self, cx: &LateContext<'_>, ty: &'tcx hir::Ty<'tcx, AmbigArg>) {
+    fn check_ty(&mut self, cx: &LateContext<'tcx>, ty: &'tcx hir::Ty<'tcx, AmbigArg>) {
         match &ty.kind {
             TyKind::Ref(_, hir::MutTy { ty: inner_ty, mutbl: hir::Mutability::Not }) => {
                 if cx.tcx.trait_impl_of_assoc(ty.hir_id.owner.to_def_id()).is_some() {
@@ -39,7 +39,7 @@ impl<'tcx> LateLintPass<'tcx> for PassByValue {
     }
 }
 
-fn path_for_pass_by_value(cx: &LateContext<'_>, ty: &hir::Ty<'_>) -> Option<String> {
+fn path_for_pass_by_value(cx: &LateContext<'tcx>, ty: &hir::Ty<'tcx>) -> Option<String> {
     if let TyKind::Path(QPath::Resolved(_, path)) = &ty.kind {
         match path.res {
             Res::Def(_, def_id) if find_attr!(cx.tcx, def_id, RustcPassByValue(_)) => {
@@ -61,8 +61,8 @@ fn path_for_pass_by_value(cx: &LateContext<'_>, ty: &hir::Ty<'_>) -> Option<Stri
     None
 }
 
-fn gen_args(cx: &LateContext<'_>, segment: &PathSegment<'_>) -> String {
-    if let Some(args) = segment.args.opt_args() {
+fn gen_args<'tcx>(cx: &LateContext<'tcx>, segment: &PathSegment<'tcx>) -> String {
+    if let Some(args) = segment.args.opt_args(&cx.tcx) {
         let params = args
             .args
             .iter()

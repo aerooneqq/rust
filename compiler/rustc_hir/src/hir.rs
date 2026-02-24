@@ -370,15 +370,18 @@ pub enum PathSegmentArgs<'hir> {
 }
 
 impl<'hir> PathSegmentArgs<'hir> {
-    pub fn args(&self) -> &GenericArgs<'hir> {
+    pub fn args(&self, tcx: &dyn crate::intravisit::HirTyCtxt<'hir>) -> &GenericArgs<'hir> {
         const DUMMY: &GenericArgs<'_> = &GenericArgs::none();
-        self.opt_args().unwrap_or(DUMMY)
+        self.opt_args(tcx).unwrap_or(DUMMY)
     }
 
-    pub fn opt_args(&self) -> Option<&'hir GenericArgs<'hir>> {
+    pub fn opt_args(
+        &self,
+        tcx: &dyn crate::intravisit::HirTyCtxt<'hir>,
+    ) -> Option<&'hir GenericArgs<'hir>> {
         match self {
             PathSegmentArgs::Default(generic_args) => *generic_args,
-            PathSegmentArgs::DelegationPropagated(_) => todo!(),
+            PathSegmentArgs::DelegationPropagated(def_id) => tcx.get_delegation_args(*def_id),
         }
     }
 
@@ -426,8 +429,8 @@ impl<'hir> PathSegment<'hir> {
         Self::new(Ident::dummy(), HirId::INVALID, Res::Err)
     }
 
-    pub fn args(&self) -> &GenericArgs<'hir> {
-        self.args.args()
+    pub fn args(&self, tcx: &dyn crate::intravisit::HirTyCtxt<'hir>) -> &GenericArgs<'hir> {
+        self.args.args(tcx)
     }
 }
 
@@ -1026,12 +1029,13 @@ impl<'hir> Generics<'hir> {
     pub fn bounds_span_for_suggestions(
         &self,
         param_def_id: LocalDefId,
+        tcx: &impl crate::intravisit::HirTyCtxt<'hir>,
     ) -> Option<(Span, Option<Span>)> {
         self.bounds_for_param(param_def_id).flat_map(|bp| bp.bounds.iter().rev()).find_map(
             |bound| {
                 let span_for_parentheses = if let Some(trait_ref) = bound.trait_ref()
                     && let [.., segment] = trait_ref.path.segments
-                    && let Some(ret_ty) = segment.args().paren_sugar_output()
+                    && let Some(ret_ty) = segment.args(tcx).paren_sugar_output()
                     && let ret_ty = ret_ty.peel_refs()
                     && let TyKind::TraitObject(_, tagged_ptr) = ret_ty.kind
                     && let TraitObjectSyntax::Dyn = tagged_ptr.tag()
@@ -3560,10 +3564,13 @@ impl<'hir> Ty<'hir> {
 
     /// Whether `ty` is a type with `_` placeholders that can be inferred. Used in diagnostics only to
     /// use inference to provide suggestions for the appropriate type if possible.
-    pub fn is_suggestable_infer_ty(&self) -> bool {
-        fn are_suggestable_generic_args(generic_args: &[GenericArg<'_>]) -> bool {
+    pub fn is_suggestable_infer_ty(&self, tcx: &impl crate::intravisit::HirTyCtxt<'hir>) -> bool {
+        fn are_suggestable_generic_args<'hir>(
+            generic_args: &[GenericArg<'hir>],
+            tcx: &impl crate::intravisit::HirTyCtxt<'hir>,
+        ) -> bool {
             generic_args.iter().any(|arg| match arg {
-                GenericArg::Type(ty) => ty.as_unambig_ty().is_suggestable_infer_ty(),
+                GenericArg::Type(ty) => ty.as_unambig_ty().is_suggestable_infer_ty(tcx),
                 GenericArg::Infer(_) => true,
                 _ => false,
             })
@@ -3571,20 +3578,21 @@ impl<'hir> Ty<'hir> {
         debug!(?self);
         match &self.kind {
             TyKind::Infer(()) => true,
-            TyKind::Slice(ty) => ty.is_suggestable_infer_ty(),
+            TyKind::Slice(ty) => ty.is_suggestable_infer_ty(tcx),
             TyKind::Array(ty, length) => {
-                ty.is_suggestable_infer_ty() || matches!(length.kind, ConstArgKind::Infer(..))
+                ty.is_suggestable_infer_ty(tcx) || matches!(length.kind, ConstArgKind::Infer(..))
             }
-            TyKind::Tup(tys) => tys.iter().any(Self::is_suggestable_infer_ty),
-            TyKind::Ptr(mut_ty) | TyKind::Ref(_, mut_ty) => mut_ty.ty.is_suggestable_infer_ty(),
+            TyKind::Tup(tys) => tys.iter().any(|ty| ty.is_suggestable_infer_ty(tcx)),
+            TyKind::Ptr(mut_ty) | TyKind::Ref(_, mut_ty) => mut_ty.ty.is_suggestable_infer_ty(tcx),
             TyKind::Path(QPath::TypeRelative(ty, segment)) => {
-                ty.is_suggestable_infer_ty() || are_suggestable_generic_args(segment.args().args)
+                ty.is_suggestable_infer_ty(tcx)
+                    || are_suggestable_generic_args(segment.args(tcx).args, tcx)
             }
             TyKind::Path(QPath::Resolved(ty_opt, Path { segments, .. })) => {
-                ty_opt.is_some_and(Self::is_suggestable_infer_ty)
+                ty_opt.is_some_and(|ty| ty.is_suggestable_infer_ty(tcx))
                     || segments
                         .iter()
-                        .any(|segment| are_suggestable_generic_args(segment.args().args))
+                        .any(|segment| are_suggestable_generic_args(segment.args(tcx).args, tcx))
             }
             _ => false,
         }
@@ -4054,9 +4062,12 @@ impl<'hir> FnRetTy<'hir> {
         }
     }
 
-    pub fn is_suggestable_infer_ty(&self) -> Option<&'hir Ty<'hir>> {
+    pub fn is_suggestable_infer_ty(
+        &self,
+        tcx: &impl crate::intravisit::HirTyCtxt<'hir>,
+    ) -> Option<&'hir Ty<'hir>> {
         if let Self::Return(ty) = self
-            && ty.is_suggestable_infer_ty()
+            && ty.is_suggestable_infer_ty(tcx)
         {
             return Some(*ty);
         }

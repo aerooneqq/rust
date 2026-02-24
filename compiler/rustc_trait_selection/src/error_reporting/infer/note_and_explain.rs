@@ -133,7 +133,7 @@ impl<'tcx> TypeErrCtxt<'_, 'tcx> {
                                         .segments
                                         .iter()
                                         .last()
-                                        .map(|path| path.args());
+                                        .map(|path| path.args(&tcx));
                                     (def_id == trait_ref.def_id)
                                         .then_some((bound_trait_path.span, generic_args))
                                 });

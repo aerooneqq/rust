@@ -705,17 +705,18 @@ impl Subdiagnostic for AddLifetimeParamsSuggestion<'_> {
             let suggestion_param_name =
                 suggestion_param_name.map(|n| n.to_string()).unwrap_or_else(|| default);
 
-            struct ImplicitLifetimeFinder {
+            struct ImplicitLifetimeFinder<'tcx> {
                 suggestions: Vec<(Span, String)>,
                 suggestion_param_name: String,
+                tcx: TyCtxt<'tcx>,
             }
 
-            impl<'v> Visitor<'v> for ImplicitLifetimeFinder {
+            impl<'v> Visitor<'v> for ImplicitLifetimeFinder<'v> {
                 fn visit_ty(&mut self, ty: &'v hir::Ty<'v, AmbigArg>) {
                     match ty.kind {
                         hir::TyKind::Path(hir::QPath::Resolved(_, path)) => {
                             for segment in path.segments {
-                                if let Some(args) = segment.args.opt_args() {
+                                if let Some(args) = segment.args.opt_args(&self.tcx) {
                                     if args.args.iter().all(|arg| {
                                         matches!(
                                             arg,
@@ -760,6 +761,7 @@ impl Subdiagnostic for AddLifetimeParamsSuggestion<'_> {
             let mut visitor = ImplicitLifetimeFinder {
                 suggestions: vec![],
                 suggestion_param_name: suggestion_param_name.clone(),
+                tcx: self.tcx,
             };
             if let Some(fn_decl) = node.fn_decl()
                 && let hir::FnRetTy::Return(ty) = fn_decl.output
@@ -2128,7 +2130,10 @@ pub fn impl_trait_overcapture_suggestion<'tcx>(
         .1
     {
         Node::PathSegment(segment)
-            if segment.args().paren_sugar_output().is_some_and(|ty| ty.hir_id == opaque_hir_id) =>
+            if segment
+                .args(&tcx)
+                .paren_sugar_output()
+                .is_some_and(|ty| ty.hir_id == opaque_hir_id) =>
         {
             ("(", ")")
         }

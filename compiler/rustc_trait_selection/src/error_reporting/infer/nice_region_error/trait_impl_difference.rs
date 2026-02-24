@@ -176,12 +176,12 @@ impl<'tcx> Visitor<'tcx> for TypeParamSpanVisitor<'tcx> {
     }
 
     fn visit_qpath(&mut self, qpath: &'tcx hir::QPath<'tcx>, id: hir::HirId, _span: Span) {
-        fn record_elided_lifetimes(
-            tcx: TyCtxt<'_>,
+        fn record_elided_lifetimes<'tcx>(
+            tcx: TyCtxt<'tcx>,
             elided_lifetime_paths: &mut Vec<ElidedLifetimeInPath>,
-            segment: &hir::PathSegment<'_>,
+            segment: &hir::PathSegment<'tcx>,
         ) {
-            let Some(args) = segment.args.opt_args() else { return };
+            let Some(args) = segment.args.opt_args(&tcx) else { return };
             if args.parenthesized != hir::GenericArgsParentheses::No {
                 // Our diagnostic rendering below uses `<...>` syntax; skip cases like `Fn(..) -> ..`.
                 return;

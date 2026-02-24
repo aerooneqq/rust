@@ -577,7 +577,7 @@ impl<'tcx> MirBorrowckCtxt<'_, '_, 'tcx> {
         search_stack: &mut Vec<(Ty<'tcx>, &'hir hir::Ty<'hir>)>,
     ) -> Option<RegionNameHighlight> {
         // Did the user give explicit arguments? (e.g., `Foo<..>`)
-        let explicit_args = last_segment.args.opt_args()?;
+        let explicit_args = last_segment.args.opt_args(&self.infcx.tcx)?;
         let lifetime =
             self.try_match_adt_and_generic_args(args, needle_fr, explicit_args, search_stack)?;
         if lifetime.is_anonymous() {
@@ -592,12 +592,12 @@ impl<'tcx> MirBorrowckCtxt<'_, '_, 'tcx> {
     /// arguments `hir_args`. If `needle_fr` appears in the args, return
     /// the `hir::Lifetime` that corresponds to it. If not, push onto
     /// `search_stack` the types+hir to search through.
-    fn try_match_adt_and_generic_args<'hir>(
+    fn try_match_adt_and_generic_args(
         &self,
         args: GenericArgsRef<'tcx>,
         needle_fr: RegionVid,
-        hir_args: &'hir hir::GenericArgs<'hir>,
-        search_stack: &mut Vec<(Ty<'tcx>, &'hir hir::Ty<'hir>)>,
+        hir_args: &'tcx hir::GenericArgs<'tcx>,
+        search_stack: &mut Vec<(Ty<'tcx>, &'tcx hir::Ty<'tcx>)>,
     ) -> Option<&'hir hir::Lifetime> {
         for (arg, hir_arg) in iter::zip(args, hir_args.args) {
             match (arg.kind(), hir_arg) {
@@ -827,7 +827,7 @@ impl<'tcx> MirBorrowckCtxt<'_, '_, 'tcx> {
         };
         if let hir::OpaqueTy { bounds: [hir::GenericBound::Trait(trait_ref)], .. } = opaque_ty
             && let Some(segment) = trait_ref.trait_ref.path.segments.last()
-            && let Some(args) = segment.args.opt_args()
+            && let Some(args) = segment.args.opt_args(&self.infcx.tcx)
             && let [constraint] = args.constraints
             && constraint.ident.name == sym::Output
             && let Some(ty) = constraint.ty()

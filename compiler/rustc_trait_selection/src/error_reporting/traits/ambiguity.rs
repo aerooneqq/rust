@@ -440,7 +440,7 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
                                         path.span.shrink_to_lo(),
                                         format!("<{self_type} as "),
                                     )];
-                                    if let Some(generic_arg) = trait_path_segment.args.opt_args() {
+                                    if let Some(generic_arg) = trait_path_segment.args.opt_args(&self.tcx) {
                                         let between_span = trait_path_segment
                                             .ident
                                             .span

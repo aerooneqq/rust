@@ -270,9 +270,9 @@ fn suggest_changing_unsized_bound(
 ///
 /// If `span_to_replace` is provided, then that span will be replaced with the
 /// `constraint`. If one wasn't provided, then the full bound will be suggested.
-pub fn suggest_constraining_type_param(
-    tcx: TyCtxt<'_>,
-    generics: &hir::Generics<'_>,
+pub fn suggest_constraining_type_param<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    generics: &hir::Generics<'tcx>,
     err: &mut Diag<'_>,
     param_name: &str,
     constraint: &str,
@@ -289,9 +289,9 @@ pub fn suggest_constraining_type_param(
 }
 
 /// Suggest restricting a type param with a new bound.
-pub fn suggest_constraining_type_params<'a>(
-    tcx: TyCtxt<'_>,
-    generics: &hir::Generics<'_>,
+pub fn suggest_constraining_type_params<'tcx, 'a>(
+    tcx: TyCtxt<'tcx>,
+    generics: &hir::Generics<'tcx>,
     err: &mut Diag<'_>,
     param_names_and_constraints: impl Iterator<Item = (&'a str, &'a str, Option<DefId>)>,
     span_to_replace: Option<Span>,
@@ -450,7 +450,7 @@ pub fn suggest_constraining_type_params<'a>(
         //          |
         //          replace with: `T: Bar +`
 
-        if let Some((span, open_paren_sp)) = generics.bounds_span_for_suggestions(param.def_id) {
+        if let Some((span, open_paren_sp)) = generics.bounds_span_for_suggestions(param.def_id, &tcx) {
             suggest_restrict(span, true, open_paren_sp);
             continue;
         }

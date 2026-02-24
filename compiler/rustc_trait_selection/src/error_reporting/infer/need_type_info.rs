@@ -1056,7 +1056,7 @@ impl<'a, 'tcx> FindInferSourceVisitor<'a, 'tcx> {
         let have_turbofish = path.segments.iter().any(|segment| {
             segment
                 .args
-                .opt_args()
+                .opt_args(&tcx)
                 .is_some_and(|args| args.args.iter().any(|arg| arg.is_ty_or_const()))
         });
         // The last segment of a path often has `Res::Err` and the

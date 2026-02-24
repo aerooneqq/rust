@@ -5240,7 +5240,7 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
 
         // Didn't add an indirection suggestion, so add a general suggestion to relax `Sized`.
         let (span, separator, open_paren_sp) =
-            if let Some((s, open_paren_sp)) = generics.bounds_span_for_suggestions(param.def_id) {
+            if let Some((s, open_paren_sp)) = generics.bounds_span_for_suggestions(param.def_id, &self.tcx) {
                 (s, " +", open_paren_sp)
             } else {
                 (param.name.ident().span.shrink_to_hi(), ":", None)
@@ -5658,7 +5658,7 @@ pub fn suggest_desugaring_async_fn_to_impl_future_in_trait<'tcx>(
         // `async fn` should always lower to a single bound... but don't ICE.
         return None;
     };
-    let Some(args) = trait_ref.trait_ref.path.segments.last()?.args.opt_args() else {
+    let Some(args) = trait_ref.trait_ref.path.segments.last()?.args.opt_args(&tcx) else {
         // desugaring to a single path segment for `Future<...>`.
         return None;
     };

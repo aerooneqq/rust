@@ -87,7 +87,7 @@ impl<'tcx> BorrowExplanation<'tcx> {
                     }
                     if let hir::ExprKind::Path(hir::QPath::Resolved(None, p)) = expr.kind
                         && let [hir::PathSegment { ident, args, .. }] = p.segments
-                        && args.opt_args().is_none()
+                        && args.opt_args(&tcx).is_none()
                         && let hir::def::Res::Local(hir_id) = p.res
                         && let hir::Node::Pat(pat) = tcx.hir_node(hir_id)
                     {
