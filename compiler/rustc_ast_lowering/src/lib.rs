@@ -830,7 +830,7 @@ impl<'a, 'hir> LoweringContext<'a, 'hir> {
                 ident: Ident::new(lang_item.name(), span),
                 hir_id: self.next_id(),
                 res,
-                args,
+                args: hir::PathSegmentArgs::Default(args),
                 infer_args: args.is_none(),
             }]),
         })

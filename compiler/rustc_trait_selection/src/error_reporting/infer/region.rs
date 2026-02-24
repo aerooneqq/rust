@@ -894,7 +894,7 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
             && let hir::def::Res::Def(_, def_id) = path.res
             && Some(def_id) == self.tcx.lang_items().owned_box()
             && let [segment] = path.segments
-            && let Some(args) = segment.args
+            && let Some(args) = segment.args.opt_args()
             && let [hir::GenericArg::Type(ty)] = args.args
             && let hir::TyKind::TraitObject(_, tagged_ref) = ty.kind
             && let hir::LifetimeKind::ImplicitObjectLifetimeDefault = tagged_ref.pointer().kind

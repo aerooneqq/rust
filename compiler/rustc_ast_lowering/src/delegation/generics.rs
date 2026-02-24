@@ -369,7 +369,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                         None,
                         self.arena.alloc(hir::Path {
                             segments: this.arena.alloc_slice(&[hir::PathSegment {
-                                args: None,
+                                args: hir::PathSegmentArgs::none(),
                                 hir_id: this.next_id(),
                                 ident: p.name.ident(),
                                 infer_args: false,

@@ -299,9 +299,12 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         let hir::ExprKind::Path(hir::QPath::Resolved(None, p)) = expr.kind else {
             return false;
         };
-        let [hir::PathSegment { ident, args: None, .. }] = p.segments else {
+        let [hir::PathSegment { ident, args, .. }] = p.segments else {
             return false;
         };
+        if args.opt_args().is_some() {
+            return false;
+        }
         let hir::def::Res::Local(local_hir_id) = p.res else {
             return false;
         };

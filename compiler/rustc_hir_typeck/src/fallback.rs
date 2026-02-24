@@ -402,7 +402,7 @@ impl<'tcx> AnnotateUnitFallbackVisitor<'_, 'tcx> {
         def_id: DefId,
         id: HirId,
     ) -> ControlFlow<errors::SuggestAnnotation> {
-        if arg_segment.args.is_none()
+        if arg_segment.args.opt_args().is_none()
             && let Some(all_args) = self.fcx.typeck_results.borrow().node_args_opt(id)
             && let generics = self.fcx.tcx.generics_of(def_id)
             && let args = all_args[generics.parent_count..].iter().zip(&generics.own_params)

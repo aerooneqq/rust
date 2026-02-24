@@ -1009,8 +1009,9 @@ impl<'tcx> TyCtxt<'tcx> {
             Node::Stmt(stmt) => stmt.span,
             Node::PathSegment(seg) => {
                 let ident_span = seg.ident.span;
-                ident_span
-                    .with_hi(seg.args.map_or_else(|| ident_span.hi(), |args| args.span_ext.hi()))
+                ident_span.with_hi(
+                    seg.args.opt_args().map_or_else(|| ident_span.hi(), |args| args.span_ext.hi()),
+                )
             }
             Node::Ty(ty) => ty.span,
             Node::AssocItemConstraint(constraint) => constraint.span,

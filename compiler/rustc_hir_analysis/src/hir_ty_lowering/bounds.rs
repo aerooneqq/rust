@@ -514,7 +514,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
                     ident: constraint.ident,
                     hir_id: constraint.hir_id,
                     res: Res::Err,
-                    args: Some(constraint.gen_args),
+                    args: hir::PathSegmentArgs::default(constraint.gen_args),
                     infer_args: false,
                 };
 
@@ -670,7 +670,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
         match qpath {
             hir::QPath::Resolved(opt_self_ty, path)
                 if let [mod_segments @ .., trait_segment, item_segment] = &path.segments[..]
-                    && item_segment.args.is_some_and(|args| {
+                    && item_segment.args.opt_args().is_some_and(|args| {
                         matches!(
                             args.parenthesized,
                             hir::GenericArgsParentheses::ReturnTypeNotation
@@ -735,7 +735,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
                 }
             }
             hir::QPath::TypeRelative(hir_self_ty, segment)
-                if segment.args.is_some_and(|args| {
+                if segment.args.opt_args().is_some_and(|args| {
                     matches!(args.parenthesized, hir::GenericArgsParentheses::ReturnTypeNotation)
                 }) =>
             {

@@ -964,7 +964,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
                 .segments
                 .iter()
                 .find_map(|seg| {
-                    seg.args.filter(|args| args.constraints.iter().any(|c| c.hir_id == c_hir_id))
+                    seg.args.opt_args().filter(|args| args.constraints.iter().any(|c| c.hir_id == c_hir_id))
                 })
                 .is_none_or(|args| args.parenthesized != hir::GenericArgsParentheses::No)
             {

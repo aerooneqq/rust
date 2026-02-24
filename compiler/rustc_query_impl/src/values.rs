@@ -395,7 +395,7 @@ fn find_item_ty_spans(
                     }
                     seen_representable.contains(&def_id)
                 });
-                if check_params && let Some(args) = path.segments.last().unwrap().args {
+                if check_params && let Some(args) = path.segments.last().unwrap().args.opt_args() {
                     let params_in_repr = tcx.params_in_repr(def_id);
                     // the domain size check is needed because the HIR may not be well-formed at this point
                     for (i, arg) in args.args.iter().enumerate().take(params_in_repr.domain_size())

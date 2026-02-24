@@ -715,7 +715,7 @@ impl Subdiagnostic for AddLifetimeParamsSuggestion<'_> {
                     match ty.kind {
                         hir::TyKind::Path(hir::QPath::Resolved(_, path)) => {
                             for segment in path.segments {
-                                if let Some(args) = segment.args {
+                                if let Some(args) = segment.args.opt_args() {
                                     if args.args.iter().all(|arg| {
                                         matches!(
                                             arg,

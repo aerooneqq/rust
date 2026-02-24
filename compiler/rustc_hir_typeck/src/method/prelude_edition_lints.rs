@@ -203,11 +203,12 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                                 "{}::{}{}({}{})",
                                 trait_name,
                                 segment.ident.name,
-                                if let Some(args) = segment.args.as_ref().and_then(|args| self
-                                    .sess()
-                                    .source_map()
-                                    .span_to_snippet(args.span_ext)
-                                    .ok())
+                                if let Some(args) =
+                                    segment.args.opt_args().as_ref().and_then(|args| self
+                                        .sess()
+                                        .source_map()
+                                        .span_to_snippet(args.span_ext)
+                                        .ok())
                                 {
                                     // Keep turbofish.
                                     format!("::{args}")

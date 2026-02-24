@@ -46,6 +46,7 @@ use rustc_ast::*;
 use rustc_attr_parsing::{AttributeParser, ShouldEmit};
 use rustc_data_structures::fx::FxHashSet;
 use rustc_errors::ErrorGuaranteed;
+use rustc_hir::PathSegmentArgs;
 use rustc_hir::attrs::{AttributeKind, InlineAttr};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_middle::span_bug;
@@ -529,7 +530,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
             ident: Ident::with_dummy_span(name),
             hir_id: self.next_id(),
             res: Res::Local(param_id),
-            args: None,
+            args: PathSegmentArgs::none(),
             infer_args: false,
         }));
 
@@ -724,7 +725,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 .into_generic_args(self, add_lifetimes, span)
         {
             let mut new_segment = segment.clone();
-            new_segment.args = Some(args);
+            new_segment.args = hir::PathSegmentArgs::Default(Some(args));
 
             new_segment
         } else {

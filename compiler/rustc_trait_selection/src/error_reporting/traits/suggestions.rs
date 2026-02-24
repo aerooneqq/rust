@@ -5658,8 +5658,7 @@ pub fn suggest_desugaring_async_fn_to_impl_future_in_trait<'tcx>(
         // `async fn` should always lower to a single bound... but don't ICE.
         return None;
     };
-    let Some(hir::PathSegment { args: Some(args), .. }) = trait_ref.trait_ref.path.segments.last()
-    else {
+    let Some(args) = trait_ref.trait_ref.path.segments.last()?.args.opt_args() else {
         // desugaring to a single path segment for `Future<...>`.
         return None;
     };

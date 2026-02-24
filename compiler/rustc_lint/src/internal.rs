@@ -212,8 +212,9 @@ impl<'tcx> LateLintPass<'tcx> for TyTyKind {
         if let Some(segment) = path.segments.iter().nth_back(1)
             && lint_ty_kind_usage(cx, &segment.res)
         {
-            let span =
-                path.span.with_hi(segment.args.map_or(segment.ident.span, |a| a.span_ext).hi());
+            let span = path
+                .span
+                .with_hi(segment.args.opt_args().map_or(segment.ident.span, |a| a.span_ext).hi());
             cx.emit_span_lint(USAGE_OF_TY_TYKIND, path.span, TykindKind { suggestion: span });
         }
     }
@@ -303,7 +304,7 @@ fn is_ty_or_ty_ctxt(cx: &LateContext<'_>, path: &hir::Path<'_>) -> Option<String
 }
 
 fn gen_args(segment: &hir::PathSegment<'_>) -> String {
-    if let Some(args) = &segment.args {
+    if let Some(args) = segment.args.opt_args() {
         let lifetimes = args
             .args
             .iter()

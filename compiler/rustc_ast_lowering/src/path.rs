@@ -408,9 +408,9 @@ impl<'a, 'hir> LoweringContext<'a, 'hir> {
             res: self.lower_res(res),
             infer_args,
             args: if generic_args.is_empty() && generic_args.span.is_empty() {
-                None
+                hir::PathSegmentArgs::none()
             } else {
-                Some(generic_args.into_generic_args(self))
+                hir::PathSegmentArgs::default(generic_args.into_generic_args(self))
             },
         }
     }

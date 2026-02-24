@@ -1054,7 +1054,10 @@ impl<'a, 'tcx> FindInferSourceVisitor<'a, 'tcx> {
     ) -> impl Iterator<Item = InsertableGenericArgs<'tcx>> + 'tcx {
         let tcx = self.tecx.tcx;
         let have_turbofish = path.segments.iter().any(|segment| {
-            segment.args.is_some_and(|args| args.args.iter().any(|arg| arg.is_ty_or_const()))
+            segment
+                .args
+                .opt_args()
+                .is_some_and(|args| args.args.iter().any(|arg| arg.is_ty_or_const()))
         });
         // The last segment of a path often has `Res::Err` and the
         // correct `Res` is the one of the whole path.

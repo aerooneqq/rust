@@ -675,7 +675,7 @@ impl<'tcx> Visitor<'tcx> for MarkSymbolVisitor<'tcx> {
     fn visit_trait_ref(&mut self, t: &'tcx hir::TraitRef<'tcx>) -> Self::Result {
         if let Some(trait_def_id) = t.path.res.opt_def_id()
             && let Some(segment) = t.path.segments.last()
-            && let Some(args) = segment.args
+            && let Some(args) = segment.args.opt_args()
         {
             for constraint in args.constraints {
                 if let Some(local_def_id) = self

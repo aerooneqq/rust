@@ -363,6 +363,35 @@ impl Path<'_> {
     }
 }
 
+#[derive(Debug, Clone, Copy, HashStable_Generic)]
+pub enum PathSegmentArgs<'hir> {
+    Default(Option<&'hir GenericArgs<'hir>>),
+    DelegationPropagated(DefId),
+}
+
+impl<'hir> PathSegmentArgs<'hir> {
+    pub fn args(&self) -> &GenericArgs<'hir> {
+        const DUMMY: &GenericArgs<'_> = &GenericArgs::none();
+        self.opt_args().unwrap_or(DUMMY)
+    }
+
+    pub fn opt_args(&self) -> Option<&'hir GenericArgs<'hir>> {
+        match self {
+            PathSegmentArgs::Default(generic_args) => *generic_args,
+            PathSegmentArgs::DelegationPropagated(_) => todo!(),
+        }
+    }
+
+    pub fn none() -> PathSegmentArgs<'static> {
+        const NONE: PathSegmentArgs<'static> = PathSegmentArgs::Default(None);
+        NONE
+    }
+
+    pub fn default(args: &'hir GenericArgs<'hir>) -> PathSegmentArgs<'hir> {
+        PathSegmentArgs::Default(Some(args))
+    }
+}
+
 /// A segment of a path: an identifier, an optional lifetime, and a set of
 /// types.
 #[derive(Debug, Clone, Copy, HashStable_Generic)]
@@ -378,7 +407,7 @@ pub struct PathSegment<'hir> {
     /// this is more than just simple syntactic sugar; the use of
     /// parens affects the region binding rules, so we preserve the
     /// distinction.
-    pub args: Option<&'hir GenericArgs<'hir>>,
+    pub args: PathSegmentArgs<'hir>,
 
     /// Whether to infer remaining type parameters, if any.
     /// This only applies to expression and pattern paths, and
@@ -390,7 +419,7 @@ pub struct PathSegment<'hir> {
 impl<'hir> PathSegment<'hir> {
     /// Converts an identifier to the corresponding segment.
     pub fn new(ident: Ident, hir_id: HirId, res: Res) -> PathSegment<'hir> {
-        PathSegment { ident, hir_id, res, infer_args: true, args: None }
+        PathSegment { ident, hir_id, res, infer_args: true, args: PathSegmentArgs::none() }
     }
 
     pub fn invalid() -> Self {
@@ -398,12 +427,7 @@ impl<'hir> PathSegment<'hir> {
     }
 
     pub fn args(&self) -> &GenericArgs<'hir> {
-        if let Some(ref args) = self.args {
-            args
-        } else {
-            const DUMMY: &GenericArgs<'_> = &GenericArgs::none();
-            DUMMY
-        }
+        self.args.args()
     }
 }
 
@@ -5141,7 +5165,7 @@ mod size_asserts {
     static_assert_size!(Pat<'_>, 80);
     static_assert_size!(PatKind<'_>, 56);
     static_assert_size!(Path<'_>, 40);
-    static_assert_size!(PathSegment<'_>, 48);
+    static_assert_size!(PathSegment<'_>, 56);
     static_assert_size!(QPath<'_>, 24);
     static_assert_size!(Res, 12);
     static_assert_size!(Stmt<'_>, 32);

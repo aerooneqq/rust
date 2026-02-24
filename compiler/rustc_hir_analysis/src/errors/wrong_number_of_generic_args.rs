@@ -450,7 +450,7 @@ impl<'a, 'tcx> WrongNumberOfGenericArgs<'a, 'tcx> {
             .is_some_and(|expr| {
                 matches!(
                     expr.kind,
-                    hir::ExprKind::MethodCall(hir::PathSegment { args: Some(_), .. }, ..)
+                    hir::ExprKind::MethodCall(hir::PathSegment { args, .. }, ..) if args.opt_args().is_some()
                 )
             });
 
@@ -1040,6 +1040,7 @@ impl<'a, 'tcx> WrongNumberOfGenericArgs<'a, 'tcx> {
             let span = self
                 .path_segment
                 .args
+                .opt_args()
                 .unwrap()
                 .span_ext()
                 .unwrap()

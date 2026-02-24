@@ -934,8 +934,9 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                 if let hir::TyKind::OpaqueDef(op_ty, ..) = hir_ty.kind
                     // FIXME: account for RPITIT.
                     && let [hir::GenericBound::Trait(trait_ref)] = op_ty.bounds
-                    && let Some(hir::PathSegment { args: Some(generic_args), .. }) =
+                    && let Some(hir::PathSegment { args, .. }) =
                         trait_ref.trait_ref.path.segments.last()
+                    && let Some(generic_args) = args.opt_args()
                     && let [constraint] = generic_args.constraints
                     && let Some(ty) = constraint.ty()
                 {

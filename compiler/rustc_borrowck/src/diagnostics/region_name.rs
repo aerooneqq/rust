@@ -577,7 +577,7 @@ impl<'tcx> MirBorrowckCtxt<'_, '_, 'tcx> {
         search_stack: &mut Vec<(Ty<'tcx>, &'hir hir::Ty<'hir>)>,
     ) -> Option<RegionNameHighlight> {
         // Did the user give explicit arguments? (e.g., `Foo<..>`)
-        let explicit_args = last_segment.args.as_ref()?;
+        let explicit_args = last_segment.args.opt_args()?;
         let lifetime =
             self.try_match_adt_and_generic_args(args, needle_fr, explicit_args, search_stack)?;
         if lifetime.is_anonymous() {
@@ -827,7 +827,7 @@ impl<'tcx> MirBorrowckCtxt<'_, '_, 'tcx> {
         };
         if let hir::OpaqueTy { bounds: [hir::GenericBound::Trait(trait_ref)], .. } = opaque_ty
             && let Some(segment) = trait_ref.trait_ref.path.segments.last()
-            && let Some(args) = segment.args
+            && let Some(args) = segment.args.opt_args()
             && let [constraint] = args.constraints
             && constraint.ident.name == sym::Output
             && let Some(ty) = constraint.ty()

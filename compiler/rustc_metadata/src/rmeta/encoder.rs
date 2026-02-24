@@ -2636,7 +2636,11 @@ pub fn rendered_const<'tcx>(tcx: TyCtxt<'tcx>, body: &hir::Body<'_>, def_id: Loc
             // Consider: `<Self as Trait<{ Struct { private: () } }>>::CONSTANT`.
             // Paths without arguments are definitely harmless though.
             hir::ExprKind::Path(hir::QPath::Resolved(_, hir::Path { segments, .. })) => {
-                if segments.iter().all(|segment| segment.args.is_none()) { Simple } else { Complex }
+                if segments.iter().all(|segment| segment.args.opt_args().is_none()) {
+                    Simple
+                } else {
+                    Complex
+                }
             }
             // FIXME: Claiming that those kinds of QPaths are simple is probably not true if the Ty
             //        contains const arguments. Is there a *concise* way to check for this?

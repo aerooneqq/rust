@@ -181,7 +181,7 @@ impl<'tcx> Visitor<'tcx> for TypeParamSpanVisitor<'tcx> {
             elided_lifetime_paths: &mut Vec<ElidedLifetimeInPath>,
             segment: &hir::PathSegment<'_>,
         ) {
-            let Some(args) = segment.args else { return };
+            let Some(args) = segment.args.opt_args() else { return };
             if args.parenthesized != hir::GenericArgsParentheses::No {
                 // Our diagnostic rendering below uses `<...>` syntax; skip cases like `Fn(..) -> ..`.
                 return;

@@ -1485,7 +1485,7 @@ pub fn walk_path_segment<'v, V: Visitor<'v>>(
     let PathSegment { ident, hir_id, res: _, args, infer_args: _ } = segment;
     try_visit!(visitor.visit_ident(*ident));
     try_visit!(visitor.visit_id(*hir_id));
-    visit_opt!(visitor, visit_generic_args, *args);
+    visit_opt!(visitor, visit_generic_args, args.opt_args());
     V::Result::output()
 }
 

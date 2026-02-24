@@ -903,7 +903,7 @@ impl<'a, 'tcx> Visitor<'tcx> for BoundVarContext<'a, 'tcx> {
     fn visit_path(&mut self, path: &hir::Path<'tcx>, hir_id: HirId) {
         for (i, segment) in path.segments.iter().enumerate() {
             let depth = path.segments.len() - i - 1;
-            if let Some(args) = segment.args {
+            if let Some(args) = segment.args.opt_args() {
                 self.visit_segment_args(path.res, depth, args);
             }
         }
@@ -2096,7 +2096,7 @@ impl<'a, 'tcx> BoundVarContext<'a, 'tcx> {
             // If we have a fully qualified method, then we don't need to do any special lookup.
             hir::QPath::Resolved(_, path)
                 if let [.., item_segment] = &path.segments[..]
-                    && item_segment.args.is_some_and(|args| {
+                    && item_segment.args.opt_args().is_some_and(|args| {
                         matches!(
                             args.parenthesized,
                             hir::GenericArgsParentheses::ReturnTypeNotation
@@ -2112,7 +2112,7 @@ impl<'a, 'tcx> BoundVarContext<'a, 'tcx> {
 
             // If we have a type-dependent path, then we do need to do some lookup.
             hir::QPath::TypeRelative(qself, item_segment)
-                if item_segment.args.is_some_and(|args| {
+                if item_segment.args.opt_args().is_some_and(|args| {
                     matches!(args.parenthesized, hir::GenericArgsParentheses::ReturnTypeNotation)
                 }) =>
             {
@@ -2453,7 +2453,7 @@ fn is_late_bound_map(
                     walker.visit_ty(self.tcx.type_of(*alias_def).instantiate_identity());
 
                     match segments.last() {
-                        Some(hir::PathSegment { args: Some(args), .. }) => {
+                        Some(hir::PathSegment { args, .. }) if let Some(args) = args.opt_args() => {
                             let tcx = self.tcx;
                             for constrained_arg in
                                 args.args.iter().enumerate().flat_map(|(n, arg)| {

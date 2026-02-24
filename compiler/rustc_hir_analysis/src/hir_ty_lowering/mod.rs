@@ -1285,7 +1285,9 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
                                                 ident: constraint.ident,
                                                 hir_id: constraint.hir_id,
                                                 res: Res::Err,
-                                                args: Some(constraint.gen_args),
+                                                args: hir::PathSegmentArgs::default(
+                                                    constraint.gen_args,
+                                                ),
                                                 infer_args: false,
                                             };
 
@@ -2068,7 +2070,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
                     let adt_def = self.probe_adt(span, self_ty).unwrap();
                     debug_assert!(adt_def.is_enum());
                     (adt_def.did(), last)
-                } else if last >= 1 && segments[last - 1].args.is_some() {
+                } else if last >= 1 && segments[last - 1].args.opt_args().is_some() {
                     // Everything but the penultimate segment should have no
                     // parameters at all.
                     let mut def_id = def_id;
@@ -2190,7 +2192,9 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
                 assert_eq!(opt_self_ty, None);
                 let _ = self.prohibit_generic_args(
                     path.segments.iter(),
-                    if let [hir::PathSegment { args: Some(args), ident, .. }] = &path.segments {
+                    if let [hir::PathSegment { args, ident, .. }] = &path.segments
+                        && let Some(args) = args.opt_args()
+                    {
                         GenericsArgsErrExtend::SelfTyParam(
                             ident.span.shrink_to_hi().to(args.span_ext),
                         )
@@ -2954,9 +2958,16 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
             // *not* gone through `lower_ty_maybe_return_type_notation`, and therefore
             // it's certainly in an illegal position.
             hir::TyKind::Path(hir::QPath::Resolved(_, path))
-                if path.segments.last().and_then(|segment| segment.args).is_some_and(|args| {
-                    matches!(args.parenthesized, hir::GenericArgsParentheses::ReturnTypeNotation)
-                }) =>
+                if path
+                    .segments
+                    .last()
+                    .and_then(|segment| segment.args.opt_args())
+                    .is_some_and(|args| {
+                        matches!(
+                            args.parenthesized,
+                            hir::GenericArgsParentheses::ReturnTypeNotation
+                        )
+                    }) =>
             {
                 let guar = self.dcx().emit_err(BadReturnTypeNotation { span: hir_ty.span });
                 Ty::new_error(tcx, guar)
@@ -3021,7 +3032,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
             // *not* gone through `lower_ty_maybe_return_type_notation`, and therefore
             // it's certainly in an illegal position.
             hir::TyKind::Path(hir::QPath::TypeRelative(_, segment))
-                if segment.args.is_some_and(|args| {
+                if segment.args.opt_args().is_some_and(|args| {
                     matches!(args.parenthesized, hir::GenericArgsParentheses::ReturnTypeNotation)
                 }) =>
             {

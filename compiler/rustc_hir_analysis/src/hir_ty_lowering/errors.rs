@@ -991,7 +991,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
                 .iter()
                 .filter_map(|poly_trait_ref| {
                     let path = poly_trait_ref.trait_ref.path.segments.last()?;
-                    let args = path.args?;
+                    let args = path.args.opt_args()?;
                     let Res::Def(DefKind::Trait, trait_def_id) = path.res else { return None };
 
                     Some(args.constraints.iter().filter_map(move |constraint| {
@@ -1570,6 +1570,7 @@ pub(crate) fn fn_trait_to_string(
 ) -> String {
     let args = trait_segment
         .args
+        .opt_args()
         .and_then(|args| args.args.first())
         .and_then(|arg| match arg {
             hir::GenericArg::Type(ty) => match ty.kind {
@@ -1645,7 +1646,7 @@ fn generics_args_err_extend<'a>(
                 "you might have meant to specify type parameters on enum \
                 `{type_name}`"
             );
-            let Some(args) = assoc_segment.args else {
+            let Some(args) = assoc_segment.args.opt_args() else {
                 return;
             };
             // Get the span of the generics args *including* the leading `::`.
@@ -1685,10 +1686,9 @@ fn generics_args_err_extend<'a>(
                         ] => (
                             // We need to include the `::` in `Type::Variant::<Args>`
                             // to point the span to `::<Args>`, not just `<Args>`.
-                            ident
-                                .span
-                                .shrink_to_hi()
-                                .to(args.map_or(ident.span.shrink_to_hi(), |a| a.span_ext)),
+                            ident.span.shrink_to_hi().to(args
+                                .opt_args()
+                                .map_or(ident.span.shrink_to_hi(), |a| a.span_ext)),
                             false,
                         ),
                         [segment] => {
@@ -1697,6 +1697,7 @@ fn generics_args_err_extend<'a>(
                                 // to point the span to `::<Args>`, not just `<Args>`.
                                 segment.ident.span.shrink_to_hi().to(segment
                                     .args
+                                    .opt_args()
                                     .map_or(segment.ident.span.shrink_to_hi(), |a| a.span_ext)),
                                 kw::SelfUpper == segment.ident.name,
                             )
@@ -1752,7 +1753,7 @@ fn generics_args_err_extend<'a>(
         GenericsArgsErrExtend::PrimTy(prim_ty) => {
             let name = prim_ty.name_str();
             for segment in segments {
-                if let Some(args) = segment.args {
+                if let Some(args) = segment.args.opt_args() {
                     err.span_suggestion_verbose(
                         segment.ident.span.shrink_to_hi().to(args.span_ext),
                         format!("primitive type `{name}` doesn't have generic parameters"),
@@ -1806,7 +1807,7 @@ fn generics_args_err_extend<'a>(
                 err.note(msg);
             }
             for segment in segments {
-                if let Some(args) = segment.args
+                if let Some(args) = segment.args.opt_args()
                     && segment.ident.name == kw::SelfUpper
                 {
                     if generics == 0 {

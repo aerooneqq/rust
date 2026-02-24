@@ -62,7 +62,7 @@ fn path_for_pass_by_value(cx: &LateContext<'_>, ty: &hir::Ty<'_>) -> Option<Stri
 }
 
 fn gen_args(cx: &LateContext<'_>, segment: &PathSegment<'_>) -> String {
-    if let Some(args) = &segment.args {
+    if let Some(args) = segment.args.opt_args() {
         let params = args
             .args
             .iter()
