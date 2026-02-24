@@ -1,6 +1,9 @@
+//@ run-pass
+
 #![feature(fn_delegation)]
 #![allow(incomplete_features)]
 #![allow(late_bound_lifetime_arguments)]
+#![allow(dead_code)]
 
 //! This is one of the mapping tests, which tests mapping of delegee parent and child
 //! generic params, whose main goal is to create cases with
@@ -27,7 +30,6 @@ mod test_1 {
     pub fn check() {
         let s = S(F, &123, &123, &123);
         S::<'static, 'static, 'static, i32, i32>::foo(&s);
-        //~^ ERROR: type annotations needed [E0283]
         s.foo();
     }
 }
@@ -50,9 +52,7 @@ mod test_2 {
     pub fn check() {
         let s = S(F, &123, &123, &123);
         S::<'static, 'static, 'static, i32, i32>::foo(&s);
-        //~^ ERROR: type annotations needed [E0284]
         s.foo();
-        //~^ ERROR: type annotations needed [E0284]
     }
 }
 
@@ -140,7 +140,6 @@ mod test_6 {
     pub fn check() {
         let s = S(F, &123, &123, &123);
         S::<'static, 'static, 'static, i32, i32>::foo(&s);
-        //~^ ERROR: type annotations needed [E0282]
         s.foo();
     }
 }
@@ -163,7 +162,6 @@ mod test_7 {
     pub fn check() {
         let s = S(F, &123, &123, &123);
         S::<'static, 'static, 'static, i32, i32>::foo(&s);
-        //~^ ERROR: type annotations needed [E0282]
         s.foo();
     }
 }
@@ -186,7 +184,6 @@ mod test_8 {
     pub fn check() {
         let s = S(F, &123, &123, &123);
         S::<'static, 'static, 'static, i32, i32>::foo(&s);
-        //~^ ERROR: type annotations needed [E0282]
         s.foo();
     }
 }
@@ -210,7 +207,6 @@ mod test_9 {
 
         let s = S(F, &123, &123, &123);
         S::<'static, 'static, 'static, i32, i32>::foo(&s);
-        //~^ ERROR: type annotations needed [E0282]
         s.foo();
     }
 }

@@ -1,6 +1,9 @@
+//@ run-pass
+
 #![feature(fn_delegation)]
 #![allow(incomplete_features)]
 #![allow(late_bound_lifetime_arguments)]
+#![allow(dead_code)]
 
 //! This is one of the mapping tests, which tests mapping of delegee parent and child
 //! generic params, whose main goal is to create cases with
@@ -30,7 +33,6 @@ mod test_1 {
 
     impl<'a, 'b, 'c, T, A, B> Trait1<T> for S<'a, 'b, 'c, A, B> {
         reuse Trait1::<T>::foo { &self.0 }
-        //~^ ERROR: type annotations needed [E0283]
     }
 
     impl Trait0 for u16 {}
@@ -102,7 +104,6 @@ mod test_4 {
     impl<'a, 'b, 'c, A, B, const C: bool> Trait<'a, 'b, 'static, A, String, bool>
         for S<'a, 'b, 'c, A, B, C> {
         reuse Trait::<'a, 'b, 'static, A, String, bool>::foo { &self.0 }
-        //~^ ERROR: type annotations needed [E0284]
     }
 
     pub fn check() {
@@ -151,7 +152,6 @@ mod test_6 {
 
     impl<'a, 'b, 'c, A, B, const C: bool> Trait<A, String, bool> for S<'a, 'b, 'c, A, B, C> {
         reuse Trait::<A, String, bool>::foo { &self.0 }
-        //~^ ERROR: type annotations needed [E0282]
     }
 
     pub fn check() {

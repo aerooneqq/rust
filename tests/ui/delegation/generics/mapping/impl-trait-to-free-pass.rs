@@ -1,6 +1,10 @@
+//@ run-pass
+
 #![feature(fn_delegation)]
 #![allow(incomplete_features)]
 #![allow(late_bound_lifetime_arguments)]
+#![allow(dead_code)]
+#![allow(unused_variables)]
 
 //! This is one of the mapping tests, which tests mapping of delegee parent and child
 //! generic params, whose main goal is to create cases with
@@ -29,9 +33,7 @@ mod test_1 {
 
     impl<'a, 'b, 'c, A, B, const N: usize> Trait<'a, 'b, 'c, A, B, N> for XX {
         reuse to_reuse::foo;
-        //~^ ERROR: type annotations needed [E0284]
         reuse to_reuse::bar;
-        //~^ ERROR: type annotations needed [E0284]
 
         reuse to_reuse::foo::<'a, 'c, A, String, 322> as oof;
         reuse to_reuse::bar::<'a, 'c, A, B, 223> as rab;
@@ -67,9 +69,7 @@ mod test_2 {
     struct X;
     impl<'a, A, B, const N: usize> Trait<'a, 'static, 'static, A, B, N> for X {
         reuse to_reuse::foo;
-        //~^ ERROR: type annotations needed [E0284]
         reuse to_reuse::bar;
-        //~^ ERROR: type annotations needed [E0284]
 
         reuse to_reuse::foo::<A, String, 322> as oof;
         reuse to_reuse::bar::<i32, B, 223> as rab;
@@ -126,9 +126,7 @@ mod test_4 {
     struct X;
     impl<'a, 'c, A, B, const N: usize> Trait<A, B, N> for X {
         reuse to_reuse::foo;
-        //~^ ERROR: type annotations needed [E0284]
         reuse to_reuse::bar;
-        //~^ ERROR: type annotations needed [E0284]
 
         reuse to_reuse::foo::<'a, 'c, A, String, 322> as oof;
         reuse to_reuse::bar::<'a, 'c, i32, B, 223> as rab;
@@ -187,9 +185,7 @@ mod test_6 {
     struct X;
     impl<'a, 'c, A, B, const N: usize> Trait<A, B, N> for X {
         reuse to_reuse::foo;
-        //~^ ERROR: type annotations needed [E0284]
         reuse to_reuse::bar;
-        //~^ ERROR: type annotations needed [E0284]
 
         reuse to_reuse::foo::<A, String, 322> as oof;
         reuse to_reuse::bar::<i32, B, 223> as rab;
