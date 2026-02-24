@@ -50,7 +50,7 @@ impl<'hir> HirOrAstGenerics<'hir> {
         ctx: &mut LoweringContext<'_, 'hir>,
         item_id: NodeId,
         span: Span,
-    ) -> &mut Self {
+    ) -> &mut HirOrAstGenerics<'hir> {
         match self {
             HirOrAstGenerics::Ast(generics) => {
                 let mut process_params = |generics: &mut Option<Generics>| {
@@ -117,8 +117,11 @@ impl<'hir> HirOrAstGenerics<'hir> {
 }
 
 impl<'a> GenericsGenerationResult<'a> {
-    fn new(generics: DelegationGenerics<Generics>) -> Self {
-        Self { generics: HirOrAstGenerics::Ast(generics), args_segment_id: None }
+    fn new(generics: DelegationGenerics<Generics>) -> GenericsGenerationResult<'a> {
+        GenericsGenerationResult {
+            generics: HirOrAstGenerics::Ast(generics),
+            args_segment_id: None,
+        }
     }
 }
 
