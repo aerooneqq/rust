@@ -761,10 +761,10 @@ impl<'hir> LoweringContext<'_, 'hir> {
             let body_expr = match delegation.body.as_ref() {
                 Some(box block) => {
                     // Generates a block when we failed to resolve delegation, where a target expression is its only statement,
-                    // thus there will be no ICEs on further stages of analysis (see #144594).
+                    // thus there will be no ICEs on further stages of analysis (see #144594)
 
                     // As we generate a void function we want to convert target expression to statement to avoid additional
-                    // errors, such as mismatched return type.
+                    // errors, such as mismatched return type
                     let stmts = this.arena.alloc_from_iter([hir::Stmt {
                         hir_id: this.next_id(),
                         kind: rustc_hir::StmtKind::Semi(
