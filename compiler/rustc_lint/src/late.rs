@@ -123,7 +123,7 @@ impl<'tcx, T: LateLintPass<'tcx>> hir_visit::Visitor<'tcx> for LateContextAndPas
 
     fn visit_item(&mut self, it: &'tcx hir::Item<'tcx>) {
         let generics = self.context.generics.take();
-        self.context.generics = it.kind.generics();
+        self.context.generics = it.kind.generics(&self.context.tcx);
         let old_cached_typeck_results = self.context.cached_typeck_results.take();
         let old_enclosing_body = self.context.enclosing_body.take();
         self.with_lint_attrs(it.hir_id(), |cx| {
@@ -269,7 +269,7 @@ impl<'tcx, T: LateLintPass<'tcx>> hir_visit::Visitor<'tcx> for LateContextAndPas
 
     fn visit_trait_item(&mut self, trait_item: &'tcx hir::TraitItem<'tcx>) {
         let generics = self.context.generics.take();
-        self.context.generics = Some(trait_item.generics);
+        self.context.generics = Some(trait_item.generics.get(&self.context.tcx));
         self.with_lint_attrs(trait_item.hir_id(), |cx| {
             cx.with_param_env(trait_item.owner_id, |cx| {
                 lint_callback!(cx, check_trait_item, trait_item);
@@ -281,7 +281,7 @@ impl<'tcx, T: LateLintPass<'tcx>> hir_visit::Visitor<'tcx> for LateContextAndPas
 
     fn visit_impl_item(&mut self, impl_item: &'tcx hir::ImplItem<'tcx>) {
         let generics = self.context.generics.take();
-        self.context.generics = Some(impl_item.generics);
+        self.context.generics = Some(impl_item.generics.get(&self.context.tcx));
         self.with_lint_attrs(impl_item.hir_id(), |cx| {
             cx.with_param_env(impl_item.owner_id, |cx| {
                 lint_callback!(cx, check_impl_item, impl_item);

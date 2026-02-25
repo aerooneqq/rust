@@ -625,7 +625,7 @@ impl<'a, 'tcx> Visitor<'tcx> for BoundVarContext<'a, 'tcx> {
         }
         match item.kind {
             hir::ItemKind::Fn { generics, .. } => {
-                self.visit_early_late(item.hir_id(), generics, |this| {
+                self.visit_early_late(item.hir_id(), generics.get(&self.tcx), |this| {
                     intravisit::walk_item(this, item);
                 });
             }
@@ -844,13 +844,16 @@ impl<'a, 'tcx> Visitor<'tcx> for BoundVarContext<'a, 'tcx> {
         use self::hir::TraitItemKind::*;
         match trait_item.kind {
             Fn(_, _) => {
-                self.visit_early_late(trait_item.hir_id(), trait_item.generics, |this| {
-                    intravisit::walk_trait_item(this, trait_item)
-                });
+                self.visit_early_late(
+                    trait_item.hir_id(),
+                    trait_item.generics.get(&self.tcx),
+                    |this| intravisit::walk_trait_item(this, trait_item),
+                );
             }
             Type(bounds, ty) => {
-                self.visit_early(trait_item.hir_id(), trait_item.generics, |this| {
-                    this.visit_generics(trait_item.generics);
+                let generics = trait_item.generics.get(&self.tcx);
+                self.visit_early(trait_item.hir_id(), generics, |this| {
+                    this.visit_generics(generics);
                     for bound in bounds {
                         this.visit_param_bound(bound);
                     }
@@ -859,9 +862,11 @@ impl<'a, 'tcx> Visitor<'tcx> for BoundVarContext<'a, 'tcx> {
                     }
                 })
             }
-            Const(_, _, _) => self.visit_early(trait_item.hir_id(), trait_item.generics, |this| {
-                intravisit::walk_trait_item(this, trait_item)
-            }),
+            Const(_, _, _) => {
+                self.visit_early(trait_item.hir_id(), trait_item.generics.get(&self.tcx), |this| {
+                    intravisit::walk_trait_item(this, trait_item)
+                })
+            }
         }
     }
 
@@ -869,16 +874,23 @@ impl<'a, 'tcx> Visitor<'tcx> for BoundVarContext<'a, 'tcx> {
     fn visit_impl_item(&mut self, impl_item: &'tcx hir::ImplItem<'tcx>) {
         use self::hir::ImplItemKind::*;
         match impl_item.kind {
-            Fn(..) => self.visit_early_late(impl_item.hir_id(), impl_item.generics, |this| {
-                intravisit::walk_impl_item(this, impl_item)
-            }),
-            Type(ty) => self.visit_early(impl_item.hir_id(), impl_item.generics, |this| {
-                this.visit_generics(impl_item.generics);
-                this.visit_ty_unambig(ty);
-            }),
-            Const(_, _) => self.visit_early(impl_item.hir_id(), impl_item.generics, |this| {
-                intravisit::walk_impl_item(this, impl_item)
-            }),
+            Fn(..) => self.visit_early_late(
+                impl_item.hir_id(),
+                impl_item.generics.get(&self.tcx),
+                |this| intravisit::walk_impl_item(this, impl_item),
+            ),
+            Type(ty) => {
+                let generics = impl_item.generics.get(&self.tcx);
+                self.visit_early(impl_item.hir_id(), generics, |this| {
+                    this.visit_generics(generics);
+                    this.visit_ty_unambig(ty);
+                })
+            }
+            Const(_, _) => {
+                self.visit_early(impl_item.hir_id(), impl_item.generics.get(&self.tcx), |this| {
+                    intravisit::walk_impl_item(this, impl_item)
+                })
+            }
         }
     }
 

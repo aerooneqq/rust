@@ -36,7 +36,7 @@ use crate::attrs::AttributeKind;
 use crate::def::{CtorKind, DefKind, MacroKinds, PerNS, Res};
 use crate::def_id::{DefId, LocalDefIdMap};
 pub(crate) use crate::hir_id::{HirId, ItemLocalId, ItemLocalMap, OwnerId};
-use crate::intravisit::{FnKind, VisitorExt};
+use crate::intravisit::{FnKind, HirTyCtxt, VisitorExt};
 use crate::lints::DelayedLints;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, HashStable_Generic)]
@@ -932,6 +932,40 @@ pub struct GenericParamCount {
     pub types: usize,
     pub consts: usize,
     pub infer: usize,
+}
+
+#[derive(Debug, Clone, Copy, HashStable_Generic)]
+pub enum DelayedGenerics<'hir> {
+    Default(&'hir Generics<'hir>),
+    DelegationInherited(LocalDefId),
+}
+
+impl<'hir> DelayedGenerics<'hir> {
+    pub fn get<'tcx: 'hir>(
+        &self,
+        tcx: &dyn crate::intravisit::HirTyCtxt<'tcx>,
+    ) -> &'hir Generics<'hir> {
+        match *self {
+            DelayedGenerics::Default(generic_args) => generic_args,
+            DelayedGenerics::DelegationInherited(def_id) => tcx.get_delegation_generics(def_id),
+        }
+    }
+
+    pub fn default_or_empty(&self) -> &'hir Generics<'hir> {
+        match self {
+            DelayedGenerics::Default(generics) => generics,
+            DelayedGenerics::DelegationInherited(_) => Generics::empty(),
+        }
+    }
+
+    pub fn none() -> PathSegmentArgs<'static> {
+        const NONE: PathSegmentArgs<'static> = PathSegmentArgs::Default(None);
+        NONE
+    }
+
+    pub fn default(args: &'hir GenericArgs<'hir>) -> PathSegmentArgs<'hir> {
+        PathSegmentArgs::Default(Some(args))
+    }
 }
 
 /// Represents lifetimes and type parameters attached to a declaration
@@ -3204,7 +3238,7 @@ impl TraitItemId {
 pub struct TraitItem<'hir> {
     pub ident: Ident,
     pub owner_id: OwnerId,
-    pub generics: &'hir Generics<'hir>,
+    pub generics: DelayedGenerics<'hir>,
     pub kind: TraitItemKind<'hir>,
     pub span: Span,
     pub defaultness: Defaultness,
@@ -3329,7 +3363,7 @@ impl ImplItemId {
 pub struct ImplItem<'hir> {
     pub ident: Ident,
     pub owner_id: OwnerId,
-    pub generics: &'hir Generics<'hir>,
+    pub generics: DelayedGenerics<'hir>,
     pub kind: ImplItemKind<'hir>,
     pub impl_kind: ImplItemImplKind,
     pub span: Span,
@@ -4342,7 +4376,7 @@ impl<'hir> Item<'hir> {
         expect_const, (Ident, &'hir Generics<'hir>, &'hir Ty<'hir>, ConstItemRhs<'hir>),
             ItemKind::Const(ident, generics, ty, rhs), (*ident, generics, ty, *rhs);
 
-        expect_fn, (Ident, &FnSig<'hir>, &'hir Generics<'hir>, BodyId),
+        expect_fn, (Ident, &FnSig<'hir>, &DelayedGenerics<'hir>, BodyId),
             ItemKind::Fn { ident, sig, generics, body, .. }, (*ident, sig, generics, *body);
 
         expect_macro, (Ident, &ast::MacroDef, MacroKinds),
@@ -4523,7 +4557,7 @@ pub enum ItemKind<'hir> {
     Fn {
         sig: FnSig<'hir>,
         ident: Ident,
-        generics: &'hir Generics<'hir>,
+        generics: DelayedGenerics<'hir>,
         body: BodyId,
         /// Whether this function actually has a body.
         /// For functions without a body, `body` is synthesized (to avoid ICEs all over the
@@ -4595,7 +4629,7 @@ pub struct TraitImplHeader<'hir> {
     pub trait_ref: TraitRef<'hir>,
 }
 
-impl ItemKind<'_> {
+impl<'hir> ItemKind<'hir> {
     pub fn ident(&self) -> Option<Ident> {
         match *self {
             ItemKind::ExternCrate(_, ident)
@@ -4619,10 +4653,10 @@ impl ItemKind<'_> {
         }
     }
 
-    pub fn generics(&self) -> Option<&Generics<'_>> {
+    pub fn generics<'tcx: 'hir>(&self, tcx: &dyn HirTyCtxt<'tcx>) -> Option<&'hir Generics<'hir>> {
         Some(match self {
-            ItemKind::Fn { generics, .. }
-            | ItemKind::TyAlias(_, generics, _)
+            ItemKind::Fn { generics, .. } => generics.get(tcx),
+            ItemKind::TyAlias(_, generics, _)
             | ItemKind::Const(_, generics, _, _)
             | ItemKind::Enum(_, generics, _)
             | ItemKind::Struct(_, generics, _)
@@ -4799,8 +4833,8 @@ impl<'hir> OwnerNode<'hir> {
         }
     }
 
-    pub fn generics(self) -> Option<&'hir Generics<'hir>> {
-        Node::generics(self.into())
+    pub fn generics<'tcx: 'hir>(self, tcx: &dyn HirTyCtxt<'tcx>) -> Option<&'hir Generics<'hir>> {
+        Node::generics(self.into(), tcx)
     }
 
     pub fn def_id(self) -> OwnerId {
@@ -5087,14 +5121,14 @@ impl<'hir> Node<'hir> {
         Some(self.associated_body()?.1)
     }
 
-    pub fn generics(self) -> Option<&'hir Generics<'hir>> {
+    pub fn generics<'tcx: 'hir>(self, tcx: &dyn HirTyCtxt<'tcx>) -> Option<&'hir Generics<'hir>> {
         match self {
             Node::ForeignItem(ForeignItem {
                 kind: ForeignItemKind::Fn(_, _, generics), ..
-            })
-            | Node::TraitItem(TraitItem { generics, .. })
-            | Node::ImplItem(ImplItem { generics, .. }) => Some(generics),
-            Node::Item(item) => item.kind.generics(),
+            }) => Some(generics),
+            Node::TraitItem(TraitItem { generics, .. })
+            | Node::ImplItem(ImplItem { generics, .. }) => Some(generics.get(tcx)),
+            Node::Item(item) => item.kind.generics(tcx),
             _ => None,
         }
     }
@@ -5114,8 +5148,8 @@ impl<'hir> Node<'hir> {
     pub fn fn_kind(self) -> Option<FnKind<'hir>> {
         match self {
             Node::Item(i) => match i.kind {
-                ItemKind::Fn { ident, sig, generics, .. } => {
-                    Some(FnKind::ItemFn(ident, generics, sig.header))
+                ItemKind::Fn { ident, sig, ref generics, .. } => {
+                    Some(FnKind::ItemFn(ident, generics.default_or_empty(), sig.header))
                 }
                 _ => None,
             },
@@ -5185,10 +5219,10 @@ mod size_asserts {
     static_assert_size!(GenericBound<'_>, 64);
     static_assert_size!(Generics<'_>, 56);
     static_assert_size!(Impl<'_>, 48);
-    static_assert_size!(ImplItem<'_>, 88);
+    static_assert_size!(ImplItem<'_>, 96);
     static_assert_size!(ImplItemKind<'_>, 40);
-    static_assert_size!(Item<'_>, 88);
-    static_assert_size!(ItemKind<'_>, 64);
+    static_assert_size!(Item<'_>, 96);
+    static_assert_size!(ItemKind<'_>, 72);
     static_assert_size!(LetStmt<'_>, 64);
     static_assert_size!(Param<'_>, 32);
     static_assert_size!(Pat<'_>, 80);
@@ -5200,7 +5234,7 @@ mod size_asserts {
     static_assert_size!(Stmt<'_>, 32);
     static_assert_size!(StmtKind<'_>, 16);
     static_assert_size!(TraitImplHeader<'_>, 48);
-    static_assert_size!(TraitItem<'_>, 88);
+    static_assert_size!(TraitItem<'_>, 96);
     static_assert_size!(TraitItemKind<'_>, 48);
     static_assert_size!(Ty<'_>, 48);
     static_assert_size!(TyKind<'_>, 32);

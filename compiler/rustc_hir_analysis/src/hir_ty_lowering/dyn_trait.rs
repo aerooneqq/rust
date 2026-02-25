@@ -901,7 +901,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
             if ty.peel_refs().hir_id != hir_id {
                 continue;
             }
-            let sugg = self.add_generic_param_suggestion(generics, span, &trait_name);
+            let sugg = self.add_generic_param_suggestion(generics.get(&tcx), span, &trait_name);
             diag.multipart_suggestion(
                 format!("use a new generic type parameter, constrained by `{trait_name}`"),
                 sugg,

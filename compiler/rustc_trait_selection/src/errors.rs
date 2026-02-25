@@ -675,6 +675,7 @@ impl Subdiagnostic for AddLifetimeParamsSuggestion<'_> {
             };
 
             let suggestion_param_name = generics
+                .get(&self.tcx)
                 .params
                 .iter()
                 .filter(|p| matches!(p.kind, GenericParamKind::Lifetime { .. }))
@@ -781,11 +782,11 @@ impl Subdiagnostic for AddLifetimeParamsSuggestion<'_> {
             }
             if introduce_new {
                 let new_param_suggestion = if let Some(first) =
-                    generics.params.iter().find(|p| !p.name.ident().span.is_empty())
+                    generics.get(&self.tcx).params.iter().find(|p| !p.name.ident().span.is_empty())
                 {
                     (first.span.shrink_to_lo(), format!("{suggestion_param_name}, "))
                 } else {
-                    (generics.span, format!("<{suggestion_param_name}>"))
+                    (generics.get(&self.tcx).span, format!("<{suggestion_param_name}>"))
                 };
 
                 visitor.suggestions.push(new_param_suggestion);

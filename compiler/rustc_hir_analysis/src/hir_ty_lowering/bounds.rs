@@ -898,7 +898,7 @@ pub(crate) fn check_assoc_const_binding_type<'tcx>(
 
     let enclosing_item_owner_id = tcx
         .hir_parent_owner_iter(hir_id)
-        .find_map(|(owner_id, parent)| parent.generics().map(|_| owner_id))
+        .find_map(|(owner_id, parent)| parent.generics(&tcx).map(|_| owner_id))
         .unwrap();
     let generics = tcx.generics_of(enclosing_item_owner_id);
     for index in collector.params {

@@ -299,7 +299,14 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
                     assert!(param_ty);
                     // Restricting `Self` for a single method.
                     suggest_restriction(
-                        self.tcx, body_id, generics, "`Self`", err, None, projection, trait_pred,
+                        self.tcx,
+                        body_id,
+                        generics.get(&self.tcx),
+                        "`Self`",
+                        err,
+                        None,
+                        projection,
+                        trait_pred,
                         None,
                     );
                     return;
@@ -323,7 +330,7 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
                     suggest_restriction(
                         self.tcx,
                         body_id,
-                        generics,
+                        generics.get(&self.tcx),
                         "the associated type",
                         err,
                         Some(fn_sig),
@@ -356,19 +363,19 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
 
                 hir::Node::Item(hir::Item {
                     kind:
-                        hir::ItemKind::Struct(_, generics, _)
-                        | hir::ItemKind::Enum(_, generics, _)
-                        | hir::ItemKind::Union(_, generics, _)
-                        | hir::ItemKind::Trait(_, _, _, _, generics, ..)
-                        | hir::ItemKind::Impl(hir::Impl { generics, .. })
-                        | hir::ItemKind::Fn { generics, .. }
-                        | hir::ItemKind::TyAlias(_, generics, _)
-                        | hir::ItemKind::Const(_, generics, _, _)
-                        | hir::ItemKind::TraitAlias(_, _, generics, _),
+                        hir::ItemKind::Struct { .. }
+                        | hir::ItemKind::Enum { .. }
+                        | hir::ItemKind::Union { .. }
+                        | hir::ItemKind::Trait { .. }
+                        | hir::ItemKind::Impl(hir::Impl { .. })
+                        | hir::ItemKind::Fn { .. }
+                        | hir::ItemKind::TyAlias { .. }
+                        | hir::ItemKind::Const { .. }
+                        | hir::ItemKind::TraitAlias { .. },
                     ..
                 })
-                | hir::Node::TraitItem(hir::TraitItem { generics, .. })
-                | hir::Node::ImplItem(hir::ImplItem { generics, .. })
+                | hir::Node::TraitItem(hir::TraitItem { .. })
+                | hir::Node::ImplItem(hir::ImplItem { .. })
                     if param_ty =>
                 {
                     // We skip the 0'th arg (self) because we do not want
@@ -403,7 +410,7 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
 
                     if suggest_constraining_type_param(
                         self.tcx,
-                        generics,
+                        node.generics(&self.tcx).expect("Must have generics"),
                         err,
                         &param_name,
                         &constraint,
@@ -424,11 +431,11 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
                     impl_kind: hir::ImplItemImplKind::Inherent { .. },
                     kind: hir::ImplItemKind::Fn(..),
                     ..
-                }) if finder.can_suggest_bound(generics) => {
+                }) if finder.can_suggest_bound(generics.get(&self.tcx)) => {
                     // Missing generic type parameter bound.
                     suggest_arbitrary_trait_bound(
                         self.tcx,
-                        generics,
+                        generics.get(&self.tcx),
                         err,
                         trait_pred,
                         associated_ty,
@@ -436,17 +443,19 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
                 }
                 hir::Node::Item(hir::Item {
                     kind:
-                        hir::ItemKind::Struct(_, generics, _)
-                        | hir::ItemKind::Enum(_, generics, _)
-                        | hir::ItemKind::Union(_, generics, _)
-                        | hir::ItemKind::Trait(_, _, _, _, generics, ..)
-                        | hir::ItemKind::Impl(hir::Impl { generics, .. })
-                        | hir::ItemKind::Fn { generics, .. }
-                        | hir::ItemKind::TyAlias(_, generics, _)
-                        | hir::ItemKind::Const(_, generics, _, _)
-                        | hir::ItemKind::TraitAlias(_, _, generics, _),
+                        hir::ItemKind::Struct { .. }
+                        | hir::ItemKind::Enum { .. }
+                        | hir::ItemKind::Union { .. }
+                        | hir::ItemKind::Trait { .. }
+                        | hir::ItemKind::Impl(hir::Impl { .. })
+                        | hir::ItemKind::Fn { .. }
+                        | hir::ItemKind::TyAlias { .. }
+                        | hir::ItemKind::Const { .. }
+                        | hir::ItemKind::TraitAlias { .. },
                     ..
-                }) if finder.can_suggest_bound(generics) => {
+                }) if let Some(generics) = node.generics(&self.tcx)
+                    && finder.can_suggest_bound(generics) =>
+                {
                     // Missing generic type parameter bound.
                     if suggest_arbitrary_trait_bound(
                         self.tcx,
@@ -2998,7 +3007,7 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
                                     let (span, separator) = if let [.., last] = bounds {
                                         (last.span().shrink_to_hi(), " +")
                                     } else {
-                                        (generics.span.shrink_to_hi(), ":")
+                                        (generics.get(&tcx).span.shrink_to_hi(), ":")
                                     };
                                     err.span_suggestion_verbose(
                                         span,
@@ -4512,7 +4521,7 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
                             ),
                             polarity: ty::PredicatePolarity::Positive,
                         });
-                        let Some(generics) = node.generics() else {
+                        let Some(generics) = node.generics(&tcx) else {
                             continue;
                         };
                         let Some(body_id) = node.body_id() else {
@@ -5203,7 +5212,7 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
             return;
         };
 
-        let Some(generics) = node.generics() else {
+        let Some(generics) = node.generics(&self.tcx) else {
             return;
         };
         let sized_trait = self.tcx.lang_items().sized_trait();
@@ -5239,12 +5248,13 @@ impl<'a, 'tcx> TypeErrCtxt<'a, 'tcx> {
         };
 
         // Didn't add an indirection suggestion, so add a general suggestion to relax `Sized`.
-        let (span, separator, open_paren_sp) =
-            if let Some((s, open_paren_sp)) = generics.bounds_span_for_suggestions(param.def_id, &self.tcx) {
-                (s, " +", open_paren_sp)
-            } else {
-                (param.name.ident().span.shrink_to_hi(), ":", None)
-            };
+        let (span, separator, open_paren_sp) = if let Some((s, open_paren_sp)) =
+            generics.bounds_span_for_suggestions(param.def_id, &self.tcx)
+        {
+            (s, " +", open_paren_sp)
+        } else {
+            (param.name.ident().span.shrink_to_hi(), ":", None)
+        };
 
         let mut suggs = vec![];
         let suggestion = format!("{separator} ?Sized");

@@ -66,6 +66,7 @@ use crate::query::{IntoQueryParam, LocalCrate, Providers, TyCtxtAt};
 use crate::thir::Thir;
 use crate::traits;
 use crate::traits::solve::{ExternalConstraints, ExternalConstraintsData, PredefinedOpaques};
+use crate::ty::layout::HasTyCtxt;
 use crate::ty::predicate::ExistentialPredicateStableCmpExt as _;
 use crate::ty::{
     self, AdtDef, AdtDefData, AdtKind, Binder, Clause, Clauses, Const, GenericArg, GenericArgs,
@@ -1596,7 +1597,7 @@ impl<'tcx> TyCtxt<'tcx> {
                 hir::Path { res: hir::def::Res::Def(DefKind::TyAlias, def_id), .. }, )) = hir_output.kind
             && let Some(local_id) = def_id.as_local()
             && let Some(alias_ty) = self.hir_node_by_def_id(local_id).alias_ty() // it is type alias
-            && let Some(alias_generics) = self.hir_node_by_def_id(local_id).generics()
+            && let Some(alias_generics) = self.hir_node_by_def_id(local_id).generics(&self.tcx())
         {
             v.visit_ty_unambig(alias_ty);
             if !v.0.is_empty() {

@@ -205,7 +205,7 @@ impl<'infcx, 'tcx> MirBorrowckCtxt<'_, 'infcx, 'tcx> {
                     && let Some(placeholder_id) = id.as_local()
                     && let gat_hir_id = tcx.local_def_id_to_hir_id(placeholder_id)
                     && let Some(generics_impl) =
-                        tcx.parent_hir_node(tcx.parent_hir_id(gat_hir_id)).generics()
+                        tcx.parent_hir_node(tcx.parent_hir_id(gat_hir_id)).generics(&tcx)
                 {
                     Some((gat_hir_id, generics_impl))
                 } else {

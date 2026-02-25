@@ -268,7 +268,7 @@ impl<'tcx> ItemCtxt<'tcx> {
         infer_replacements: Vec<(Span, String)>,
     ) -> ErrorGuaranteed {
         let node = self.tcx.hir_node_by_def_id(self.item_def_id);
-        let generics = node.generics();
+        let generics = node.generics(&self.tcx);
         let kind_id = match node {
             Node::GenericParam(_) | Node::WherePredicate(_) | Node::Field(_) => {
                 self.tcx.local_parent(self.item_def_id)
@@ -967,10 +967,11 @@ fn fn_sig(tcx: TyCtxt<'_>, def_id: LocalDefId) -> ty::EarlyBinder<'_, ty::PolyFn
             ..
         })
         | Item(hir::Item { kind: ItemKind::Fn { sig, generics, .. }, .. }) => {
-            lower_fn_sig_recovering_infer_ret_ty(&icx, sig, generics, def_id)
+            lower_fn_sig_recovering_infer_ret_ty(&icx, sig, generics.get(&tcx), def_id)
         }
 
         ImplItem(hir::ImplItem { kind: ImplItemKind::Fn(sig, _), generics, .. }) => {
+            let generics = generics.get(&tcx);
             // Do not try to infer the return type for a impl method coming from a trait
             if let Item(hir::Item { kind: ItemKind::Impl(i), .. }) = tcx.parent_hir_node(hir_id)
                 && i.of_trait.is_some()
@@ -997,7 +998,7 @@ fn fn_sig(tcx: TyCtxt<'_>, def_id: LocalDefId) -> ty::EarlyBinder<'_, ty::PolyFn
             header.safety(),
             header.abi,
             decl,
-            Some(generics),
+            Some(generics.get(&tcx)),
             None,
         ),
 

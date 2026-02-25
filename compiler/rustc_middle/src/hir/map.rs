@@ -200,7 +200,7 @@ impl<'tcx> TyCtxt<'tcx> {
     }
 
     pub fn hir_get_generics(self, id: LocalDefId) -> Option<&'tcx Generics<'tcx>> {
-        self.opt_hir_owner_node(id)?.generics()
+        self.opt_hir_owner_node(id)?.generics(&self)
     }
 
     pub fn hir_item(self, id: ItemId) -> &'tcx Item<'tcx> {
@@ -947,14 +947,18 @@ impl<'tcx> TyCtxt<'tcx> {
                 kind: ItemKind::Trait(_, _, _, _, generics, bounds, _),
                 span: outer_span,
                 ..
-            })
-            | Node::TraitItem(TraitItem {
+            }) => {
+                let end = if let Some(b) = bounds.last() { b.span() } else { generics.span };
+                until_within(*outer_span, end)
+            }
+            Node::TraitItem(TraitItem {
                 kind: TraitItemKind::Type(bounds, _),
                 generics,
                 span: outer_span,
                 ..
             }) => {
-                let end = if let Some(b) = bounds.last() { b.span() } else { generics.span };
+                let end =
+                    if let Some(b) = bounds.last() { b.span() } else { generics.get(&self).span };
                 until_within(*outer_span, end)
             }
             // Other cases.
@@ -966,14 +970,16 @@ impl<'tcx> TyCtxt<'tcx> {
                 }
                 _ => {
                     if let Some(ident) = item.kind.ident() {
-                        named_span(item.span, ident, item.kind.generics())
+                        named_span(item.span, ident, item.kind.generics(&self))
                     } else {
                         item.span
                     }
                 }
             },
             Node::Variant(variant) => named_span(variant.span, variant.ident, None),
-            Node::ImplItem(item) => named_span(item.span, item.ident, Some(item.generics)),
+            Node::ImplItem(item) => {
+                named_span(item.span, item.ident, Some(item.generics.get(&self)))
+            }
             Node::ForeignItem(item) => named_span(item.span, item.ident, None),
             Node::Ctor(_) => return self.hir_span(self.parent_hir_id(hir_id)),
             Node::Expr(Expr {
@@ -1236,6 +1242,10 @@ impl<'tcx> intravisit::HirTyCtxt<'tcx> for TyCtxt<'tcx> {
             parenthesized: GenericArgsParentheses::No,
             span_ext: span,
         }))
+    }
+
+    fn get_delegation_generics(&self, def_id: LocalDefId) -> &'tcx Generics<'tcx> {
+        Generics::empty()
     }
 }
 

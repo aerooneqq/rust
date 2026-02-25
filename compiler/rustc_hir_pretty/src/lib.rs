@@ -666,7 +666,14 @@ impl<'a, 'b> State<'a, 'b> {
             }
             hir::ItemKind::Fn { ident, sig, generics, body, .. } => {
                 let (cb, ib) = self.head("");
-                self.print_fn(sig.header, Some(ident.name), generics, sig.decl, &[], Some(body));
+                self.print_fn(
+                    sig.header,
+                    Some(ident.name),
+                    generics.get(self.tcx),
+                    sig.decl,
+                    &[],
+                    Some(body),
+                );
                 self.word(" ");
                 self.end(ib);
                 self.end(cb);
@@ -970,22 +977,27 @@ impl<'a, 'b> State<'a, 'b> {
         self.print_attrs(self.attrs(ti.hir_id()));
         match ti.kind {
             hir::TraitItemKind::Const(ty, default, _) => {
-                self.print_associated_const(ti.ident, ti.generics, ty, default);
+                self.print_associated_const(ti.ident, ti.generics.get(self.tcx), ty, default);
             }
             hir::TraitItemKind::Fn(ref sig, hir::TraitFn::Required(arg_idents)) => {
-                self.print_method_sig(ti.ident, sig, ti.generics, arg_idents, None);
+                self.print_method_sig(ti.ident, sig, ti.generics.get(self.tcx), arg_idents, None);
                 self.word(";");
             }
             hir::TraitItemKind::Fn(ref sig, hir::TraitFn::Provided(body)) => {
                 let (cb, ib) = self.head("");
-                self.print_method_sig(ti.ident, sig, ti.generics, &[], Some(body));
+                self.print_method_sig(ti.ident, sig, ti.generics.get(self.tcx), &[], Some(body));
                 self.nbsp();
                 self.end(ib);
                 self.end(cb);
                 self.ann.nested(self, Nested::Body(body));
             }
             hir::TraitItemKind::Type(bounds, default) => {
-                self.print_associated_type(ti.ident, ti.generics, Some(bounds), default);
+                self.print_associated_type(
+                    ti.ident,
+                    ti.generics.get(self.tcx),
+                    Some(bounds),
+                    default,
+                );
             }
         }
         self.ann.post(self, AnnNode::SubItem(ti.hir_id()))
@@ -999,18 +1011,18 @@ impl<'a, 'b> State<'a, 'b> {
 
         match ii.kind {
             hir::ImplItemKind::Const(ty, expr) => {
-                self.print_associated_const(ii.ident, ii.generics, ty, Some(expr));
+                self.print_associated_const(ii.ident, ii.generics.get(self.tcx), ty, Some(expr));
             }
             hir::ImplItemKind::Fn(ref sig, body) => {
                 let (cb, ib) = self.head("");
-                self.print_method_sig(ii.ident, sig, ii.generics, &[], Some(body));
+                self.print_method_sig(ii.ident, sig, ii.generics.get(self.tcx), &[], Some(body));
                 self.nbsp();
                 self.end(ib);
                 self.end(cb);
                 self.ann.nested(self, Nested::Body(body));
             }
             hir::ImplItemKind::Type(ty) => {
-                self.print_associated_type(ii.ident, ii.generics, None, Some(ty));
+                self.print_associated_type(ii.ident, ii.generics.get(self.tcx), None, Some(ty));
             }
         }
         self.ann.post(self, AnnNode::SubItem(ii.hir_id()))

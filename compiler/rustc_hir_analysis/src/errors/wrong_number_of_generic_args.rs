@@ -394,7 +394,7 @@ impl<'a, 'tcx> WrongNumberOfGenericArgs<'a, 'tcx> {
                 .join(", ");
             }
 
-            let params = if let Some(generics) = node.generics() {
+            let params = if let Some(generics) = node.generics(&self.tcx) {
                 generics.params
             } else if let hir::Node::Ty(ty) = node
                 && let hir::TyKind::FnPtr(fn_ptr) = ty.kind

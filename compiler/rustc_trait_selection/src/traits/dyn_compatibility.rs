@@ -420,8 +420,8 @@ fn virtual_call_violations_for_method<'tcx>(
                     sm.span_through_char(sig.span, '(').shrink_to_hi(),
                 ),
                 (
-                    format!("{} Self: Sized", generics.add_where_or_trailing_comma()),
-                    generics.tail_span_for_predicate_suggestion(),
+                    format!("{} Self: Sized", generics.get(&tcx).add_where_or_trailing_comma()),
+                    generics.get(&tcx).tail_span_for_predicate_suggestion(),
                 ),
             ))
         } else {

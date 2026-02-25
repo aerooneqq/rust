@@ -107,7 +107,7 @@ impl<'tcx> TypeErrCtxt<'_, 'tcx> {
                         }
                         let parent = p_def_id.as_local().and_then(|id| {
                             let local_id = tcx.local_def_id_to_hir_id(id);
-                            let generics = tcx.parent_hir_node(local_id).generics()?;
+                            let generics = tcx.parent_hir_node(local_id).generics(&self.tcx)?;
                             Some((id, generics))
                         });
                         let mut note = true;
@@ -556,7 +556,7 @@ impl<T> Trait<T> for X {
         let Some(item) = tcx.hir_get_if_local(body_owner_def_id) else {
             return false;
         };
-        let Some(hir_generics) = item.generics() else {
+        let Some(hir_generics) = item.generics(&self.tcx) else {
             return false;
         };
         // Get the `DefId` for the type parameter corresponding to `A` in `<A as T>::Foo`.

@@ -48,7 +48,7 @@ use rustc_data_structures::fx::FxHashSet;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::attrs::{AttributeKind, InlineAttr};
 use rustc_hir::def_id::{DefId, LocalDefId};
-use rustc_hir::{DelegationSegmentKind, PathSegmentArgs};
+use rustc_hir::{DelayedGenerics, DelegationSegmentKind, PathSegmentArgs};
 use rustc_middle::span_bug;
 use rustc_middle::ty::{Asyncness, DelegationAttrs, DelegationFnSigAttrs, ResolverAstLowering};
 use rustc_span::symbol::kw;
@@ -66,7 +66,7 @@ pub(crate) struct DelegationResults<'hir> {
     pub body_id: hir::BodyId,
     pub sig: hir::FnSig<'hir>,
     pub ident: Ident,
-    pub generics: &'hir hir::Generics<'hir>,
+    pub generics: DelayedGenerics<'hir>,
 }
 
 struct AttrAdditionInfo {

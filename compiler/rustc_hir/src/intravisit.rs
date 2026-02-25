@@ -123,6 +123,8 @@ pub trait HirTyCtxt<'hir> {
         def_id: LocalDefId,
         kind: DelegationSegmentKind,
     ) -> Option<&'hir GenericArgs<'hir>>;
+
+    fn get_delegation_generics(&self, def_id: LocalDefId) -> &'hir Generics<'hir>;
 }
 
 // Used when no tcx is actually available, forcing manual implementation of nested visitors.
@@ -152,6 +154,10 @@ impl<'hir> HirTyCtxt<'hir> for ! {
         _: DelegationSegmentKind,
     ) -> Option<&'hir GenericArgs<'hir>> {
         unreachable!();
+    }
+
+    fn get_delegation_generics(&self, _: LocalDefId) -> &'hir Generics<'hir> {
+        unreachable!()
     }
 }
 
@@ -574,10 +580,10 @@ pub fn walk_item<'v, V: Visitor<'v>>(visitor: &mut V, item: &'v Item<'v>) -> V::
             try_visit!(visitor.visit_ty_unambig(typ));
             try_visit!(visitor.visit_const_item_rhs(rhs));
         }
-        ItemKind::Fn { ident, sig, generics, body: body_id, .. } => {
+        ItemKind::Fn { ident, sig, ref generics, body: body_id, .. } => {
             try_visit!(visitor.visit_ident(ident));
             try_visit!(visitor.visit_fn(
-                FnKind::ItemFn(ident, generics, sig.header),
+                FnKind::ItemFn(ident, generics.default_or_empty(), sig.header),
                 sig.decl,
                 body_id,
                 item.span,
@@ -1272,7 +1278,7 @@ pub fn walk_trait_item<'v, V: Visitor<'v>>(
 ) -> V::Result {
     let TraitItem {
         ident,
-        generics,
+        ref generics,
         ref defaultness,
         ref kind,
         span,
@@ -1281,7 +1287,7 @@ pub fn walk_trait_item<'v, V: Visitor<'v>>(
     } = *trait_item;
     let hir_id = trait_item.hir_id();
     try_visit!(visitor.visit_ident(ident));
-    try_visit!(visitor.visit_generics(&generics));
+    try_visit!(visitor.visit_generics(generics.default_or_empty()));
     try_visit!(visitor.visit_defaultness(&defaultness));
     try_visit!(visitor.visit_id(hir_id));
     match *kind {
@@ -1331,7 +1337,7 @@ pub fn walk_impl_item<'v, V: Visitor<'v>>(
     } = *impl_item;
 
     try_visit!(visitor.visit_ident(ident));
-    try_visit!(visitor.visit_generics(generics));
+    try_visit!(visitor.visit_generics(generics.default_or_empty()));
     try_visit!(visitor.visit_id(impl_item.hir_id()));
     match impl_kind {
         ImplItemImplKind::Inherent { vis_span: _ } => {}

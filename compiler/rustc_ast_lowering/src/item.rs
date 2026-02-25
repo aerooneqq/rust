@@ -6,7 +6,8 @@ use rustc_hir::attrs::{AttributeKind, EiiImplResolution};
 use rustc_hir::def::{DefKind, PerNS, Res};
 use rustc_hir::def_id::{CRATE_DEF_ID, LocalDefId};
 use rustc_hir::{
-    self as hir, HirId, ImplItemImplKind, LifetimeSource, PredicateOrigin, Target, find_attr,
+    self as hir, DelayedGenerics, HirId, ImplItemImplKind, LifetimeSource, PredicateOrigin, Target,
+    find_attr,
 };
 use rustc_index::{IndexSlice, IndexVec};
 use rustc_middle::span_bug;
@@ -1675,7 +1676,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
         kind: FnDeclKind,
         coroutine_kind: Option<CoroutineKind>,
         attrs: &[hir::Attribute],
-    ) -> (&'hir hir::Generics<'hir>, hir::FnSig<'hir>) {
+    ) -> (DelayedGenerics<'hir>, hir::FnSig<'hir>) {
         let header = self.lower_fn_header(sig.header, hir::Safety::Safe, attrs);
         let itctx = ImplTraitContext::Universal;
         let (generics, decl) = self.lower_generics(generics, id, itctx, |this| {
@@ -1797,7 +1798,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
         parent_node_id: NodeId,
         itctx: ImplTraitContext,
         f: impl FnOnce(&mut Self) -> T,
-    ) -> (&'hir hir::Generics<'hir>, T) {
+    ) -> (DelayedGenerics<'hir>, T) {
         assert!(self.impl_trait_defs.is_empty());
         assert!(self.impl_trait_bounds.is_empty());
 
@@ -1857,7 +1858,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
             span,
         });
 
-        (lowered_generics, res)
+        (DelayedGenerics::Default(lowered_generics), res)
     }
 
     pub(super) fn lower_define_opaque(
