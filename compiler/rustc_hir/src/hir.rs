@@ -370,7 +370,10 @@ pub enum PathSegmentArgs<'hir> {
 }
 
 impl<'hir> PathSegmentArgs<'hir> {
-    pub fn args<'tcx: 'hir>(&self, tcx: &dyn crate::intravisit::HirTyCtxt<'tcx>) -> &GenericArgs<'hir> {
+    pub fn args<'tcx: 'hir>(
+        &self,
+        tcx: &dyn crate::intravisit::HirTyCtxt<'tcx>,
+    ) -> &GenericArgs<'hir> {
         const DUMMY: &GenericArgs<'_> = &GenericArgs::none();
         self.opt_args(tcx).unwrap_or(DUMMY)
     }
@@ -392,6 +395,10 @@ impl<'hir> PathSegmentArgs<'hir> {
 
     pub fn default(args: &'hir GenericArgs<'hir>) -> PathSegmentArgs<'hir> {
         PathSegmentArgs::Default(Some(args))
+    }
+
+    pub fn is_default_none(&self) -> bool {
+        matches!(self, PathSegmentArgs::Default(None))
     }
 }
 
@@ -429,7 +436,10 @@ impl<'hir> PathSegment<'hir> {
         Self::new(Ident::dummy(), HirId::INVALID, Res::Err)
     }
 
-    pub fn args<'tcx: 'hir>(&self, tcx: &dyn crate::intravisit::HirTyCtxt<'tcx>) -> &GenericArgs<'hir> {
+    pub fn args<'tcx: 'hir>(
+        &self,
+        tcx: &dyn crate::intravisit::HirTyCtxt<'tcx>,
+    ) -> &GenericArgs<'hir> {
         self.args.args(tcx)
     }
 }
@@ -3790,7 +3800,7 @@ pub enum OpaqueTyOrigin<D> {
 }
 
 // Ids of parent (or child) path segment that contains user-specified args
-#[derive(Debug, Clone, Copy, PartialEq, Eq, HashStable_Generic)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, HashStable_Generic, Default)]
 pub struct DelegationGenerics {
     pub parent_args_segment_id: Option<HirId>,
     pub child_args_segment_id: Option<HirId>,

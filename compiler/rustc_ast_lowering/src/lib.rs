@@ -90,15 +90,6 @@ pub mod stability;
 
 struct LoweringContext<'a, 'hir> {
     tcx: TyCtxt<'hir>,
-
-    // During lowering of delegation we need to access AST of other functions
-    // in order to properly propagate generics, we could have done it at resolve
-    // stage, however it will require either to firstly identify functions that
-    // are being reused and store their generics, or to store generics of all functions
-    // in resolver. This approach helps with those problems, as functions that are reused
-    // will be in AST index.
-    ast_index: &'a IndexSlice<LocalDefId, AstOwner<'a>>,
-
     resolver: &'a mut ResolverAstLowering,
     disambiguator: DisambiguatorState,
 
@@ -159,16 +150,11 @@ struct LoweringContext<'a, 'hir> {
 }
 
 impl<'a, 'hir> LoweringContext<'a, 'hir> {
-    fn new(
-        tcx: TyCtxt<'hir>,
-        ast_index: &'a IndexSlice<LocalDefId, AstOwner<'a>>,
-        resolver: &'a mut ResolverAstLowering,
-    ) -> Self {
+    fn new(tcx: TyCtxt<'hir>, resolver: &'a mut ResolverAstLowering) -> Self {
         let registered_tools = tcx.registered_tools(()).iter().map(|x| x.name).collect();
         Self {
             // Pseudo-globals.
             tcx,
-            ast_index,
             resolver,
             disambiguator: DisambiguatorState::new(),
             arena: tcx.hir_arena,
