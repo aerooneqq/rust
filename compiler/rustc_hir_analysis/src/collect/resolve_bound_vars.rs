@@ -2265,7 +2265,7 @@ impl<'a, 'tcx> BoundVarContext<'a, 'tcx> {
                         // Yield the trait's def id. Supertraits will be
                         // elaborated from that.
                         yield item.owner_id.def_id.to_def_id();
-                    } else if let Some(generics) = node.generics() {
+                    } else if let Some(generics) = node.generics(&self.tcx) {
                         for pred in generics.predicates {
                             let hir::WherePredicateKind::BoundPredicate(pred) = pred.kind else {
                                 continue;

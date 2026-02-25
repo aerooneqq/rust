@@ -1666,7 +1666,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                         _ => None,
                     };
                     if let Some(hir::Node::Item(hir::Item { kind, .. })) = node
-                        && let Some(g) = kind.generics()
+                        && let Some(g) = kind.generics(&tcx)
                     {
                         let key = (
                             g.tail_span_for_predicate_suggestion(),

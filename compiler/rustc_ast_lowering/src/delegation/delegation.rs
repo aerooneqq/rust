@@ -208,8 +208,12 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 // from the root function that started delegation
                 let sig = self.lower_delegation_sig(root_function_id, decl, span);
 
-                let generics = hir::Generics::empty();
-                DelegationResults { body_id, sig, ident, generics }
+                DelegationResults {
+                    body_id,
+                    sig,
+                    ident,
+                    generics: DelayedGenerics::DelegationInherited(self.local_def_id(item_id)),
+                }
             }
             Err(err) => self.generate_delegation_error(err, span, delegation),
         }
@@ -778,7 +782,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
             (&[], this.mk_expr(body_expr, span))
         });
 
-        let generics = hir::Generics::empty();
+        let generics = DelayedGenerics::Default(hir::Generics::empty());
         DelegationResults { ident, generics, body_id, sig }
     }
 

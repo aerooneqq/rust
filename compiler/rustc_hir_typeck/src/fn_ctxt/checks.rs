@@ -1729,8 +1729,10 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                 kind: hir::TraitItemKind::Fn(sig, trait_fn),
                 ..
             }) => match trait_fn {
-                hir::TraitFn::Required(params) => (sig, generics, None, Some(params)),
-                hir::TraitFn::Provided(body) => (sig, generics, Some(body), None),
+                hir::TraitFn::Required(params) => {
+                    (sig, generics.get(&self.tcx), None, Some(params))
+                }
+                hir::TraitFn::Provided(body) => (sig, generics.get(&self.tcx), Some(body), None),
             },
             hir::Node::ImplItem(&hir::ImplItem {
                 generics,
@@ -1740,7 +1742,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             | hir::Node::Item(&hir::Item {
                 kind: hir::ItemKind::Fn { sig, generics, body, .. },
                 ..
-            }) => (sig, generics, Some(body), None),
+            }) => (sig, generics.get(&self.tcx), Some(body), None),
             hir::Node::ForeignItem(&hir::ForeignItem {
                 kind: hir::ForeignItemKind::Fn(sig, params, generics),
                 ..

@@ -1244,7 +1244,7 @@ impl<'tcx> intravisit::HirTyCtxt<'tcx> for TyCtxt<'tcx> {
         }))
     }
 
-    fn get_delegation_generics(&self, def_id: LocalDefId) -> &'tcx Generics<'tcx> {
+    fn get_delegation_generics(&self, _def_id: LocalDefId) -> &'tcx Generics<'tcx> {
         Generics::empty()
     }
 }

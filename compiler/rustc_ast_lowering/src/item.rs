@@ -307,7 +307,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                     },
                 );
                 self.lower_define_opaque(hir_id, &define_opaque);
-                hir::ItemKind::Const(ident, generics, ty, rhs)
+                hir::ItemKind::Const(ident, generics.default_or_empty(), ty, rhs)
             }
             ItemKind::ConstBlock(ConstBlockItem { span, id, block }) => hir::ItemKind::Const(
                 self.lower_ident(ConstBlockItem::IDENT),
@@ -424,7 +424,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                         ),
                     },
                 );
-                hir::ItemKind::TyAlias(ident, generics, ty)
+                hir::ItemKind::TyAlias(ident, generics.default_or_empty(), ty)
             }
             ItemKind::Enum(ident, generics, enum_definition) => {
                 let ident = self.lower_ident(*ident);
@@ -438,7 +438,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                         )
                     },
                 );
-                hir::ItemKind::Enum(ident, generics, hir::EnumDef { variants })
+                hir::ItemKind::Enum(ident, generics.default_or_empty(), hir::EnumDef { variants })
             }
             ItemKind::Struct(ident, generics, struct_def) => {
                 let ident = self.lower_ident(*ident);
@@ -448,7 +448,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                     ImplTraitContext::Disallowed(ImplTraitPosition::Generic),
                     |this| this.lower_variant_data(hir_id, i, struct_def),
                 );
-                hir::ItemKind::Struct(ident, generics, struct_def)
+                hir::ItemKind::Struct(ident, generics.default_or_empty(), struct_def)
             }
             ItemKind::Union(ident, generics, vdata) => {
                 let ident = self.lower_ident(*ident);
@@ -458,7 +458,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                     ImplTraitContext::Disallowed(ImplTraitPosition::Generic),
                     |this| this.lower_variant_data(hir_id, i, vdata),
                 );
-                hir::ItemKind::Union(ident, generics, vdata)
+                hir::ItemKind::Union(ident, generics.default_or_empty(), vdata)
             }
             ItemKind::Impl(Impl {
                 generics: ast_generics,
@@ -502,7 +502,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 let constness = self.lower_constness(*constness);
 
                 hir::ItemKind::Impl(hir::Impl {
-                    generics,
+                    generics: generics.default_or_empty(),
                     of_trait,
                     self_ty: lowered_ty,
                     items: new_impl_items,
@@ -537,7 +537,15 @@ impl<'hir> LoweringContext<'_, 'hir> {
                         (safety, items, bounds)
                     },
                 );
-                hir::ItemKind::Trait(constness, *is_auto, safety, ident, generics, bounds, items)
+                hir::ItemKind::Trait(
+                    constness,
+                    *is_auto,
+                    safety,
+                    ident,
+                    generics.default_or_empty(),
+                    bounds,
+                    items,
+                )
             }
             ItemKind::TraitAlias(box TraitAlias { constness, ident, generics, bounds }) => {
                 let constness = self.lower_constness(*constness);
@@ -554,7 +562,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                         )
                     },
                 );
-                hir::ItemKind::TraitAlias(constness, ident, generics, bounds)
+                hir::ItemKind::TraitAlias(constness, ident, generics.default_or_empty(), bounds)
             }
             ItemKind::MacroDef(ident, MacroDef { body, macro_rules, eii_declaration: _ }) => {
                 let ident = self.lower_ident(*ident);
@@ -777,7 +785,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                     hir::ForeignItemKind::Fn(
                         hir::FnSig { header, decl, span: self.lower_span(sig.span) },
                         fn_args,
-                        generics,
+                        generics.default_or_empty(),
                     ),
                 )
             }

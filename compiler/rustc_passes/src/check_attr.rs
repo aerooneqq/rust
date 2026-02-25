@@ -1222,6 +1222,8 @@ impl<'tcx> CheckAttrVisitor<'tcx> {
             return;
         };
 
+        let generics = generics.get(&self.tcx);
+
         for param in generics.params {
             match param.kind {
                 hir::GenericParamKind::Const { .. } => {}

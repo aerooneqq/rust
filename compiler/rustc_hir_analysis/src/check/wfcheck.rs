@@ -501,7 +501,7 @@ fn check_gat_where_clauses(tcx: TyCtxt<'_>, trait_def_id: LocalDefId) {
             let plural = pluralize!(unsatisfied_bounds.len());
             let suggestion = format!(
                 "{} {}",
-                gat_item_hir.generics.add_where_or_trailing_comma(),
+                gat_item_hir.generics.get(&tcx).add_where_or_trailing_comma(),
                 unsatisfied_bounds.join(", "),
             );
             let bound =
@@ -512,7 +512,7 @@ fn check_gat_where_clauses(tcx: TyCtxt<'_>, trait_def_id: LocalDefId) {
                     format!("missing required bound{} on `{}`", plural, gat_item_hir.ident),
                 )
                 .with_span_suggestion(
-                    gat_item_hir.generics.tail_span_for_predicate_suggestion(),
+                    gat_item_hir.generics.get(&tcx).tail_span_for_predicate_suggestion(),
                     format!("add the required where clause{plural}"),
                     suggestion,
                     Applicability::MachineApplicable,
@@ -2011,7 +2011,7 @@ pub(super) fn check_variances_for_type_defn<'tcx>(tcx: TyCtxt<'tcx>, def_id: Loc
     let explicitly_bounded_params = LazyCell::new(|| {
         let icx = crate::collect::ItemCtxt::new(tcx, def_id);
         tcx.hir_node_by_def_id(def_id)
-            .generics()
+            .generics(&tcx)
             .unwrap()
             .predicates
             .iter()
@@ -2036,7 +2036,7 @@ pub(super) fn check_variances_for_type_defn<'tcx>(tcx: TyCtxt<'tcx>, def_id: Loc
 
         let node = tcx.hir_node_by_def_id(def_id);
         let item = node.expect_item();
-        let hir_generics = node.generics().unwrap();
+        let hir_generics = node.generics(&tcx).unwrap();
         let hir_param = &hir_generics.params[index];
 
         let ty_param = &tcx.generics_of(item.owner_id).own_params[index];
@@ -2306,7 +2306,7 @@ impl<'tcx> WfCheckingCtxt<'_, 'tcx> {
 
                 // only use the span of the predicate clause (#90869)
                 let hir_node = tcx.hir_node_by_def_id(self.body_def_id);
-                if let Some(hir::Generics { predicates, .. }) = hir_node.generics() {
+                if let Some(hir::Generics { predicates, .. }) = hir_node.generics(&tcx) {
                     span = predicates
                         .iter()
                         // There seems to be no better way to find out which predicate we are in

@@ -22,7 +22,7 @@ fn equate_intrinsic_type<'tcx>(
 ) {
     let (generics, span) = match tcx.hir_node_by_def_id(def_id) {
         hir::Node::Item(hir::Item { kind: hir::ItemKind::Fn { generics, .. }, .. }) => {
-            (tcx.generics_of(def_id), generics.span)
+            (tcx.generics_of(def_id), generics.get(&tcx).span)
         }
         _ => tcx.dcx().span_bug(span, "intrinsic must be a function"),
     };

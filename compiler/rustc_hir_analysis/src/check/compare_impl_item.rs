@@ -1168,7 +1168,7 @@ pub(super) fn check_number_of_early_bound_regions<'tcx>(
     let mut where_span = None;
 
     if let Some(trait_node) = tcx.hir_get_if_local(trait_def_id)
-        && let Some(trait_generics) = trait_node.generics()
+        && let Some(trait_generics) = trait_node.generics(&tcx)
     {
         generics_span = trait_generics.span;
         // FIXME: we could potentially look at the impl's bounds to not point at bounds that
@@ -1193,7 +1193,7 @@ pub(super) fn check_number_of_early_bound_regions<'tcx>(
             }
         }
         if let Some(impl_node) = tcx.hir_get_if_local(impl_def_id.into())
-            && let Some(impl_generics) = impl_node.generics()
+            && let Some(impl_generics) = impl_node.generics(&tcx)
         {
             let mut impl_bounds = 0;
             for p in impl_generics.predicates {
@@ -1642,9 +1642,10 @@ fn compare_number_of_generics<'tcx>(
             };
             let (trait_spans, impl_trait_spans) = if let Some(def_id) = trait_.def_id.as_local() {
                 let trait_item = tcx.hir_expect_trait_item(def_id);
-                let arg_spans: Vec<Span> = arg_spans(&trait_, trait_item.generics);
+                let arg_spans: Vec<Span> = arg_spans(&trait_, trait_item.generics.get(&tcx));
                 let impl_trait_spans: Vec<Span> = trait_item
                     .generics
+                    .get(&tcx)
                     .params
                     .iter()
                     .filter_map(|p| match p.kind {
@@ -1661,6 +1662,7 @@ fn compare_number_of_generics<'tcx>(
             let impl_item = tcx.hir_expect_impl_item(impl_.def_id.expect_local());
             let impl_item_impl_trait_spans: Vec<Span> = impl_item
                 .generics
+                .get(&tcx)
                 .params
                 .iter()
                 .filter_map(|p| match p.kind {
@@ -1668,7 +1670,7 @@ fn compare_number_of_generics<'tcx>(
                     _ => None,
                 })
                 .collect();
-            let spans = arg_spans(&impl_, impl_item.generics);
+            let spans = arg_spans(&impl_, impl_item.generics.get(&tcx));
             let span = spans.first().copied();
 
             let mut err = tcx.dcx().struct_span_err(
@@ -1859,10 +1861,14 @@ fn compare_synthetic_generics<'tcx>(
                     // and the opening paren of the argument list
                     let new_generics_span = tcx.def_ident_span(impl_def_id)?.shrink_to_hi();
                     // in case there are generics, just replace them
-                    let generics_span = impl_m.generics.span.substitute_dummy(new_generics_span);
+                    let generics_span =
+                        impl_m.generics.get(&tcx).span.substitute_dummy(new_generics_span);
                     // replace with the generics from the trait
-                    let new_generics =
-                        tcx.sess.source_map().span_to_snippet(trait_m.generics.span).ok()?;
+                    let new_generics = tcx
+                        .sess
+                        .source_map()
+                        .span_to_snippet(trait_m.generics.get(&tcx).span)
+                        .ok()?;
 
                     err.multipart_suggestion(
                         "try changing the `impl Trait` argument to a generic parameter",
@@ -1906,7 +1912,8 @@ fn compare_synthetic_generics<'tcx>(
                         .iter()
                         .find_map(|ty| Visitor(impl_def_id).visit_ty_unambig(ty).break_value())?;
 
-                    let bounds = impl_m.generics.bounds_for_param(impl_def_id).next()?.bounds;
+                    let bounds =
+                        impl_m.generics.get(&tcx).bounds_for_param(impl_def_id).next()?.bounds;
                     let bounds = bounds.first()?.span().to(bounds.last()?.span());
                     let bounds = tcx.sess.source_map().span_to_snippet(bounds).ok()?;
 
@@ -1914,7 +1921,7 @@ fn compare_synthetic_generics<'tcx>(
                         "try removing the generic parameter and using `impl Trait` instead",
                         vec![
                             // delete generic parameters
-                            (impl_m.generics.span, String::new()),
+                            (impl_m.generics.get(&tcx).span, String::new()),
                             // replace param usage with `impl Trait`
                             (span, format!("impl {bounds}")),
                         ],

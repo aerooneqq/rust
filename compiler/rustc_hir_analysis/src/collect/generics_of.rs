@@ -81,7 +81,7 @@ pub(super) fn generics_of(tcx: TyCtxt<'_>, def_id: LocalDefId) -> ty::Generics {
 
             let mut in_param_ty = false;
             for (_parent, node) in tcx.hir_parent_iter(hir_id) {
-                if let Some(generics) = node.generics() {
+                if let Some(generics) = node.generics(&tcx) {
                     let mut visitor = AnonConstInParamTyDetector { in_param_ty: false, ct: hir_id };
 
                     in_param_ty = visitor.visit_generics(generics).is_break();
@@ -231,7 +231,7 @@ pub(super) fn generics_of(tcx: TyCtxt<'_>, def_id: LocalDefId) -> ty::Generics {
     };
 
     let param_default_policy = param_default_policy(node);
-    let hir_generics = node.generics().unwrap_or(hir::Generics::empty());
+    let hir_generics = node.generics(&tcx).unwrap_or(hir::Generics::empty());
     let has_self = opt_self.is_some();
     let mut parent_has_self = false;
     let mut own_start = has_self as u32;
@@ -498,7 +498,7 @@ fn has_late_bound_regions<'tcx>(tcx: TyCtxt<'tcx>, node: Node<'tcx>) -> Option<S
     }
 
     let decl = node.fn_decl()?;
-    let generics = node.generics()?;
+    let generics = node.generics(&tcx)?;
     has_late_bound_regions(tcx, generics, decl)
 }
 

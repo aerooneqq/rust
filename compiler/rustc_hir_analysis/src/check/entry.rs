@@ -44,7 +44,7 @@ fn check_main_fn_ty(tcx: TyCtxt<'_>, main_def_id: DefId) {
         }
         match tcx.hir_node_by_def_id(def_id.expect_local()) {
             Node::Item(hir::Item { kind: hir::ItemKind::Fn { generics, .. }, .. }) => {
-                generics.params.is_empty().not().then_some(generics.span)
+                generics.get(&tcx).params.is_empty().not().then_some(generics.get(&tcx).span)
             }
             _ => {
                 span_bug!(tcx.def_span(def_id), "main has a non-function type");
@@ -58,7 +58,7 @@ fn check_main_fn_ty(tcx: TyCtxt<'_>, main_def_id: DefId) {
         }
         match tcx.hir_node_by_def_id(def_id.expect_local()) {
             Node::Item(hir::Item { kind: hir::ItemKind::Fn { generics, .. }, .. }) => {
-                Some(generics.where_clause_span)
+                Some(generics.get(&tcx).where_clause_span)
             }
             _ => {
                 span_bug!(tcx.def_span(def_id), "main has a non-function type");

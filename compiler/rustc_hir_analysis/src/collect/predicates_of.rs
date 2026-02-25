@@ -153,7 +153,7 @@ fn gather_explicit_predicates_of(tcx: TyCtxt<'_>, def_id: LocalDefId) -> ty::Gen
     // Preserving the order of insertion is important here so as not to break UI tests.
     let mut predicates: FxIndexSet<(ty::Clause<'_>, Span)> = FxIndexSet::default();
 
-    let hir_generics = node.generics().unwrap_or(NO_GENERICS);
+    let hir_generics = node.generics(&tcx).unwrap_or(NO_GENERICS);
     if let Node::Item(item) = node {
         match item.kind {
             ItemKind::Impl(impl_) => {
@@ -909,7 +909,7 @@ pub(super) fn type_param_predicates<'tcx>(
     let item_hir_id = tcx.local_def_id_to_hir_id(item_def_id);
 
     let hir_node = tcx.hir_node(item_hir_id);
-    let Some(hir_generics) = hir_node.generics() else {
+    let Some(hir_generics) = hir_node.generics(&tcx) else {
         return result;
     };
 
@@ -1026,7 +1026,7 @@ pub(super) fn const_conditions<'tcx>(
     {
         Node::Item(item) => match item.kind {
             hir::ItemKind::Impl(impl_) => (impl_.generics, None, false),
-            hir::ItemKind::Fn { generics, .. } => (generics, None, false),
+            hir::ItemKind::Fn { generics, .. } => (generics.get(&tcx), None, false),
             hir::ItemKind::Trait(_, _, _, _, generics, supertraits, _) => {
                 (generics, Some((Some(item.owner_id.def_id), supertraits)), false)
             }
@@ -1041,13 +1041,13 @@ pub(super) fn const_conditions<'tcx>(
         // in `HostEffect` goal computation.
         Node::TraitItem(item) => match item.kind {
             hir::TraitItemKind::Fn(_, _) | hir::TraitItemKind::Type(_, _) => {
-                (item.generics, None, true)
+                (item.generics.get(&tcx), None, true)
             }
             _ => bug!("const_conditions called on wrong item: {def_id:?}"),
         },
         Node::ImplItem(item) => match item.kind {
             hir::ImplItemKind::Fn(_, _) | hir::ImplItemKind::Type(_) => {
-                (item.generics, None, tcx.is_conditionally_const(tcx.local_parent(def_id)))
+                (item.generics.get(&tcx), None, tcx.is_conditionally_const(tcx.local_parent(def_id)))
             }
             _ => bug!("const_conditions called on wrong item: {def_id:?}"),
         },
