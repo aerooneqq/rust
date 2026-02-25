@@ -364,9 +364,15 @@ impl Path<'_> {
 }
 
 #[derive(Debug, Clone, Copy, HashStable_Generic)]
+pub enum DelegationSegmentKind {
+    Parent,
+    Child,
+}
+
+#[derive(Debug, Clone, Copy, HashStable_Generic)]
 pub enum PathSegmentArgs<'hir> {
     Default(Option<&'hir GenericArgs<'hir>>),
-    DelegationPropagated(DefId),
+    DelegationPropagated(LocalDefId, DelegationSegmentKind),
 }
 
 impl<'hir> PathSegmentArgs<'hir> {
@@ -382,9 +388,11 @@ impl<'hir> PathSegmentArgs<'hir> {
         &self,
         tcx: &dyn crate::intravisit::HirTyCtxt<'tcx>,
     ) -> Option<&'hir GenericArgs<'hir>> {
-        match self {
-            PathSegmentArgs::Default(generic_args) => *generic_args,
-            PathSegmentArgs::DelegationPropagated(def_id) => tcx.get_delegation_args(*def_id),
+        match *self {
+            PathSegmentArgs::Default(generic_args) => generic_args,
+            PathSegmentArgs::DelegationPropagated(def_id, kind) => {
+                tcx.get_delegation_args(def_id, kind)
+            }
         }
     }
 

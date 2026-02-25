@@ -6,9 +6,11 @@ use rustc_data_structures::debug_assert_matches;
 use rustc_data_structures::fx::FxHashMap;
 use rustc_hir::def::DefKind;
 use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_hir::definitions::DisambiguatorState;
 use rustc_hir::{HirId, PathSegment};
 use rustc_middle::ty::{
-    self, EarlyBinder, Ty, TyCtxt, TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitableExt,
+    self, EarlyBinder, GenericParamDefKind, Ty, TyCtxt, TypeFoldable, TypeFolder,
+    TypeSuperFoldable, TypeVisitableExt,
 };
 use rustc_span::{ErrorGuaranteed, Span, kw};
 
@@ -642,6 +644,7 @@ fn get_delegation_user_specified_args<'tcx>(
 
 fn build_generics<'tcx>(
     tcx: TyCtxt<'tcx>,
+    def_id: LocalDefId,
     sig_id: DefId,
     parent: Option<DefId>,
     inh_kind: InheritanceKind,
@@ -684,6 +687,7 @@ fn build_generics<'tcx>(
         (0, false)
     };
 
+    let mut disambig = DisambiguatorState::new();
     for (idx, param) in own_params.iter_mut().enumerate() {
         param.index = (idx + parent_count) as u32;
         // FIXME(fn_delegation): Default parameters are not inherited, because they are
@@ -698,6 +702,17 @@ fn build_generics<'tcx>(
         {
             *has_default = false;
         }
+
+        let def_kind = match param.kind {
+            GenericParamDefKind::Lifetime { .. } => DefKind::LifetimeParam,
+            GenericParamDefKind::Type { .. } => DefKind::TyParam,
+            GenericParamDefKind::Const { .. } => DefKind::ConstParam,
+        };
+
+        param.def_id = tcx
+            .create_def(def_id, Some(param.name), def_kind, None, &mut disambig)
+            .def_id()
+            .to_def_id();
     }
 
     let param_def_id_to_index =
@@ -722,18 +737,23 @@ pub(crate) fn inherit_generics_for_delegation_item<'tcx>(
     let callee_kind = fn_kind(tcx, sig_id);
     match (caller_kind, callee_kind) {
         (FnKind::Free, FnKind::Free) | (FnKind::Free, FnKind::AssocTrait) => {
-            build_generics(tcx, sig_id, None, InheritanceKind::WithParent(true))
+            build_generics(tcx, def_id, sig_id, None, InheritanceKind::WithParent(true))
         }
 
-        (FnKind::AssocTraitImpl, FnKind::AssocTrait) => {
-            build_generics(tcx, sig_id, Some(tcx.parent(def_id.into())), InheritanceKind::Own)
-        }
+        (FnKind::AssocTraitImpl, FnKind::AssocTrait) => build_generics(
+            tcx,
+            def_id,
+            sig_id,
+            Some(tcx.parent(def_id.into())),
+            InheritanceKind::Own,
+        ),
 
         (FnKind::AssocInherentImpl, FnKind::AssocTrait)
         | (FnKind::AssocTrait, FnKind::AssocTrait)
         | (FnKind::AssocInherentImpl, FnKind::Free)
         | (FnKind::AssocTrait, FnKind::Free) => build_generics(
             tcx,
+            def_id,
             sig_id,
             Some(tcx.parent(def_id.into())),
             InheritanceKind::WithParent(false),

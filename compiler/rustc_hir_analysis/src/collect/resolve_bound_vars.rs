@@ -908,6 +908,7 @@ impl<'a, 'tcx> Visitor<'tcx> for BoundVarContext<'a, 'tcx> {
             }
         }
         if let Res::Def(DefKind::TyParam | DefKind::ConstParam, param_def_id) = path.res {
+            println!("PATH: {param_def_id:?}, {path:?}");
             self.resolve_type_ref(param_def_id.expect_local(), hir_id);
         }
     }

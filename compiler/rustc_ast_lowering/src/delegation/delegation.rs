@@ -46,9 +46,9 @@ use rustc_ast::*;
 use rustc_attr_parsing::{AttributeParser, ShouldEmit};
 use rustc_data_structures::fx::FxHashSet;
 use rustc_errors::ErrorGuaranteed;
-use rustc_hir::PathSegmentArgs;
 use rustc_hir::attrs::{AttributeKind, InlineAttr};
 use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_hir::{DelegationSegmentKind, PathSegmentArgs};
 use rustc_middle::span_bug;
 use rustc_middle::ty::{Asyncness, DelegationAttrs, DelegationFnSigAttrs, ResolverAstLowering};
 use rustc_span::symbol::kw;
@@ -189,7 +189,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 let mut generics = Default::default();
                 let body_id = self.lower_delegation_body(
                     delegation,
-                    delegee_id,
+                    self.local_def_id(item_id),
                     is_method,
                     param_count,
                     &mut generics,
@@ -525,7 +525,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
     fn lower_delegation_body(
         &mut self,
         delegation: &Delegation,
-        sig_id: DefId,
+        def_id: LocalDefId,
         is_method: bool,
         param_count: usize,
         generics: &mut hir::DelegationGenerics,
@@ -559,7 +559,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 args.push(arg);
             }
 
-            let final_expr = this.finalize_body_lowering(delegation, sig_id, args, generics, span);
+            let final_expr = this.finalize_body_lowering(delegation, def_id, args, generics, span);
 
             (this.arena.alloc_from_iter(parameters), final_expr)
         })
@@ -596,7 +596,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
     fn finalize_body_lowering(
         &mut self,
         delegation: &Delegation,
-        sig_id: DefId,
+        def_id: LocalDefId,
         args: Vec<hir::Expr<'hir>>,
         generics: &mut hir::DelegationGenerics,
         span: Span,
@@ -624,8 +624,12 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 None,
             );
 
-            let segment =
-                self.process_segment(sig_id, &segment, &mut generics.child_args_segment_id);
+            let segment = self.process_segment(
+                def_id,
+                &segment,
+                &mut generics.child_args_segment_id,
+                DelegationSegmentKind::Child,
+            );
 
             let segment = self.arena.alloc(segment);
 
@@ -654,15 +658,17 @@ impl<'hir> LoweringContext<'_, 'hir> {
                         new_path.segments.iter().enumerate().map(|(idx, segment)| {
                             if idx + 2 == len {
                                 self.process_segment(
-                                    sig_id,
+                                    def_id,
                                     segment,
                                     &mut generics.parent_args_segment_id,
+                                    DelegationSegmentKind::Parent,
                                 )
                             } else if idx + 1 == len {
                                 self.process_segment(
-                                    sig_id,
+                                    def_id,
                                     segment,
                                     &mut generics.child_args_segment_id,
+                                    DelegationSegmentKind::Child,
                                 )
                             } else {
                                 segment.clone()
@@ -673,8 +679,12 @@ impl<'hir> LoweringContext<'_, 'hir> {
                     hir::QPath::Resolved(ty, self.arena.alloc(new_path))
                 }
                 hir::QPath::TypeRelative(ty, segment) => {
-                    let segment =
-                        self.process_segment(sig_id, segment, &mut generics.child_args_segment_id);
+                    let segment = self.process_segment(
+                        def_id,
+                        segment,
+                        &mut generics.child_args_segment_id,
+                        DelegationSegmentKind::Child,
+                    );
 
                     hir::QPath::TypeRelative(ty, self.arena.alloc(segment))
                 }
@@ -698,13 +708,14 @@ impl<'hir> LoweringContext<'_, 'hir> {
 
     fn process_segment(
         &mut self,
-        sig_id: DefId,
+        def_id: LocalDefId,
         segment: &hir::PathSegment<'hir>,
         user_specified_hir_id: &mut Option<HirId>,
+        kind: DelegationSegmentKind,
     ) -> hir::PathSegment<'hir> {
         let segment = if segment.args.is_default_none() {
             let mut new_segment = segment.clone();
-            new_segment.args = PathSegmentArgs::DelegationPropagated(sig_id);
+            new_segment.args = PathSegmentArgs::DelegationPropagated(def_id, kind);
 
             new_segment
         } else {

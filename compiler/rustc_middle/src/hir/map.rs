@@ -20,8 +20,8 @@ use rustc_span::{ErrorGuaranteed, Ident, Span, Symbol, kw, with_metavar_spans};
 use crate::hir::{ModuleItems, nested_filter};
 use crate::middle::debugger_visualizer::DebuggerVisualizerFile;
 use crate::query::LocalCrate;
-use crate::ty::TyCtxt;
 use crate::ty::layout::HasTyCtxt;
+use crate::ty::{GenericParamDefKind, TyCtxt};
 
 /// An iterator that walks up the ancestor tree of a given `HirId`.
 /// Constructed using `tcx.hir_parent_iter(hir_id)`.
@@ -1011,7 +1011,9 @@ impl<'tcx> TyCtxt<'tcx> {
             Node::PathSegment(seg) => {
                 let ident_span = seg.ident.span;
                 ident_span.with_hi(
-                    seg.args.opt_args(&self.tcx()).map_or_else(|| ident_span.hi(), |args| args.span_ext.hi()),
+                    seg.args
+                        .opt_args(&self.tcx())
+                        .map_or_else(|| ident_span.hi(), |args| args.span_ext.hi()),
                 )
             }
             Node::Ty(ty) => ty.span,
@@ -1116,8 +1118,124 @@ impl<'tcx> intravisit::HirTyCtxt<'tcx> for TyCtxt<'tcx> {
         (*self).hir_foreign_item(id)
     }
 
-    fn get_delegation_args(&self, _sig_id: DefId) -> Option<&'tcx GenericArgs<'tcx>> {
-        None
+    fn get_delegation_args(
+        &self,
+        def_id: LocalDefId,
+        kind: DelegationSegmentKind,
+    ) -> Option<&'tcx GenericArgs<'tcx>> {
+        let hir_id = self.local_def_id_to_hir_id(def_id);
+        let node = self.hir_node(hir_id);
+
+        let Some(sig_id) = node.fn_sig().unwrap().decl.opt_delegation_sig_id() else {
+            unreachable!()
+        };
+
+        let params = &self.generics_of(def_id).own_params;
+        let counts = self.generics_of(sig_id).own_counts();
+
+        let child_types =
+            params.iter().rev().take(counts.types + counts.consts).collect::<Vec<_>>();
+
+        let parent_types = params
+            .iter()
+            .rev()
+            .skip(child_types.len())
+            .take_while(|p| p.kind.is_ty_or_const())
+            .collect::<Vec<_>>();
+
+        let child_lifetimes = params
+            .iter()
+            .rev()
+            .skip(child_types.len() + parent_types.len())
+            .take(counts.lifetimes)
+            .collect::<Vec<_>>();
+
+        let parent_lifetimes = params
+            .iter()
+            .rev()
+            .skip(child_types.len() + parent_types.len() + child_lifetimes.len())
+            .take_while(|p| !p.kind.is_ty_or_const())
+            .collect::<Vec<_>>();
+
+        let params = match kind {
+            DelegationSegmentKind::Child => {
+                child_lifetimes.iter().rev().chain(child_types.iter().rev())
+            }
+            DelegationSegmentKind::Parent => {
+                parent_lifetimes.iter().rev().chain(parent_types.iter().rev())
+            }
+        };
+
+        let span = self.def_span(def_id.to_def_id());
+
+        Some(self.hir_arena.alloc(GenericArgs {
+            args: self.arena.alloc_from_iter(params.filter_map(|p| {
+                // Skip self generic arg, we do not need to propagate it.
+                if p.name == kw::SelfUpper {
+                    return None;
+                }
+
+                let create_path = |this: &Self| {
+                    let res = Res::Def(
+                        match p.kind {
+                            GenericParamDefKind::Lifetime { .. } => DefKind::LifetimeParam,
+                            GenericParamDefKind::Type { .. } => DefKind::TyParam,
+                            GenericParamDefKind::Const { .. } => DefKind::ConstParam,
+                        },
+                        p.def_id.into(),
+                    );
+
+                    QPath::Resolved(
+                        None,
+                        self.arena.alloc(Path {
+                            segments: this.hir_arena.alloc_slice(&[PathSegment {
+                                args: PathSegmentArgs::none(),
+                                hir_id: HirId::INVALID,
+                                ident: Ident::with_dummy_span(p.name),
+                                infer_args: false,
+                                res,
+                            }]),
+                            res,
+                            span,
+                        }),
+                    )
+                };
+
+                match p.kind {
+                    GenericParamDefKind::Lifetime { .. } => match kind {
+                        DelegationSegmentKind::Parent => {
+                            Some(GenericArg::Lifetime(self.arena.alloc(Lifetime {
+                                hir_id: HirId::INVALID,
+                                ident: Ident::with_dummy_span(p.name),
+                                kind: LifetimeKind::Param(p.def_id.expect_local()),
+                                source: LifetimeSource::Path {
+                                    angle_brackets: AngleBrackets::Full,
+                                },
+                                syntax: LifetimeSyntax::ExplicitBound,
+                            })))
+                        }
+                        DelegationSegmentKind::Child => None,
+                    },
+                    GenericParamDefKind::Type { .. } => {
+                        Some(GenericArg::Type(self.arena.alloc(Ty {
+                            hir_id: HirId::INVALID,
+                            span,
+                            kind: TyKind::Path(create_path(self)),
+                        })))
+                    }
+                    GenericParamDefKind::Const { .. } => {
+                        Some(GenericArg::Const(self.arena.alloc(ConstArg {
+                            hir_id: HirId::INVALID,
+                            kind: ConstArgKind::Path(create_path(self)),
+                            span,
+                        })))
+                    }
+                }
+            })),
+            constraints: &[],
+            parenthesized: GenericArgsParentheses::No,
+            span_ext: span,
+        }))
     }
 }
 
