@@ -1994,7 +1994,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
     // FIXME(eddyb, varkor) handle type paths here too, not just value ones.
     pub fn probe_generic_path_segments(
         &self,
-        segments: &[hir::PathSegment<'tcx >],
+        segments: &[hir::PathSegment<'tcx>],
         self_ty: Option<Ty<'tcx>>,
         kind: DefKind,
         def_id: DefId,

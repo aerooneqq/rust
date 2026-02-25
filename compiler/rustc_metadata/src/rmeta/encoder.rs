@@ -2609,7 +2609,11 @@ pub(crate) fn provide(providers: &mut Providers) {
 /// Whenever possible, prefer to evaluate the constant first and try to
 /// use a different method for pretty-printing. Ideally this function
 /// should only ever be used as a fallback.
-pub fn rendered_const<'tcx>(tcx: TyCtxt<'tcx>, body: &hir::Body<'tcx>, def_id: LocalDefId) -> String {
+pub fn rendered_const<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    body: &hir::Body<'tcx>,
+    def_id: LocalDefId,
+) -> String {
     let value = body.value;
 
     #[derive(PartialEq, Eq)]

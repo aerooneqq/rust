@@ -1046,9 +1046,11 @@ pub(super) fn const_conditions<'tcx>(
             _ => bug!("const_conditions called on wrong item: {def_id:?}"),
         },
         Node::ImplItem(item) => match item.kind {
-            hir::ImplItemKind::Fn(_, _) | hir::ImplItemKind::Type(_) => {
-                (item.generics.get(&tcx), None, tcx.is_conditionally_const(tcx.local_parent(def_id)))
-            }
+            hir::ImplItemKind::Fn(_, _) | hir::ImplItemKind::Type(_) => (
+                item.generics.get(&tcx),
+                None,
+                tcx.is_conditionally_const(tcx.local_parent(def_id)),
+            ),
             _ => bug!("const_conditions called on wrong item: {def_id:?}"),
         },
         Node::ForeignItem(item) => match item.kind {

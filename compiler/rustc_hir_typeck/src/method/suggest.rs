@@ -4433,7 +4433,8 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                                 "restrict type parameter `{}` with",
                                 param.name.ident(),
                             ));
-                            let bounds_span = hir_generics.bounds_span_for_suggestions(def_id, &tcx);
+                            let bounds_span =
+                                hir_generics.bounds_span_for_suggestions(def_id, &tcx);
                             let mut applicability = Applicability::MaybeIncorrect;
                             // Format the path of each suggested candidate, providing placeholders
                             // for any generic arguments without defaults.

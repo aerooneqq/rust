@@ -450,7 +450,9 @@ pub fn suggest_constraining_type_params<'tcx, 'a>(
         //          |
         //          replace with: `T: Bar +`
 
-        if let Some((span, open_paren_sp)) = generics.bounds_span_for_suggestions(param.def_id, &tcx) {
+        if let Some((span, open_paren_sp)) =
+            generics.bounds_span_for_suggestions(param.def_id, &tcx)
+        {
             suggest_restrict(span, true, open_paren_sp);
             continue;
         }
