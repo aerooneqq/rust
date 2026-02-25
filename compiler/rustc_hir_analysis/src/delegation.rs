@@ -639,3 +639,106 @@ fn get_delegation_user_specified_args<'tcx>(
 
     (parent_args.unwrap_or(&[]), child_args.unwrap_or(&[]))
 }
+
+fn build_generics<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    sig_id: DefId,
+    parent: Option<DefId>,
+    inh_kind: InheritanceKind,
+) -> ty::Generics {
+    let mut own_params = vec![];
+
+    let sig_generics = tcx.generics_of(sig_id);
+    if let InheritanceKind::WithParent(has_self) = inh_kind
+        && let Some(parent_def_id) = sig_generics.parent
+    {
+        let sig_parent_generics = tcx.generics_of(parent_def_id);
+        own_params.append(&mut sig_parent_generics.own_params.clone());
+        if !has_self {
+            own_params.remove(0);
+        }
+    }
+
+    own_params.append(&mut sig_generics.own_params.clone());
+
+    // Lifetime parameters must be declared before type and const parameters.
+    // Therefore, When delegating from a free function to a associated function,
+    // generic parameters need to be reordered:
+    //
+    // trait Trait<'a, A> {
+    //     fn foo<'b, B>(...) {...}
+    // }
+    //
+    // reuse Trait::foo;
+    // desugaring:
+    // fn foo<'a, 'b, This: Trait<'a, A>, A, B>(...) {
+    //     Trait::foo(...)
+    // }
+    own_params.sort_by_key(|key| key.kind.is_ty_or_const());
+
+    let (parent_count, has_self) = if let Some(def_id) = parent {
+        let parent_generics = tcx.generics_of(def_id);
+        let parent_kind = tcx.def_kind(def_id);
+        (parent_generics.count(), parent_kind == DefKind::Trait)
+    } else {
+        (0, false)
+    };
+
+    for (idx, param) in own_params.iter_mut().enumerate() {
+        param.index = (idx + parent_count) as u32;
+        // FIXME(fn_delegation): Default parameters are not inherited, because they are
+        // not permitted in functions. Therefore, there are 2 options here:
+        //
+        // - We can create non-default generic parameters.
+        // - We can substitute default parameters into the signature.
+        //
+        // At the moment, first option has been selected as the most general.
+        if let ty::GenericParamDefKind::Type { has_default, .. }
+        | ty::GenericParamDefKind::Const { has_default, .. } = &mut param.kind
+        {
+            *has_default = false;
+        }
+    }
+
+    let param_def_id_to_index =
+        own_params.iter().map(|param| (param.def_id, param.index)).collect();
+
+    ty::Generics {
+        parent,
+        parent_count,
+        own_params,
+        param_def_id_to_index,
+        has_self,
+        has_late_bound_regions: sig_generics.has_late_bound_regions,
+    }
+}
+
+pub(crate) fn inherit_generics_for_delegation_item<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    def_id: LocalDefId,
+    sig_id: DefId,
+) -> ty::Generics {
+    let caller_kind = fn_kind(tcx, def_id);
+    let callee_kind = fn_kind(tcx, sig_id);
+    match (caller_kind, callee_kind) {
+        (FnKind::Free, FnKind::Free) | (FnKind::Free, FnKind::AssocTrait) => {
+            build_generics(tcx, sig_id, None, InheritanceKind::WithParent(true))
+        }
+
+        (FnKind::AssocTraitImpl, FnKind::AssocTrait) => {
+            build_generics(tcx, sig_id, Some(tcx.parent(def_id.into())), InheritanceKind::Own)
+        }
+
+        (FnKind::AssocInherentImpl, FnKind::AssocTrait)
+        | (FnKind::AssocTrait, FnKind::AssocTrait)
+        | (FnKind::AssocInherentImpl, FnKind::Free)
+        | (FnKind::AssocTrait, FnKind::Free) => build_generics(
+            tcx,
+            sig_id,
+            Some(tcx.parent(def_id.into())),
+            InheritanceKind::WithParent(false),
+        ),
+
+        unsupported_caller_callee_kinds!() => unreachable!(),
+    }
+}
