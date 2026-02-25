@@ -709,10 +709,11 @@ fn build_generics<'tcx>(
             GenericParamDefKind::Const { .. } => DefKind::ConstParam,
         };
 
-        param.def_id = tcx
-            .create_def(def_id, Some(param.name), def_kind, None, &mut disambig)
-            .def_id()
-            .to_def_id();
+        let feed = tcx.create_def(def_id, Some(param.name), def_kind, None, &mut disambig);
+
+        feed.feed_hir();
+
+        param.def_id = feed.def_id().to_def_id();
     }
 
     let param_def_id_to_index =

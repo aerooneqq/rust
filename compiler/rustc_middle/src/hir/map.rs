@@ -1173,6 +1173,13 @@ impl<'tcx> intravisit::HirTyCtxt<'tcx> for TyCtxt<'tcx> {
         };
 
         let span = self.def_span(def_id.to_def_id());
+        let mut local_id = ItemLocalId::MAX_AS_U32;
+
+        let mut next_id = || {
+            local_id -= 1;
+
+            HirId { local_id: ItemLocalId::from_u32(local_id), owner: OwnerId { def_id } }
+        };
 
         Some(self.hir_arena.alloc(GenericArgs {
             args: self.arena.alloc_from_iter(params.filter_map(|p| {
@@ -1181,7 +1188,7 @@ impl<'tcx> intravisit::HirTyCtxt<'tcx> for TyCtxt<'tcx> {
                     return None;
                 }
 
-                let create_path = |this: &Self| {
+                let create_path = |this: &Self, hir_id| {
                     let res = Res::Def(
                         match p.kind {
                             GenericParamDefKind::Lifetime { .. } => DefKind::LifetimeParam,
@@ -1196,7 +1203,7 @@ impl<'tcx> intravisit::HirTyCtxt<'tcx> for TyCtxt<'tcx> {
                         self.arena.alloc(Path {
                             segments: this.hir_arena.alloc_slice(&[PathSegment {
                                 args: PathSegmentArgs::none(),
-                                hir_id: HirId::INVALID,
+                                hir_id,
                                 ident: Ident::with_dummy_span(p.name),
                                 infer_args: false,
                                 res,
@@ -1211,7 +1218,7 @@ impl<'tcx> intravisit::HirTyCtxt<'tcx> for TyCtxt<'tcx> {
                     GenericParamDefKind::Lifetime { .. } => match kind {
                         DelegationSegmentKind::Parent => {
                             Some(GenericArg::Lifetime(self.arena.alloc(Lifetime {
-                                hir_id: HirId::INVALID,
+                                hir_id: next_id(),
                                 ident: Ident::with_dummy_span(p.name),
                                 kind: LifetimeKind::Param(p.def_id.expect_local()),
                                 source: LifetimeSource::Path {
@@ -1224,15 +1231,15 @@ impl<'tcx> intravisit::HirTyCtxt<'tcx> for TyCtxt<'tcx> {
                     },
                     GenericParamDefKind::Type { .. } => {
                         Some(GenericArg::Type(self.arena.alloc(Ty {
-                            hir_id: HirId::INVALID,
+                            hir_id: next_id(),
                             span,
-                            kind: TyKind::Path(create_path(self)),
+                            kind: TyKind::Path(create_path(self, next_id())),
                         })))
                     }
                     GenericParamDefKind::Const { .. } => {
                         Some(GenericArg::Const(self.arena.alloc(ConstArg {
-                            hir_id: HirId::INVALID,
-                            kind: ConstArgKind::Path(create_path(self)),
+                            hir_id: next_id(),
+                            kind: ConstArgKind::Path(create_path(self, next_id())),
                             span,
                         })))
                     }
@@ -1244,8 +1251,38 @@ impl<'tcx> intravisit::HirTyCtxt<'tcx> for TyCtxt<'tcx> {
         }))
     }
 
-    fn get_delegation_generics(&self, _def_id: LocalDefId) -> &'tcx Generics<'tcx> {
-        Generics::empty()
+    fn get_delegation_generics(&self, def_id: LocalDefId) -> &'tcx Generics<'tcx> {
+        let generics = self.generics_of(def_id);
+        let span = self.def_span(def_id.to_def_id());
+
+        self.hir_arena.alloc(Generics {
+            params: self.hir_arena.alloc_from_iter(generics.own_params.iter().map(|p| {
+                GenericParam {
+                    source: GenericParamSource::Generics,
+                    span,
+                    pure_wrt_drop: false,
+                    name: ParamName::Plain(Ident::with_dummy_span(p.name)),
+                    hir_id: self.local_def_id_to_hir_id(p.def_id.expect_local()),
+                    def_id: p.def_id.expect_local(),
+                    kind: match p.kind {
+                        GenericParamDefKind::Lifetime { .. } => {
+                            GenericParamKind::Lifetime { kind: LifetimeParamKind::Explicit }
+                        }
+                        GenericParamDefKind::Type { synthetic, .. } => {
+                            GenericParamKind::Type { default: None, synthetic }
+                        }
+                        GenericParamDefKind::Const { .. } => {
+                            todo!()
+                        }
+                    },
+                    colon_span: None,
+                }
+            })),
+            predicates: &[],
+            span,
+            where_clause_span: span,
+            has_where_clause_predicates: false,
+        })
     }
 }
 
