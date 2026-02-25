@@ -5,7 +5,7 @@ use rustc_ast::{Pat, PatKind, Path};
 use rustc_hir::def::Res;
 use rustc_hir::def_id::DefId;
 use rustc_hir::{Expr, ExprKind, HirId, find_attr};
-use rustc_middle::ty::{self, GenericArgsRef, PredicatePolarity};
+use rustc_middle::ty::{self, GenericArgsRef, PredicatePolarity, TyCtxt};
 use rustc_session::{declare_lint_pass, declare_tool_lint};
 use rustc_span::hygiene::{ExpnKind, MacroKind};
 use rustc_span::{Span, sym};
@@ -212,14 +212,14 @@ impl<'tcx> LateLintPass<'tcx> for TyTyKind {
         if let Some(segment) = path.segments.iter().nth_back(1)
             && lint_ty_kind_usage(cx, &segment.res)
         {
-            let span = path
-                .span
-                .with_hi(segment.args.opt_args().map_or(segment.ident.span, |a| a.span_ext).hi());
+            let span = path.span.with_hi(
+                segment.args.opt_args(&cx.tcx).map_or(segment.ident.span, |a| a.span_ext).hi(),
+            );
             cx.emit_span_lint(USAGE_OF_TY_TYKIND, path.span, TykindKind { suggestion: span });
         }
     }
 
-    fn check_ty(&mut self, cx: &LateContext<'_>, ty: &'tcx hir::Ty<'tcx, hir::AmbigArg>) {
+    fn check_ty(&mut self, cx: &LateContext<'tcx>, ty: &'tcx hir::Ty<'tcx, hir::AmbigArg>) {
         match &ty.kind {
             hir::TyKind::Path(hir::QPath::Resolved(_, path)) => {
                 if lint_ty_kind_usage(cx, &path.res) {
@@ -282,11 +282,15 @@ fn lint_ty_kind_usage(cx: &LateContext<'_>, res: &Res) -> bool {
     }
 }
 
-fn is_ty_or_ty_ctxt(cx: &LateContext<'_>, path: &hir::Path<'_>) -> Option<String> {
+fn is_ty_or_ty_ctxt<'tcx>(cx: &LateContext<'tcx>, path: &hir::Path<'tcx>) -> Option<String> {
     match path.res {
         Res::Def(_, def_id) => {
             if let Some(name @ (sym::Ty | sym::TyCtxt)) = cx.tcx.get_diagnostic_name(def_id) {
-                return Some(format!("{}{}", name, gen_args(path.segments.last().unwrap())));
+                return Some(format!(
+                    "{}{}",
+                    name,
+                    gen_args(path.segments.last().unwrap(), cx.tcx)
+                ));
             }
         }
         // Only lint on `&Ty` and `&TyCtxt` if it is used outside of a trait.
@@ -303,8 +307,8 @@ fn is_ty_or_ty_ctxt(cx: &LateContext<'_>, path: &hir::Path<'_>) -> Option<String
     None
 }
 
-fn gen_args(segment: &hir::PathSegment<'_>) -> String {
-    if let Some(args) = segment.args.opt_args() {
+fn gen_args<'tcx>(segment: &hir::PathSegment<'tcx>, tcx: TyCtxt<'tcx>) -> String {
+    if let Some(args) = segment.args.opt_args(&tcx) {
         let lifetimes = args
             .args
             .iter()

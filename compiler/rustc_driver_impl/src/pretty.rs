@@ -66,18 +66,18 @@ struct HirIdentifiedAnn<'tcx> {
     tcx: TyCtxt<'tcx>,
 }
 
-impl<'tcx> pprust_hir::PpAnn for HirIdentifiedAnn<'tcx> {
-    fn nested(&self, state: &mut pprust_hir::State<'_>, nested: pprust_hir::Nested) {
+impl<'tcx> pprust_hir::PpAnn<'tcx> for HirIdentifiedAnn<'tcx> {
+    fn nested(&self, state: &mut pprust_hir::State<'tcx, '_>, nested: pprust_hir::Nested) {
         self.tcx.nested(state, nested)
     }
 
-    fn pre(&self, s: &mut pprust_hir::State<'_>, node: pprust_hir::AnnNode<'_>) {
+    fn pre(&self, s: &mut pprust_hir::State<'tcx, '_>, node: pprust_hir::AnnNode<'_>) {
         if let pprust_hir::AnnNode::Expr(_) = node {
             s.popen();
         }
     }
 
-    fn post(&self, s: &mut pprust_hir::State<'_>, node: pprust_hir::AnnNode<'_>) {
+    fn post(&self, s: &mut pprust_hir::State<'tcx, '_>, node: pprust_hir::AnnNode<'_>) {
         match node {
             pprust_hir::AnnNode::Name(_) => {}
             pprust_hir::AnnNode::Item(item) => {
@@ -144,8 +144,8 @@ struct HirTypedAnn<'tcx> {
     maybe_typeck_results: Cell<Option<&'tcx ty::TypeckResults<'tcx>>>,
 }
 
-impl<'tcx> pprust_hir::PpAnn for HirTypedAnn<'tcx> {
-    fn nested(&self, state: &mut pprust_hir::State<'_>, nested: pprust_hir::Nested) {
+impl<'tcx> pprust_hir::PpAnn<'tcx> for HirTypedAnn<'tcx> {
+    fn nested(&self, state: &mut pprust_hir::State<'tcx, '_>, nested: pprust_hir::Nested) {
         let old_maybe_typeck_results = self.maybe_typeck_results.get();
         if let pprust_hir::Nested::Body(id) = nested {
             self.maybe_typeck_results.set(Some(self.tcx.typeck_body(id)));
@@ -154,13 +154,13 @@ impl<'tcx> pprust_hir::PpAnn for HirTypedAnn<'tcx> {
         self.maybe_typeck_results.set(old_maybe_typeck_results);
     }
 
-    fn pre(&self, s: &mut pprust_hir::State<'_>, node: pprust_hir::AnnNode<'_>) {
+    fn pre(&self, s: &mut pprust_hir::State<'_, '_>, node: pprust_hir::AnnNode<'_>) {
         if let pprust_hir::AnnNode::Expr(_) = node {
             s.popen();
         }
     }
 
-    fn post(&self, s: &mut pprust_hir::State<'_>, node: pprust_hir::AnnNode<'_>) {
+    fn post(&self, s: &mut pprust_hir::State<'_, '_>, node: pprust_hir::AnnNode<'_>) {
         if let pprust_hir::AnnNode::Expr(expr) = node {
             let typeck_results = self.maybe_typeck_results.get().or_else(|| {
                 self.tcx
@@ -266,7 +266,7 @@ pub fn print<'tcx>(sess: &Session, ppm: PpMode, ex: PrintExtra<'tcx>) {
         Hir(s) => {
             debug!("pretty printing HIR {:?}", s);
             let tcx = ex.tcx();
-            let f = |annotation: &dyn pprust_hir::PpAnn| {
+            let f = |annotation: &dyn pprust_hir::PpAnn<'tcx>| {
                 let sm = sess.source_map();
                 let attrs = |id| tcx.hir_attrs(id);
                 pprust_hir::print_crate(
@@ -276,6 +276,7 @@ pub fn print<'tcx>(sess: &Session, ppm: PpMode, ex: PrintExtra<'tcx>) {
                     src,
                     &attrs,
                     annotation,
+                    &tcx,
                 )
             };
             match s {

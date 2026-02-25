@@ -162,7 +162,7 @@ impl<'tcx> TaitConstraintLocator<'tcx> {
             "foreign items cannot constrain opaque types",
         );
         if let Some(hir_sig) = hir_node.fn_sig()
-            && hir_sig.decl.output.is_suggestable_infer_ty().is_some()
+            && hir_sig.decl.output.is_suggestable_infer_ty(&tcx).is_some()
         {
             let guar = self.tcx.dcx().span_delayed_bug(
                 hir_sig.decl.output.span(),

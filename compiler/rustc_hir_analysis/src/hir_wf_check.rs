@@ -153,7 +153,7 @@ pub(super) fn diagnostic_hir_wf_check<'tcx>(
                         .segments
                         .last()
                         .iter()
-                        .flat_map(|seg| seg.args().args)
+                        .flat_map(|seg| seg.args(&tcx).args)
                         .filter_map(|arg| {
                             if let hir::GenericArg::Type(ty) = arg {
                                 Some(ty.as_unambig_ty())

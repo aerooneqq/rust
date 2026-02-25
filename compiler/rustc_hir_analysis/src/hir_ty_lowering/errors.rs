@@ -69,7 +69,9 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
 
         let trait_def = self.tcx().trait_def(trait_def_id);
         if !trait_def.paren_sugar {
-            if trait_segment.args().parenthesized == hir::GenericArgsParentheses::ParenSugar {
+            if trait_segment.args(&self.tcx()).parenthesized
+                == hir::GenericArgsParentheses::ParenSugar
+            {
                 // For now, require that parenthetical notation be used only with `Fn()` etc.
                 feature_err(
                     &self.tcx().sess,
@@ -85,7 +87,8 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
 
         let sess = self.tcx().sess;
 
-        if trait_segment.args().parenthesized != hir::GenericArgsParentheses::ParenSugar {
+        if trait_segment.args(&self.tcx()).parenthesized != hir::GenericArgsParentheses::ParenSugar
+        {
             // For now, require that parenthetical notation be used only with `Fn()` etc.
             let mut err = feature_err(
                 sess,
@@ -991,7 +994,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
                 .iter()
                 .filter_map(|poly_trait_ref| {
                     let path = poly_trait_ref.trait_ref.path.segments.last()?;
-                    let args = path.args.opt_args()?;
+                    let args = path.args.opt_args(&tcx)?;
                     let Res::Def(DefKind::Trait, trait_def_id) = path.res else { return None };
 
                     Some(args.constraints.iter().filter_map(move |constraint| {
@@ -1281,7 +1284,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
         let types_and_spans: Vec<_> = segments
             .iter()
             .flat_map(|segment| {
-                if segment.args().args.is_empty() {
+                if segment.args(&self.tcx()).args.is_empty() {
                     None
                 } else {
                     Some((
@@ -1305,8 +1308,11 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
         let this_type = listify(&types_and_spans, |(t, _)| t.to_string())
             .expect("expected one segment to deny");
 
-        let arg_spans: Vec<Span> =
-            segments.iter().flat_map(|segment| segment.args().args).map(|arg| arg.span()).collect();
+        let arg_spans: Vec<Span> = segments
+            .iter()
+            .flat_map(|segment| segment.args(&self.tcx()).args)
+            .map(|arg| arg.span())
+            .collect();
 
         let mut kinds = Vec::with_capacity(4);
         prohibit_args.iter().for_each(|arg| match arg {
@@ -1404,7 +1410,7 @@ pub fn prohibit_assoc_item_constraint(
     let mut err = cx.dcx().create_err(AssocItemConstraintsNotAllowedHere {
         span: constraint.span,
         fn_trait_expansion: if let Some((_, segment, span)) = segment
-            && segment.args().parenthesized == hir::GenericArgsParentheses::ParenSugar
+            && segment.args(&tcx).parenthesized == hir::GenericArgsParentheses::ParenSugar
         {
             Some(ParenthesizedFnTraitExpansion {
                 span,
@@ -1419,12 +1425,12 @@ pub fn prohibit_assoc_item_constraint(
     // if the relevant item has a generic param whose name matches the binding name;
     // otherwise suggest the removal of the binding.
     if let Some((def_id, segment, _)) = segment
-        && segment.args().parenthesized == hir::GenericArgsParentheses::No
+        && segment.args(&tcx).parenthesized == hir::GenericArgsParentheses::No
     {
         // Suggests removal of the offending binding
         let suggest_removal = |e: &mut Diag<'_>| {
-            let constraints = segment.args().constraints;
-            let args = segment.args().args;
+            let constraints = segment.args(&tcx).constraints;
+            let args = segment.args(&tcx).args;
 
             // Compute the span to remove based on the position
             // of the binding. We do that as follows:
@@ -1453,7 +1459,7 @@ pub fn prohibit_assoc_item_constraint(
                 (Some(prec), _) => constraint.span.with_lo(prec.hi()),
                 (None, Some(next)) => constraint.span.with_hi(next.lo()),
                 (None, None) => {
-                    let Some(generics_span) = segment.args().span_ext() else {
+                    let Some(generics_span) = segment.args(&tcx).span_ext() else {
                         bug!("a type binding exists but generic span is empty");
                     };
 
@@ -1570,7 +1576,7 @@ pub(crate) fn fn_trait_to_string(
 ) -> String {
     let args = trait_segment
         .args
-        .opt_args()
+        .opt_args(&tcx)
         .and_then(|args| args.args.first())
         .and_then(|arg| match arg {
             hir::GenericArg::Type(ty) => match ty.kind {
@@ -1591,7 +1597,7 @@ pub(crate) fn fn_trait_to_string(
         .unwrap_or_else(|| "()".to_string());
 
     let ret = trait_segment
-        .args()
+        .args(&tcx)
         .constraints
         .iter()
         .find_map(|c| {
@@ -1646,7 +1652,7 @@ fn generics_args_err_extend<'a>(
                 "you might have meant to specify type parameters on enum \
                 `{type_name}`"
             );
-            let Some(args) = assoc_segment.args.opt_args() else {
+            let Some(args) = assoc_segment.args.opt_args(&tcx) else {
                 return;
             };
             // Get the span of the generics args *including* the leading `::`.
@@ -1687,7 +1693,7 @@ fn generics_args_err_extend<'a>(
                             // We need to include the `::` in `Type::Variant::<Args>`
                             // to point the span to `::<Args>`, not just `<Args>`.
                             ident.span.shrink_to_hi().to(args
-                                .opt_args()
+                                .opt_args(&tcx)
                                 .map_or(ident.span.shrink_to_hi(), |a| a.span_ext)),
                             false,
                         ),
@@ -1697,7 +1703,7 @@ fn generics_args_err_extend<'a>(
                                 // to point the span to `::<Args>`, not just `<Args>`.
                                 segment.ident.span.shrink_to_hi().to(segment
                                     .args
-                                    .opt_args()
+                                    .opt_args(&tcx)
                                     .map_or(segment.ident.span.shrink_to_hi(), |a| a.span_ext)),
                                 kw::SelfUpper == segment.ident.name,
                             )
@@ -1731,7 +1737,7 @@ fn generics_args_err_extend<'a>(
                     Res::Def(
                         DefKind::Ctor(CtorOf::Variant, _) | DefKind::Variant | DefKind::Enum,
                         _,
-                    ) => segment.args().span_ext().map(|s| s.with_lo(segment.ident.span.hi())),
+                    ) => segment.args(&tcx).span_ext().map(|s| s.with_lo(segment.ident.span.hi())),
                     _ => None,
                 })
                 .collect();
@@ -1753,7 +1759,7 @@ fn generics_args_err_extend<'a>(
         GenericsArgsErrExtend::PrimTy(prim_ty) => {
             let name = prim_ty.name_str();
             for segment in segments {
-                if let Some(args) = segment.args.opt_args() {
+                if let Some(args) = segment.args.opt_args(&tcx) {
                     err.span_suggestion_verbose(
                         segment.ident.span.shrink_to_hi().to(args.span_ext),
                         format!("primitive type `{name}` doesn't have generic parameters"),
@@ -1807,7 +1813,7 @@ fn generics_args_err_extend<'a>(
                 err.note(msg);
             }
             for segment in segments {
-                if let Some(args) = segment.args.opt_args()
+                if let Some(args) = segment.args.opt_args(&tcx)
                     && segment.ident.name == kw::SelfUpper
                 {
                     if generics == 0 {

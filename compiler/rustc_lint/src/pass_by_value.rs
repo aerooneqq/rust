@@ -39,7 +39,7 @@ impl<'tcx> LateLintPass<'tcx> for PassByValue {
     }
 }
 
-fn path_for_pass_by_value(cx: &LateContext<'tcx>, ty: &hir::Ty<'tcx>) -> Option<String> {
+fn path_for_pass_by_value<'tcx>(cx: &LateContext<'tcx>, ty: &hir::Ty<'tcx>) -> Option<String> {
     if let TyKind::Path(QPath::Resolved(_, path)) = &ty.kind {
         match path.res {
             Res::Def(_, def_id) if find_attr!(cx.tcx, def_id, RustcPassByValue(_)) => {

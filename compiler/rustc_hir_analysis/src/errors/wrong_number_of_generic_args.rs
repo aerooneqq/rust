@@ -450,7 +450,7 @@ impl<'a, 'tcx> WrongNumberOfGenericArgs<'a, 'tcx> {
             .is_some_and(|expr| {
                 matches!(
                     expr.kind,
-                    hir::ExprKind::MethodCall(hir::PathSegment { args, .. }, ..) if args.opt_args().is_some()
+                    hir::ExprKind::MethodCall(hir::PathSegment { args, .. }, ..) if args.opt_args(&self.tcx).is_some()
                 )
             });
 
@@ -826,7 +826,8 @@ impl<'a, 'tcx> WrongNumberOfGenericArgs<'a, 'tcx> {
         if let hir::QPath::Resolved(_, path) = qpath
             && let Some(trait_path_segment) = path.segments.get(0)
         {
-            let num_generic_args_supplied_to_trait = trait_path_segment.args().num_generic_params();
+            let num_generic_args_supplied_to_trait =
+                trait_path_segment.args(&self.tcx).num_generic_params();
 
             if num_generic_args_supplied_to_trait + num_assoc_fn_excess_args
                 == num_trait_generics_except_self
@@ -1040,7 +1041,7 @@ impl<'a, 'tcx> WrongNumberOfGenericArgs<'a, 'tcx> {
             let span = self
                 .path_segment
                 .args
-                .opt_args()
+                .opt_args(&self.tcx)
                 .unwrap()
                 .span_ext()
                 .unwrap()

@@ -370,14 +370,14 @@ pub enum PathSegmentArgs<'hir> {
 }
 
 impl<'hir> PathSegmentArgs<'hir> {
-    pub fn args(&self, tcx: &dyn crate::intravisit::HirTyCtxt<'hir>) -> &GenericArgs<'hir> {
+    pub fn args<'tcx: 'hir>(&self, tcx: &dyn crate::intravisit::HirTyCtxt<'tcx>) -> &GenericArgs<'hir> {
         const DUMMY: &GenericArgs<'_> = &GenericArgs::none();
         self.opt_args(tcx).unwrap_or(DUMMY)
     }
 
-    pub fn opt_args(
+    pub fn opt_args<'tcx: 'hir>(
         &self,
-        tcx: &dyn crate::intravisit::HirTyCtxt<'hir>,
+        tcx: &dyn crate::intravisit::HirTyCtxt<'tcx>,
     ) -> Option<&'hir GenericArgs<'hir>> {
         match self {
             PathSegmentArgs::Default(generic_args) => *generic_args,
@@ -429,7 +429,7 @@ impl<'hir> PathSegment<'hir> {
         Self::new(Ident::dummy(), HirId::INVALID, Res::Err)
     }
 
-    pub fn args(&self, tcx: &dyn crate::intravisit::HirTyCtxt<'hir>) -> &GenericArgs<'hir> {
+    pub fn args<'tcx: 'hir>(&self, tcx: &dyn crate::intravisit::HirTyCtxt<'tcx>) -> &GenericArgs<'hir> {
         self.args.args(tcx)
     }
 }

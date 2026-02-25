@@ -302,7 +302,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         let [hir::PathSegment { ident, args, .. }] = p.segments else {
             return false;
         };
-        if args.opt_args().is_some() {
+        if args.opt_args(&self.tcx).is_some() {
             return false;
         }
         let hir::def::Res::Local(local_hir_id) = p.res else {

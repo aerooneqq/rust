@@ -1229,7 +1229,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                     // going to infer the arguments for better error messages.
                     if !self.infer_args_for_err.contains(&index) {
                         // Check whether the user has provided generic arguments.
-                        if let Some(data) = self.segments[index].args.opt_args() {
+                        if let Some(data) = self.segments[index].args.opt_args(&self.fcx.tcx) {
                             return (Some(data), self.segments[index].infer_args);
                         }
                     }

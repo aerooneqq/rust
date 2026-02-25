@@ -199,7 +199,7 @@ impl<'tcx> LateLintPass<'tcx> for NonLocalDefinitions {
 
                 for path in &collector.paths {
                     ms.push_span_label(
-                        path_span_without_args(path),
+                        path_span_without_args(path, cx.tcx),
                         format!("`{}` is not local", path_name_to_string(path)),
                     );
                 }
@@ -340,8 +340,8 @@ fn peel_parent_while(
 }
 
 /// Return for a given `Path` the span until the last args
-fn path_span_without_args(path: &Path<'_>) -> Span {
-    if let Some(args) = &path.segments.last().unwrap().args.opt_args() {
+fn path_span_without_args<'tcx>(path: &Path<'tcx>, tcx: TyCtxt<'tcx>) -> Span {
+    if let Some(args) = &path.segments.last().unwrap().args.opt_args(&tcx) {
         path.span.until(args.span_ext)
     } else {
         path.span

@@ -433,7 +433,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         // otherwise be elided. if our "own args" starts with a lifetime, but
         // the args list does not, then we should chop off all of the lifetimes,
         // since they're all elided.
-        let segment_args = segment.args().args;
+        let segment_args = segment.args(&self.tcx).args;
         if matches!(own_args[0].kind(), ty::GenericArgKind::Lifetime(_))
             && segment_args.first().is_some_and(|arg| arg.is_ty_or_const())
             && let Some(offset) = own_args.iter().position(|arg| {

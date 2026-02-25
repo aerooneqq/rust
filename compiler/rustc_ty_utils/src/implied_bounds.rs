@@ -174,7 +174,7 @@ fn impl_spans(tcx: TyCtxt<'_>, def_id: LocalDefId) -> impl Iterator<Item = Span>
         let trait_args = impl_
             .of_trait
             .into_iter()
-            .flat_map(|of_trait| of_trait.trait_ref.path.segments.last().unwrap().args(&tcx).args)
+            .flat_map(move |of_trait| of_trait.trait_ref.path.segments.last().unwrap().args(&tcx).args)
             .map(|arg| arg.span());
         let dummy_spans_for_default_args = impl_
             .of_trait

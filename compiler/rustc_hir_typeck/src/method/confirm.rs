@@ -421,7 +421,7 @@ impl<'a, 'tcx> ConfirmContext<'a, 'tcx> {
                 def_id: DefId,
             ) -> (Option<&'a hir::GenericArgs<'tcx>>, bool) {
                 if def_id == self.pick.item.def_id {
-                    if let Some(data) = self.seg.args.opt_args() {
+                    if let Some(data) = self.seg.args.opt_args(&self.cfcx.tcx) {
                         return (Some(data), false);
                     }
                 }

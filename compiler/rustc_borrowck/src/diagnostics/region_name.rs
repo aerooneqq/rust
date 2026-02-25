@@ -416,7 +416,7 @@ impl<'tcx> MirBorrowckCtxt<'_, '_, 'tcx> {
     fn get_argument_hir_ty_for_highlighting(
         &self,
         argument_index: usize,
-    ) -> Option<&hir::Ty<'tcx>> {
+    ) -> Option<&'tcx hir::Ty<'tcx>> {
         let fn_decl = self.infcx.tcx.hir_fn_decl_by_hir_id(self.mir_hir_id())?;
         let argument_hir_ty: &hir::Ty<'_> = fn_decl.inputs.get(argument_index)?;
         match argument_hir_ty.kind {
@@ -491,7 +491,7 @@ impl<'tcx> MirBorrowckCtxt<'_, '_, 'tcx> {
         &self,
         needle_fr: RegionVid,
         ty: Ty<'tcx>,
-        hir_ty: &hir::Ty<'_>,
+        hir_ty: &'tcx hir::Ty<'tcx>,
     ) -> Option<RegionNameHighlight> {
         let search_stack: &mut Vec<(Ty<'tcx>, &hir::Ty<'_>)> = &mut vec![(ty, hir_ty)];
 
@@ -569,12 +569,12 @@ impl<'tcx> MirBorrowckCtxt<'_, '_, 'tcx> {
     /// segment `last_segment`. Try to find a `'_` to highlight in
     /// the generic args (or, if not, to produce new zipped pairs of
     /// types+hir to search through).
-    fn match_adt_and_segment<'hir>(
+    fn match_adt_and_segment(
         &self,
         args: GenericArgsRef<'tcx>,
         needle_fr: RegionVid,
-        last_segment: &'hir hir::PathSegment<'hir>,
-        search_stack: &mut Vec<(Ty<'tcx>, &'hir hir::Ty<'hir>)>,
+        last_segment: &'tcx hir::PathSegment<'tcx>,
+        search_stack: &mut Vec<(Ty<'tcx>, &'tcx hir::Ty<'tcx>)>,
     ) -> Option<RegionNameHighlight> {
         // Did the user give explicit arguments? (e.g., `Foo<..>`)
         let explicit_args = last_segment.args.opt_args(&self.infcx.tcx)?;
@@ -592,12 +592,12 @@ impl<'tcx> MirBorrowckCtxt<'_, '_, 'tcx> {
     /// arguments `hir_args`. If `needle_fr` appears in the args, return
     /// the `hir::Lifetime` that corresponds to it. If not, push onto
     /// `search_stack` the types+hir to search through.
-    fn try_match_adt_and_generic_args(
+    fn try_match_adt_and_generic_args<'hir>(
         &self,
         args: GenericArgsRef<'tcx>,
         needle_fr: RegionVid,
-        hir_args: &'tcx hir::GenericArgs<'tcx>,
-        search_stack: &mut Vec<(Ty<'tcx>, &'tcx hir::Ty<'tcx>)>,
+        hir_args: &'hir hir::GenericArgs<'hir>,
+        search_stack: &mut Vec<(Ty<'tcx>, &'hir hir::Ty<'hir>)>,
     ) -> Option<&'hir hir::Lifetime> {
         for (arg, hir_arg) in iter::zip(args, hir_args.args) {
             match (arg.kind(), hir_arg) {

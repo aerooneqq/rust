@@ -407,7 +407,7 @@ pub(crate) fn check_generic_arg_count(
     gen_pos: GenericArgPosition,
     has_self: bool,
 ) -> GenericArgCountResult {
-    let gen_args = seg.args();
+    let gen_args = seg.args(&cx.tcx());
     let default_counts = gen_params.own_defaults();
     let param_counts = gen_params.own_counts();
 

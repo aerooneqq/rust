@@ -558,7 +558,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
             None,
             GenericArgPosition::Type,
         );
-        if let Some(c) = item_segment.args().constraints.first() {
+        if let Some(c) = item_segment.args(&self.tcx()).constraints.first() {
             prohibit_assoc_item_constraint(self, c, Some((def_id, item_segment, span)));
         }
         args
@@ -789,7 +789,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
             lowerer: self,
             def_id,
             span,
-            generic_args: segment.args(),
+            generic_args: segment.args(&tcx),
             infer_args: segment.infer_args,
             incorrect_args: &arg_count.correct,
         };
@@ -823,7 +823,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
             None,
             GenericArgPosition::Type,
         );
-        if let Some(c) = item_segment.args().constraints.first() {
+        if let Some(c) = item_segment.args(&self.tcx()).constraints.first() {
             prohibit_assoc_item_constraint(self, c, Some((item_def_id, item_segment, span)));
         }
         args
@@ -937,7 +937,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
             GenericArgPosition::Type,
         );
 
-        let constraints = segment.args().constraints;
+        let constraints = segment.args(&tcx).constraints;
 
         if transient && (!generic_args[1..].is_empty() || !constraints.is_empty()) {
             // Since the bound won't be present in the middle::ty IR as established above, any
@@ -1118,7 +1118,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
             Some(self_ty),
             GenericArgPosition::Type,
         );
-        if let Some(c) = trait_segment.args().constraints.first() {
+        if let Some(c) = trait_segment.args(&self.tcx()).constraints.first() {
             prohibit_assoc_item_constraint(self, c, Some((trait_def_id, trait_segment, span)));
         }
         ty::TraitRef::new_from_args(self.tcx(), trait_def_id, generic_args)
@@ -1950,12 +1950,12 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
         Ok((item_def_id, item_args))
     }
 
-    pub fn prohibit_generic_args<'a>(
+    pub fn prohibit_generic_args(
         &self,
-        segments: impl Iterator<Item = &'a hir::PathSegment<'a>> + Clone,
-        err_extend: GenericsArgsErrExtend<'a>,
+        segments: impl Iterator<Item = &'tcx hir::PathSegment<'tcx>> + Clone,
+        err_extend: GenericsArgsErrExtend<'tcx>,
     ) -> Result<(), ErrorGuaranteed> {
-        let args_visitors = segments.clone().flat_map(|segment| segment.args().args);
+        let args_visitors = segments.clone().flat_map(|segment| segment.args(&self.tcx()).args);
         let mut result = Ok(());
         if let Some(_) = args_visitors.clone().next() {
             result = Err(self.report_prohibited_generic_args(
@@ -1967,7 +1967,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
 
         for segment in segments {
             // Only emit the first error to avoid overloading the user with error messages.
-            if let Some(c) = segment.args().constraints.first() {
+            if let Some(c) = segment.args(&self.tcx()).constraints.first() {
                 return Err(prohibit_assoc_item_constraint(self, c, None));
             }
         }
@@ -1994,7 +1994,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
     // FIXME(eddyb, varkor) handle type paths here too, not just value ones.
     pub fn probe_generic_path_segments(
         &self,
-        segments: &[hir::PathSegment<'_>],
+        segments: &[hir::PathSegment<'tcx >],
         self_ty: Option<Ty<'tcx>>,
         kind: DefKind,
         def_id: DefId,
@@ -2070,7 +2070,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
                     let adt_def = self.probe_adt(span, self_ty).unwrap();
                     debug_assert!(adt_def.is_enum());
                     (adt_def.did(), last)
-                } else if last >= 1 && segments[last - 1].args.opt_args().is_some() {
+                } else if last >= 1 && segments[last - 1].args.opt_args(&tcx).is_some() {
                     // Everything but the penultimate segment should have no
                     // parameters at all.
                     let mut def_id = def_id;
@@ -2193,7 +2193,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
                 let _ = self.prohibit_generic_args(
                     path.segments.iter(),
                     if let [hir::PathSegment { args, ident, .. }] = &path.segments
-                        && let Some(args) = args.opt_args()
+                        && let Some(args) = args.opt_args(&tcx)
                     {
                         GenericsArgsErrExtend::SelfTyParam(
                             ident.span.shrink_to_hi().to(args.span_ext),
@@ -2961,7 +2961,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
                 if path
                     .segments
                     .last()
-                    .and_then(|segment| segment.args.opt_args())
+                    .and_then(|segment| segment.args.opt_args(&tcx))
                     .is_some_and(|args| {
                         matches!(
                             args.parenthesized,
@@ -3032,7 +3032,7 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
             // *not* gone through `lower_ty_maybe_return_type_notation`, and therefore
             // it's certainly in an illegal position.
             hir::TyKind::Path(hir::QPath::TypeRelative(_, segment))
-                if segment.args.opt_args().is_some_and(|args| {
+                if segment.args.opt_args(&tcx).is_some_and(|args| {
                     matches!(args.parenthesized, hir::GenericArgsParentheses::ReturnTypeNotation)
                 }) =>
             {

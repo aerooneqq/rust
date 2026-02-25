@@ -137,7 +137,7 @@ fn typeck_with_inspect<'tcx>(
         let ty = fcx.check_expr(body.value);
         fcx.write_ty(id, ty);
     } else if let Some(hir::FnSig { header, decl, span: fn_sig_span }) = node.fn_sig() {
-        let fn_sig = if decl.output.is_suggestable_infer_ty().is_some() {
+        let fn_sig = if decl.output.is_suggestable_infer_ty(&tcx).is_some() {
             // In the case that we're recovering `fn() -> W<_>` or some other return
             // type that has an infer in it, lower the type directly so that it'll
             // be correctly filled with infer. We'll use this inference to provide
@@ -180,7 +180,7 @@ fn typeck_with_inspect<'tcx>(
         let expected_type = if let Some(infer_ty) = infer_type_if_missing(&fcx, node) {
             infer_ty
         } else if let Some(ty) = node.ty()
-            && ty.is_suggestable_infer_ty()
+            && ty.is_suggestable_infer_ty(&tcx)
         {
             // In the case that we're recovering `const X: [T; _]` or some other
             // type that has an infer in it, lower the type directly so that it'll
@@ -378,11 +378,11 @@ impl<'tcx> EnclosingBreakables<'tcx> {
     }
 }
 
-fn report_unexpected_variant_res(
-    tcx: TyCtxt<'_>,
+fn report_unexpected_variant_res<'tcx>(
+    tcx: TyCtxt<'tcx>,
     res: Res,
-    expr: Option<&hir::Expr<'_>>,
-    qpath: &hir::QPath<'_>,
+    expr: Option<&hir::Expr<'tcx>>,
+    qpath: &hir::QPath<'tcx>,
     span: Span,
     err_code: ErrCode,
     expected: &str,
@@ -391,7 +391,7 @@ fn report_unexpected_variant_res(
         Res::Def(DefKind::Variant, _) => "struct variant",
         _ => res.descr(),
     };
-    let path_str = rustc_hir_pretty::qpath_to_string(&tcx, qpath);
+    let path_str = rustc_hir_pretty::qpath_to_string(&tcx, &tcx, qpath);
     let mut err = tcx
         .dcx()
         .struct_span_err(span, format!("expected {expected}, found {res_descr} `{path_str}`"))

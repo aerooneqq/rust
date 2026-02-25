@@ -204,7 +204,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                                 trait_name,
                                 segment.ident.name,
                                 if let Some(args) =
-                                    segment.args.opt_args().as_ref().and_then(|args| self
+                                    segment.args.opt_args(&self.tcx).as_ref().and_then(|args| self
                                         .sess()
                                         .source_map()
                                         .span_to_snippet(args.span_ext)

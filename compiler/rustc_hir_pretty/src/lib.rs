@@ -75,14 +75,14 @@ impl<'tcx> PpAnn<'tcx> for &dyn rustc_hir::intravisit::HirTyCtxt<'tcx> {
 
 pub struct State<'tcx, 'b> {
     pub s: pp::Printer,
-    comments: Option<Comments<'tcx>>,
-    attrs: &'tcx dyn Fn(HirId) -> &'tcx [hir::Attribute],
-    ann: &'b (dyn PpAnn<'tcx> + 'b),
+    comments: Option<Comments<'b>>,
+    attrs: &'b dyn Fn(HirId) -> &'tcx [hir::Attribute],
+    ann: &'b dyn PpAnn<'tcx>,
     tcx: &'b dyn HirTyCtxt<'tcx>,
 }
 
 impl<'a, 'b> State<'a, 'b> {
-    fn attrs(&self, id: HirId) -> &'a [hir::Attribute] {
+    fn attrs(&self, id: HirId) -> &'b [hir::Attribute] {
         (self.attrs)(id)
     }
 
@@ -251,7 +251,7 @@ impl std::ops::DerefMut for State<'_, '_> {
     }
 }
 
-impl<'a> PrintState<'a> for State<'a, '_> {
+impl<'a> PrintState<'a> for State<'_, 'a> {
     fn comments(&self) -> Option<&Comments<'a>> {
         self.comments.as_ref()
     }
@@ -273,14 +273,14 @@ const INDENT_UNIT: isize = 4;
 
 /// Requires you to pass an input filename and reader so that
 /// it can scan the input text for comments to copy forward.
-pub fn print_crate<'a>(
+pub fn print_crate<'tcx, 'a>(
     sm: &'a SourceMap,
-    krate: &hir::Mod<'a>,
+    krate: &hir::Mod<'tcx>,
     filename: FileName,
     input: String,
-    attrs: &'a dyn Fn(HirId) -> &'a [hir::Attribute],
-    ann: &'a dyn PpAnn<'a>,
-    tcx: &'a dyn HirTyCtxt<'a>,
+    attrs: &'a dyn Fn(HirId) -> &'tcx [hir::Attribute],
+    ann: &'a dyn PpAnn<'tcx>,
+    tcx: &'a dyn HirTyCtxt<'tcx>,
 ) -> String {
     let mut s = State {
         s: pp::Printer::new(),

@@ -3125,7 +3125,7 @@ impl<'a, 'b, 'tcx> CallCtxt<'a, 'b, 'tcx> {
             },
             hir::ExprKind::MethodCall(path_segment, _, _, span) => {
                 let ident_span = path_segment.ident.span;
-                let ident_span = if let Some(args) = path_segment.args.opt_args() {
+                let ident_span = if let Some(args) = path_segment.args.opt_args(&self.tcx) {
                     ident_span.with_hi(args.span_ext.hi())
                 } else {
                     ident_span

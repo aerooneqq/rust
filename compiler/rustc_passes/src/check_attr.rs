@@ -945,11 +945,11 @@ impl<'tcx> CheckAttrVisitor<'tcx> {
         };
         match item_kind {
             Some(ItemKind::Impl(i)) => {
-                let is_valid = doc_fake_variadic_is_allowed_self_ty(i.self_ty)
+                let is_valid = doc_fake_variadic_is_allowed_self_ty(self.tcx, i.self_ty)
                     || if let Some(&[hir::GenericArg::Type(ty)]) = i
                         .of_trait
                         .and_then(|of_trait| of_trait.trait_ref.path.segments.last())
-                        .map(|last_segment| last_segment.args().args)
+                        .map(|last_segment| last_segment.args(&self.tcx).args)
                     {
                         matches!(&ty.kind, hir::TyKind::Tup([_]))
                     } else {
@@ -2182,7 +2182,10 @@ fn check_duplicates(
     }
 }
 
-fn doc_fake_variadic_is_allowed_self_ty(self_ty: &hir::Ty<'_>) -> bool {
+fn doc_fake_variadic_is_allowed_self_ty<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    self_ty: &'tcx hir::Ty<'tcx>,
+) -> bool {
     matches!(&self_ty.kind, hir::TyKind::Tup([_]))
         || if let hir::TyKind::FnPtr(fn_ptr_ty) = &self_ty.kind {
             fn_ptr_ty.decl.inputs.len() == 1
@@ -2191,9 +2194,9 @@ fn doc_fake_variadic_is_allowed_self_ty(self_ty: &hir::Ty<'_>) -> bool {
         }
         || (if let hir::TyKind::Path(hir::QPath::Resolved(_, path)) = &self_ty.kind
             && let Some(&[hir::GenericArg::Type(ty)]) =
-                path.segments.last().map(|last| last.args().args)
+                path.segments.last().map(|last| last.args(&tcx).args)
         {
-            doc_fake_variadic_is_allowed_self_ty(ty.as_unambig_ty())
+            doc_fake_variadic_is_allowed_self_ty(tcx, ty.as_unambig_ty())
         } else {
             false
         })

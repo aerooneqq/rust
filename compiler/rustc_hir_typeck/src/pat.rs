@@ -2156,8 +2156,8 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
     fn error_tuple_variant_index_shorthand(
         &self,
         variant: &VariantDef,
-        pat: &'_ Pat<'_>,
-        fields: &[hir::PatField<'_>],
+        pat: &'_ Pat<'tcx>,
+        fields: &[hir::PatField<'tcx>],
     ) -> Result<(), ErrorGuaranteed> {
         // if this is a tuple struct, then all field names will be numbers
         // so if any fields in a struct pattern use shorthand syntax, they will
@@ -2167,7 +2167,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         {
             let has_shorthand_field_name = field_patterns.iter().any(|field| field.is_shorthand);
             if has_shorthand_field_name {
-                let path = rustc_hir_pretty::qpath_to_string(&self.tcx, qpath);
+                let path = rustc_hir_pretty::qpath_to_string(&self.tcx, &self.tcx, qpath);
                 let mut err = struct_span_code_err!(
                     self.dcx(),
                     pat.span,
@@ -2336,7 +2336,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
     fn error_tuple_variant_as_struct_pat(
         &self,
-        pat: &Pat<'_>,
+        pat: &Pat<'tcx>,
         fields: &'tcx [hir::PatField<'tcx>],
         variant: &ty::VariantDef,
     ) -> Result<(), ErrorGuaranteed> {
@@ -2352,7 +2352,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             // we don't care to report errors for a struct if the struct itself is tainted
             variant.has_errors()?;
 
-            let path = rustc_hir_pretty::qpath_to_string(&self.tcx, qpath);
+            let path = rustc_hir_pretty::qpath_to_string(&self.tcx, &self.tcx, qpath);
             let mut err = struct_span_code_err!(
                 self.dcx(),
                 pat.span,
@@ -2384,7 +2384,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
     fn get_suggested_tuple_struct_pattern(
         &self,
-        fields: &[hir::PatField<'_>],
+        fields: &[hir::PatField<'tcx>],
         variant: &VariantDef,
     ) -> String {
         let variant_field_idents =
@@ -2402,7 +2402,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                             f
                         }
                     }
-                    Err(_) => rustc_hir_pretty::pat_to_string(&self.tcx, field.pat),
+                    Err(_) => rustc_hir_pretty::pat_to_string(&self.tcx, &self.tcx, field.pat),
                 }
             })
             .collect::<Vec<String>>()
