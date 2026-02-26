@@ -118,7 +118,7 @@ pub trait HirTyCtxt<'hir> {
     fn hir_impl_item(&self, id: ImplItemId) -> &'hir ImplItem<'hir>;
     fn hir_foreign_item(&self, id: ForeignItemId) -> &'hir ForeignItem<'hir>;
 
-    fn get_delegation_args(
+    fn get_delegation_generic_args(
         &self,
         def_id: LocalDefId,
         kind: DelegationSegmentKind,
@@ -148,7 +148,7 @@ impl<'hir> HirTyCtxt<'hir> for ! {
         unreachable!();
     }
 
-    fn get_delegation_args(
+    fn get_delegation_generic_args(
         &self,
         _: LocalDefId,
         _: DelegationSegmentKind,

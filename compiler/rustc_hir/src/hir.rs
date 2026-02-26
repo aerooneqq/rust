@@ -363,7 +363,7 @@ impl Path<'_> {
     }
 }
 
-#[derive(Debug, Clone, Copy, HashStable_Generic)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, HashStable_Generic)]
 pub enum DelegationSegmentKind {
     Parent,
     Child,
@@ -391,7 +391,7 @@ impl<'hir> PathSegmentArgs<'hir> {
         match *self {
             PathSegmentArgs::Default(generic_args) => generic_args,
             PathSegmentArgs::DelegationPropagated(def_id, kind) => {
-                tcx.get_delegation_args(def_id, kind)
+                tcx.get_delegation_generic_args(def_id, kind)
             }
         }
     }
@@ -5178,6 +5178,7 @@ impl<'hir> Node<'hir> {
         expect_variant,       &'hir Variant<'hir>,      Node::Variant(n),      n;
         expect_field,         &'hir FieldDef<'hir>,     Node::Field(n),        n;
         expect_anon_const,    &'hir AnonConst,          Node::AnonConst(n),    n;
+        expect_const_arg,     &'hir ConstArg<'hir>,     Node::ConstArg(n),    n;
         expect_inline_const,  &'hir ConstBlock,         Node::ConstBlock(n),   n;
         expect_expr,          &'hir Expr<'hir>,         Node::Expr(n),         n;
         expect_expr_field,    &'hir ExprField<'hir>,    Node::ExprField(n),    n;

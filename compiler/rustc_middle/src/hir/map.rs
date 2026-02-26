@@ -130,7 +130,11 @@ impl<'tcx> TyCtxt<'tcx> {
 
     /// Retrieves the `hir::Node` corresponding to `id`.
     pub fn hir_node(self, id: HirId) -> Node<'tcx> {
-        self.hir_owner_nodes(id.owner).nodes[id.local_id].node
+        if let Some(parent_node) = self.hir_owner_nodes(id.owner).nodes.get(id.local_id) {
+            parent_node.node
+        } else {
+            *self.virtual_hir.borrow().get(id).expect("xd")
+        }
     }
 
     /// Retrieves the `hir::Node` corresponding to `id`.
@@ -1124,127 +1128,14 @@ impl<'tcx> intravisit::HirTyCtxt<'tcx> for TyCtxt<'tcx> {
         (*self).hir_foreign_item(id)
     }
 
-    fn get_delegation_args(
+    fn get_delegation_generic_args(
         &self,
         def_id: LocalDefId,
         kind: DelegationSegmentKind,
     ) -> Option<&'tcx GenericArgs<'tcx>> {
-        let hir_id = self.local_def_id_to_hir_id(def_id);
-        let node = self.hir_node(hir_id);
-
-        let Some(sig_id) = node.fn_sig().unwrap().decl.opt_delegation_sig_id() else {
-            unreachable!()
-        };
-
-        let params = &self.generics_of(def_id).own_params;
-        let counts = self.generics_of(sig_id).own_counts();
-
-        let child_types =
-            params.iter().rev().take(counts.types + counts.consts).collect::<Vec<_>>();
-
-        let parent_types = params
-            .iter()
-            .rev()
-            .skip(child_types.len())
-            .take_while(|p| p.kind.is_ty_or_const())
-            .collect::<Vec<_>>();
-
-        let child_lifetimes = params
-            .iter()
-            .rev()
-            .skip(child_types.len() + parent_types.len())
-            .take(counts.lifetimes)
-            .collect::<Vec<_>>();
-
-        let parent_lifetimes = params
-            .iter()
-            .rev()
-            .skip(child_types.len() + parent_types.len() + child_lifetimes.len())
-            .take_while(|p| !p.kind.is_ty_or_const())
-            .collect::<Vec<_>>();
-
-        let params = match kind {
-            DelegationSegmentKind::Child => {
-                child_lifetimes.iter().rev().chain(child_types.iter().rev())
-            }
-            DelegationSegmentKind::Parent => {
-                parent_lifetimes.iter().rev().chain(parent_types.iter().rev())
-            }
-        };
-
         let span = self.def_span(def_id.to_def_id());
-        let mut local_id = ItemLocalId::MAX_AS_U32;
-
-        let mut next_id = || {
-            local_id -= 1;
-
-            HirId { local_id: ItemLocalId::from_u32(local_id), owner: OwnerId { def_id } }
-        };
-
         Some(self.hir_arena.alloc(GenericArgs {
-            args: self.arena.alloc_from_iter(params.filter_map(|p| {
-                // Skip self generic arg, we do not need to propagate it.
-                if p.name == kw::SelfUpper {
-                    return None;
-                }
-
-                let create_path = |this: &Self, hir_id| {
-                    let res = Res::Def(
-                        match p.kind {
-                            GenericParamDefKind::Lifetime { .. } => DefKind::LifetimeParam,
-                            GenericParamDefKind::Type { .. } => DefKind::TyParam,
-                            GenericParamDefKind::Const { .. } => DefKind::ConstParam,
-                        },
-                        p.def_id.into(),
-                    );
-
-                    QPath::Resolved(
-                        None,
-                        self.arena.alloc(Path {
-                            segments: this.hir_arena.alloc_slice(&[PathSegment {
-                                args: PathSegmentArgs::none(),
-                                hir_id,
-                                ident: Ident::with_dummy_span(p.name),
-                                infer_args: false,
-                                res,
-                            }]),
-                            res,
-                            span,
-                        }),
-                    )
-                };
-
-                match p.kind {
-                    GenericParamDefKind::Lifetime { .. } => match kind {
-                        DelegationSegmentKind::Parent => {
-                            Some(GenericArg::Lifetime(self.arena.alloc(Lifetime {
-                                hir_id: next_id(),
-                                ident: Ident::with_dummy_span(p.name),
-                                kind: LifetimeKind::Param(p.def_id.expect_local()),
-                                source: LifetimeSource::Path {
-                                    angle_brackets: AngleBrackets::Full,
-                                },
-                                syntax: LifetimeSyntax::ExplicitBound,
-                            })))
-                        }
-                        DelegationSegmentKind::Child => None,
-                    },
-                    GenericParamDefKind::Type { .. } => {
-                        Some(GenericArg::Type(self.arena.alloc(Ty {
-                            hir_id: next_id(),
-                            span,
-                            kind: TyKind::Path(create_path(self, next_id())),
-                        })))
-                    }
-                    GenericParamDefKind::Const { .. } => {
-                        Some(GenericArg::Const(self.arena.alloc(ConstArg {
-                            hir_id: next_id(),
-                            kind: ConstArgKind::Path(create_path(self, next_id())),
-                            span,
-                        })))
-                    }
-                }
-            })),
+            args: self.get_delegation_args((def_id, kind)),
             constraints: &[],
             parenthesized: GenericArgsParentheses::No,
             span_ext: span,

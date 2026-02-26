@@ -15,10 +15,10 @@ use rustc_hir::def_id::{DefId, LocalDefId, LocalModDefId};
 use rustc_hir::lints::DelayedLint;
 use rustc_hir::*;
 use rustc_macros::{Decodable, Encodable, HashStable};
-use rustc_span::{ErrorGuaranteed, ExpnId, Span};
+use rustc_span::{ErrorGuaranteed, ExpnId, Ident, Span, kw};
 
 use crate::query::Providers;
-use crate::ty::TyCtxt;
+use crate::ty::{GenericParamDefKind, TyCtxt};
 
 /// Gather the LocalDefId for each item-like within a module, including items contained within
 /// bodies. The Ids are in visitor order. This is used to partition a pass between modules.
@@ -406,10 +406,13 @@ pub fn provide(providers: &mut Providers) {
     providers.hir_crate_items = map::hir_crate_items;
     providers.crate_hash = map::crate_hash;
     providers.hir_module_items = map::hir_module_items;
-    providers.local_def_id_to_hir_id = |tcx, def_id| match tcx.hir_crate(()).owners[def_id] {
-        MaybeOwner::Owner(_) => HirId::make_owner(def_id),
-        MaybeOwner::NonOwner(hir_id) => hir_id,
-        MaybeOwner::Phantom => bug!("No HirId for {:?}", def_id),
+    providers.local_def_id_to_hir_id = |tcx, def_id| match tcx.hir_crate(()).owners.get(def_id) {
+        Some(physical_owner) => match *physical_owner {
+            MaybeOwner::Owner(_) => HirId::make_owner(def_id),
+            MaybeOwner::NonOwner(hir_id) => hir_id,
+            MaybeOwner::Phantom => bug!("No HirId for {:?}", def_id),
+        },
+        None => tcx.virtual_hir.borrow().get_hir_id_for_def(def_id).expect("xd"),
     };
     providers.opt_hir_owner_nodes =
         |tcx, id| tcx.hir_crate(()).owners.get(id)?.as_owner().map(|i| &i.nodes);
@@ -461,4 +464,151 @@ pub fn provide(providers: &mut Providers) {
     providers.in_scope_traits_map = |tcx, id| {
         tcx.hir_crate(()).owners[id.def_id].as_owner().map(|owner_info| &owner_info.trait_map)
     };
+
+    providers.get_delegation_args = |tcx, (def_id, kind)| {
+        let hir_id = tcx.local_def_id_to_hir_id(def_id);
+        let node = tcx.hir_node(hir_id);
+
+        let Some(sig_id) = node.fn_sig().unwrap().decl.opt_delegation_sig_id() else {
+            unreachable!()
+        };
+
+        let params = &tcx.generics_of(def_id).own_params;
+        let counts = tcx.generics_of(sig_id).own_counts();
+
+        let child_types =
+            params.iter().rev().take(counts.types + counts.consts).collect::<Vec<_>>();
+
+        let parent_types = params
+            .iter()
+            .rev()
+            .skip(child_types.len())
+            .take_while(|p| p.kind.is_ty_or_const())
+            .collect::<Vec<_>>();
+
+        let child_lifetimes = params
+            .iter()
+            .rev()
+            .skip(child_types.len() + parent_types.len())
+            .take(counts.lifetimes)
+            .collect::<Vec<_>>();
+
+        let parent_lifetimes = params
+            .iter()
+            .rev()
+            .skip(child_types.len() + parent_types.len() + child_lifetimes.len())
+            .take_while(|p| !p.kind.is_ty_or_const())
+            .collect::<Vec<_>>();
+
+        let params = match kind {
+            DelegationSegmentKind::Child => {
+                child_lifetimes.iter().rev().chain(child_types.iter().rev())
+            }
+            DelegationSegmentKind::Parent => {
+                parent_lifetimes.iter().rev().chain(parent_types.iter().rev())
+            }
+        };
+
+        let span = tcx.def_span(def_id.to_def_id());
+
+        tcx.arena.alloc_slice(
+            params
+                .filter_map(|p| {
+                    // Skip self generic arg, we do not need to propagate it.
+                    if p.name == kw::SelfUpper {
+                        return None;
+                    }
+
+                    let create_path = || {
+                        let res = Res::Def(
+                            match p.kind {
+                                GenericParamDefKind::Lifetime { .. } => DefKind::LifetimeParam,
+                                GenericParamDefKind::Type { .. } => DefKind::TyParam,
+                                GenericParamDefKind::Const { .. } => DefKind::ConstParam,
+                            },
+                            p.def_id.into(),
+                        );
+
+                        QPath::Resolved(
+                            None,
+                            tcx.hir_arena.alloc(Path {
+                                segments: tcx.hir_arena.alloc_slice(&[PathSegment {
+                                    args: PathSegmentArgs::none(),
+                                    hir_id: HirId::INVALID,
+                                    ident: Ident::with_dummy_span(p.name),
+                                    infer_args: false,
+                                    res,
+                                }]),
+                                res,
+                                span,
+                            }),
+                        )
+                    };
+
+                    match p.kind {
+                        GenericParamDefKind::Lifetime { .. } => match kind {
+                            DelegationSegmentKind::Parent => {
+                                let id =
+                                    tcx.virtual_hir.borrow_mut().attach(def_id, None, |hir_id| {
+                                        Node::Lifetime(tcx.hir_arena.alloc(Lifetime {
+                                            hir_id,
+                                            ident: Ident::with_dummy_span(p.name),
+                                            kind: LifetimeKind::Param(p.def_id.expect_local()),
+                                            source: LifetimeSource::Path {
+                                                angle_brackets: AngleBrackets::Full,
+                                            },
+                                            syntax: LifetimeSyntax::ExplicitBound,
+                                        }))
+                                    });
+
+                                Some(GenericArg::Lifetime(
+                                    tcx.virtual_hir.borrow().get(id).unwrap().expect_lifetime(),
+                                ))
+                            }
+                            DelegationSegmentKind::Child => None,
+                        },
+                        GenericParamDefKind::Type { .. } => {
+                            let id = tcx.virtual_hir.borrow_mut().attach(def_id, None, |hir_id| {
+                                Node::Ty(tcx.hir_arena.alloc(Ty {
+                                    hir_id,
+                                    span,
+                                    kind: TyKind::Path(create_path()),
+                                }))
+                            });
+
+                            Some(GenericArg::Type(
+                                tcx.virtual_hir
+                                    .borrow()
+                                    .get(id)
+                                    .unwrap()
+                                    .expect_ty()
+                                    .try_as_ambig_ty()
+                                    .unwrap(),
+                            ))
+                        }
+                        GenericParamDefKind::Const { .. } => {
+                            let id = tcx.virtual_hir.borrow_mut().attach(def_id, None, |hir_id| {
+                                Node::ConstArg(tcx.hir_arena.alloc(ConstArg {
+                                    hir_id,
+                                    kind: ConstArgKind::Path(create_path()),
+                                    span,
+                                }))
+                            });
+
+                            Some(GenericArg::Const(
+                                tcx.virtual_hir
+                                    .borrow()
+                                    .get(id)
+                                    .unwrap()
+                                    .expect_const_arg()
+                                    .try_as_ambig_ct()
+                                    .unwrap(),
+                            ))
+                        }
+                    }
+                })
+                .collect::<Vec<_>>()
+                .as_slice(),
+        )
+    }
 }

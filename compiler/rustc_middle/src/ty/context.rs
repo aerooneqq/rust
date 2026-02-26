@@ -36,7 +36,7 @@ use rustc_hir::definitions::{DefPathData, Definitions, DisambiguatorState};
 use rustc_hir::intravisit::VisitorExt;
 use rustc_hir::lang_items::LangItem;
 use rustc_hir::limit::Limit;
-use rustc_hir::{self as hir, HirId, Node, TraitCandidate, find_attr};
+use rustc_hir::{self as hir, HirId, ItemLocalId, Node, OwnerId, TraitCandidate, find_attr};
 use rustc_index::IndexVec;
 use rustc_serialize::opaque::{FileEncodeResult, FileEncoder};
 use rustc_session::Session;
@@ -761,8 +761,66 @@ impl<'tcx> Deref for TyCtxt<'tcx> {
     }
 }
 
+#[derive(Default, Debug)]
+pub struct VirtualHir<'hir> {
+    defs_to_hirs: FxHashMap<LocalDefId, HirId>,
+    hirs: FxHashMap<LocalDefId, DefVirtualHir<'hir>>,
+}
+
+impl<'hir> VirtualHir<'hir> {
+    pub fn attach(
+        &mut self,
+        parent_id: LocalDefId,
+        def_id: Option<LocalDefId>,
+        factory: impl Fn(HirId) -> Node<'hir>,
+    ) -> HirId {
+        let owner = OwnerId { def_id: parent_id };
+
+        let local_id = self
+            .hirs
+            .entry(parent_id)
+            .or_default()
+            .add(|local_id| factory(HirId { owner, local_id }));
+
+        let hir_id = HirId { owner, local_id };
+        if let Some(def_id) = def_id {
+            self.defs_to_hirs.insert(def_id, hir_id);
+        }
+
+        hir_id
+    }
+
+    pub fn get(&self, id: HirId) -> Option<&Node<'hir>> {
+        self.hirs.get(&id.owner.def_id)?.get(id.local_id)
+    }
+
+    pub fn get_hir_id_for_def(&self, def_id: LocalDefId) -> Option<HirId> {
+        self.defs_to_hirs.get(&def_id).copied()
+    }
+}
+
+#[derive(Default, Debug)]
+struct DefVirtualHir<'hir> {
+    nodes: Vec<Node<'hir>>,
+}
+
+impl<'hir> DefVirtualHir<'hir> {
+    fn add(&mut self, factory: impl Fn(ItemLocalId) -> Node<'hir>) -> ItemLocalId {
+        let id = ItemLocalId::MAX_AS_U32 - self.nodes.len() as u32;
+
+        self.nodes.push(factory(ItemLocalId::from_u32(id)));
+
+        ItemLocalId::from_u32(id)
+    }
+
+    fn get(&self, id: ItemLocalId) -> Option<&Node<'hir>> {
+        self.nodes.get((ItemLocalId::MAX_AS_U32 - id.as_u32()) as usize)
+    }
+}
+
 /// See [TyCtxt] for details about this type.
 pub struct GlobalCtxt<'tcx> {
+    pub virtual_hir: Lock<VirtualHir<'tcx>>,
     pub arena: &'tcx WorkerLocal<Arena<'tcx>>,
     pub hir_arena: &'tcx WorkerLocal<hir::Arena<'tcx>>,
 
@@ -1036,6 +1094,7 @@ impl<'tcx> TyCtxt<'tcx> {
         let common_consts = CommonConsts::new(&interners, &common_types, s, &untracked);
 
         let gcx = gcx_cell.get_or_init(|| GlobalCtxt {
+            virtual_hir: Default::default(),
             sess: s,
             crate_types,
             stable_crate_id,

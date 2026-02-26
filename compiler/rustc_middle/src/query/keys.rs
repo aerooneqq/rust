@@ -3,6 +3,7 @@
 use std::ffi::OsStr;
 
 use rustc_ast::tokenstream::TokenStream;
+use rustc_hir::DelegationSegmentKind;
 use rustc_hir::def_id::{CrateNum, DefId, LOCAL_CRATE, LocalDefId, LocalModDefId};
 use rustc_hir::hir_id::OwnerId;
 use rustc_span::{DUMMY_SP, Ident, LocalExpnId, Span, Symbol};
@@ -376,6 +377,12 @@ impl<'tcx> Key for (ValidityRequirement, ty::PseudoCanonicalInput<'tcx, Ty<'tcx>
 }
 
 impl<'tcx> Key for (ty::Instance<'tcx>, CollectionMode) {
+    fn default_span(&self, tcx: TyCtxt<'_>) -> Span {
+        self.0.default_span(tcx)
+    }
+}
+
+impl Key for (LocalDefId, DelegationSegmentKind) {
     fn default_span(&self, tcx: TyCtxt<'_>) -> Span {
         self.0.default_span(tcx)
     }

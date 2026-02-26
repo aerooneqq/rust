@@ -7,12 +7,15 @@ use rustc_data_structures::fx::FxHashMap;
 use rustc_hir::def::DefKind;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_hir::definitions::DisambiguatorState;
-use rustc_hir::{HirId, PathSegment};
+use rustc_hir::{
+    GenericParam, GenericParamKind, GenericParamSource, HirId, LifetimeParamKind, Node, ParamName,
+    PathSegment,
+};
 use rustc_middle::ty::{
     self, EarlyBinder, GenericParamDefKind, Ty, TyCtxt, TypeFoldable, TypeFolder,
     TypeSuperFoldable, TypeVisitableExt,
 };
-use rustc_span::{ErrorGuaranteed, Span, kw};
+use rustc_span::{ErrorGuaranteed, Ident, Span, kw};
 
 use crate::collect::ItemCtxt;
 use crate::hir_ty_lowering::{GenericArgPosition, HirTyLowerer};
@@ -709,11 +712,37 @@ fn build_generics<'tcx>(
             GenericParamDefKind::Const { .. } => DefKind::ConstParam,
         };
 
-        let feed = tcx.create_def(def_id, Some(param.name), def_kind, None, &mut disambig);
+        let span = tcx.def_span(def_id.to_def_id());
 
-        feed.feed_hir();
+        let param_def_id = tcx
+            .create_def(def_id, Some(param.name), def_kind, None, &mut disambig)
+            .def_id()
+            .to_def_id();
 
-        param.def_id = feed.def_id().to_def_id();
+        tcx.virtual_hir.borrow_mut().attach(def_id, Some(param_def_id.expect_local()), |hir_id| {
+            Node::GenericParam(tcx.hir_arena.alloc(GenericParam {
+                source: GenericParamSource::Generics,
+                span,
+                pure_wrt_drop: false,
+                name: ParamName::Plain(Ident::with_dummy_span(param.name)),
+                hir_id,
+                def_id: param_def_id.expect_local(),
+                kind: match param.kind {
+                    GenericParamDefKind::Lifetime { .. } => {
+                        GenericParamKind::Lifetime { kind: LifetimeParamKind::Explicit }
+                    }
+                    GenericParamDefKind::Type { synthetic, .. } => {
+                        GenericParamKind::Type { default: None, synthetic }
+                    }
+                    GenericParamDefKind::Const { .. } => {
+                        todo!()
+                    }
+                },
+                colon_span: None,
+            }))
+        });
+
+        param.def_id = param_def_id;
     }
 
     let param_def_id_to_index =
