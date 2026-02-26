@@ -21,7 +21,7 @@ use crate::hir::{ModuleItems, nested_filter};
 use crate::middle::debugger_visualizer::DebuggerVisualizerFile;
 use crate::query::LocalCrate;
 use crate::ty::layout::HasTyCtxt;
-use crate::ty::{GenericParamDefKind, TyCtxt};
+use crate::ty::{TyCtxt};
 
 /// An iterator that walks up the ancestor tree of a given `HirId`.
 /// Constructed using `tcx.hir_parent_iter(hir_id)`.
@@ -1143,37 +1143,7 @@ impl<'tcx> intravisit::HirTyCtxt<'tcx> for TyCtxt<'tcx> {
     }
 
     fn get_delegation_generics(&self, def_id: LocalDefId) -> &'tcx Generics<'tcx> {
-        let generics = self.generics_of(def_id);
-        let span = self.def_span(def_id.to_def_id());
-
-        self.hir_arena.alloc(Generics {
-            params: self.hir_arena.alloc_from_iter(generics.own_params.iter().map(|p| {
-                GenericParam {
-                    source: GenericParamSource::Generics,
-                    span,
-                    pure_wrt_drop: false,
-                    name: ParamName::Plain(Ident::with_dummy_span(p.name)),
-                    hir_id: self.local_def_id_to_hir_id(p.def_id.expect_local()),
-                    def_id: p.def_id.expect_local(),
-                    kind: match p.kind {
-                        GenericParamDefKind::Lifetime { .. } => {
-                            GenericParamKind::Lifetime { kind: LifetimeParamKind::Explicit }
-                        }
-                        GenericParamDefKind::Type { synthetic, .. } => {
-                            GenericParamKind::Type { default: None, synthetic }
-                        }
-                        GenericParamDefKind::Const { .. } => {
-                            todo!()
-                        }
-                    },
-                    colon_span: None,
-                }
-            })),
-            predicates: &[],
-            span,
-            where_clause_span: span,
-            has_where_clause_predicates: false,
-        })
+        self.get_delegation_hir_generics(def_id)
     }
 }
 

@@ -636,6 +636,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
             );
 
             let segment = self.arena.alloc(segment);
+            println!("SSS {segment:?}");
 
             self.arena.alloc(hir::Expr {
                 hir_id: self.next_id(),

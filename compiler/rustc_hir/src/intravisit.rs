@@ -1287,7 +1287,12 @@ pub fn walk_trait_item<'v, V: Visitor<'v>>(
     } = *trait_item;
     let hir_id = trait_item.hir_id();
     try_visit!(visitor.visit_ident(ident));
-    try_visit!(visitor.visit_generics(generics.default_or_empty()));
+    if V::NestedFilter::INTER {
+        let generics = generics.get(&visitor.maybe_tcx());
+        try_visit!(visitor.visit_generics(generics));
+    } else {
+        try_visit!(visitor.visit_generics(generics.default_or_empty()));
+    }
     try_visit!(visitor.visit_defaultness(&defaultness));
     try_visit!(visitor.visit_id(hir_id));
     match *kind {
@@ -1337,7 +1342,14 @@ pub fn walk_impl_item<'v, V: Visitor<'v>>(
     } = *impl_item;
 
     try_visit!(visitor.visit_ident(ident));
-    try_visit!(visitor.visit_generics(generics.default_or_empty()));
+
+    if V::NestedFilter::INTER {
+        let generics = generics.get(&visitor.maybe_tcx());
+        try_visit!(visitor.visit_generics(generics));
+    } else {
+        try_visit!(visitor.visit_generics(generics.default_or_empty()));
+    }
+
     try_visit!(visitor.visit_id(impl_item.hir_id()));
     match impl_kind {
         ImplItemImplKind::Inherent { vis_span: _ } => {}
@@ -1506,7 +1518,9 @@ pub fn walk_path_segment<'v, V: Visitor<'v>>(
     try_visit!(visitor.visit_ident(*ident));
     try_visit!(visitor.visit_id(*hir_id));
 
-    if let PathSegmentArgs::Default(args) = args {
+    if V::NestedFilter::INTRA {
+        visit_opt!(visitor, visit_generic_args, args.opt_args(&visitor.maybe_tcx()));
+    } else if let PathSegmentArgs::Default(args) = args {
         visit_opt!(visitor, visit_generic_args, args);
     }
 

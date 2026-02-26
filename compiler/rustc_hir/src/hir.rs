@@ -3854,6 +3854,7 @@ pub enum InferDelegationKind<'hir> {
     // Place generics info here, as we always specify output type for delegations,
     // and this placement does not require to change asserts about hir structs' sizes
     Output(&'hir DelegationGenerics),
+    Const(DefId),
 }
 
 /// The various kinds of types recognized by the compiler.

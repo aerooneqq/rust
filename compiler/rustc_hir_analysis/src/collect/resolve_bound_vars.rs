@@ -712,7 +712,6 @@ impl<'a, 'tcx> Visitor<'tcx> for BoundVarContext<'a, 'tcx> {
         }
     }
 
-    #[instrument(level = "debug", skip(self))]
     fn visit_ty(&mut self, ty: &'tcx hir::Ty<'tcx, AmbigArg>) {
         match ty.kind {
             hir::TyKind::FnPtr(c) => {
@@ -1164,6 +1163,7 @@ impl<'a, 'tcx> BoundVarContext<'a, 'tcx> {
     where
         F: for<'b, 'c> FnOnce(&'b mut BoundVarContext<'c, 'tcx>),
     {
+        println!("XD: {hir_id:?}");
         let mut named_late_bound_vars = 0;
         let bound_vars: FxIndexMap<LocalDefId, ResolvedArg> = generics
             .params
@@ -1555,6 +1555,8 @@ impl<'a, 'tcx> BoundVarContext<'a, 'tcx> {
         let mut scope = self.scope;
         let mut crossed_late_boundary = None;
 
+        println!("PARAM: {param_def_id:?}");
+
         let result = loop {
             match *scope {
                 Scope::Body { s, .. } => {
@@ -1681,13 +1683,13 @@ impl<'a, 'tcx> BoundVarContext<'a, 'tcx> {
             .span_bug(self.tcx.hir_span(hir_id), format!("could not resolve {param_def_id:?}"));
     }
 
-    #[instrument(level = "debug", skip(self))]
     fn visit_segment_args(
         &mut self,
         res: Res,
         depth: usize,
         generic_args: &'tcx hir::GenericArgs<'tcx>,
     ) {
+        println!("SEGMENT");
         if let Some((inputs, output)) = generic_args.paren_sugar_inputs_output() {
             self.visit_fn_like_elision(inputs, Some(output), false);
             return;

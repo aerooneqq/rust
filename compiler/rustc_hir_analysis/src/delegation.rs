@@ -734,9 +734,17 @@ fn build_generics<'tcx>(
                     GenericParamDefKind::Type { synthetic, .. } => {
                         GenericParamKind::Type { default: None, synthetic }
                     }
-                    GenericParamDefKind::Const { .. } => {
-                        todo!()
-                    }
+                    GenericParamDefKind::Const { .. } => GenericParamKind::Const {
+                        ty: tcx.hir_arena.alloc(rustc_hir::Ty {
+                            hir_id: HirId::INVALID,
+                            span,
+                            kind: rustc_hir::TyKind::InferDelegation(
+                                sig_id,
+                                rustc_hir::InferDelegationKind::Const(param.def_id),
+                            ),
+                        }),
+                        default: None,
+                    },
                 },
                 colon_span: None,
             }))

@@ -1903,6 +1903,10 @@ rustc_queries! {
         desc { "getting delegation (child/parent) path args" }
     }
 
+    query get_delegation_hir_generics(_: LocalDefId) -> &'tcx rustc_hir::Generics<'tcx> {
+        desc { "getting delegation (child/parent) path args" }
+    }
+
     /// Returns whether the impl or associated function has the `default` keyword.
     /// Note: This will ICE on inherent impl items. Consider using `AssocItem::defaultness`.
     query defaultness(def_id: DefId) -> hir::Defaultness {

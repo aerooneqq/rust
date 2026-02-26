@@ -2907,11 +2907,14 @@ impl<'tcx> dyn HirTyLowerer<'tcx> + '_ {
     }
 
     fn lower_delegation_ty(&self, idx: hir::InferDelegationKind<'tcx>) -> Ty<'tcx> {
-        let delegation_sig = self.tcx().inherit_sig_for_delegation_item(self.item_def_id());
+        let delegation_sig = || self.tcx().inherit_sig_for_delegation_item(self.item_def_id());
 
         match idx {
-            hir::InferDelegationKind::Input(idx) => delegation_sig[idx],
-            hir::InferDelegationKind::Output { .. } => *delegation_sig.last().unwrap(),
+            hir::InferDelegationKind::Input(idx) => delegation_sig()[idx],
+            hir::InferDelegationKind::Output { .. } => *delegation_sig().last().unwrap(),
+            hir::InferDelegationKind::Const(const_id) => {
+                self.tcx().type_of(const_id).instantiate_identity()
+            }
         }
     }
 

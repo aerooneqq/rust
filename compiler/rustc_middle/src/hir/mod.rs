@@ -465,7 +465,25 @@ pub fn provide(providers: &mut Providers) {
         tcx.hir_crate(()).owners[id.def_id].as_owner().map(|owner_info| &owner_info.trait_map)
     };
 
+    providers.get_delegation_hir_generics = |tcx, def_id| {
+        let generics = tcx.generics_of(def_id);
+        let span = tcx.def_span(def_id);
+
+        tcx.hir_arena.alloc(Generics {
+            params: tcx.hir_arena.alloc_from_iter(generics.own_params.iter().map(|p| {
+                let id = tcx.local_def_id_to_hir_id(p.def_id.expect_local());
+                tcx.virtual_hir.borrow().get(id).unwrap().expect_generic_param().clone()
+            })),
+            predicates: &[],
+            span,
+            where_clause_span: span,
+            has_where_clause_predicates: false,
+        })
+    };
+
     providers.get_delegation_args = |tcx, (def_id, kind)| {
+        println!("{def_id:?}, {kind:?}");
+
         let hir_id = tcx.local_def_id_to_hir_id(def_id);
         let node = tcx.hir_node(hir_id);
 
@@ -511,7 +529,7 @@ pub fn provide(providers: &mut Providers) {
 
         let span = tcx.def_span(def_id.to_def_id());
 
-        tcx.arena.alloc_slice(
+        tcx.hir_arena.alloc_slice(
             params
                 .filter_map(|p| {
                     // Skip self generic arg, we do not need to propagate it.
