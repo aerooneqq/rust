@@ -1163,7 +1163,6 @@ impl<'a, 'tcx> BoundVarContext<'a, 'tcx> {
     where
         F: for<'b, 'c> FnOnce(&'b mut BoundVarContext<'c, 'tcx>),
     {
-        println!("XD: {hir_id:?}");
         let mut named_late_bound_vars = 0;
         let bound_vars: FxIndexMap<LocalDefId, ResolvedArg> = generics
             .params
@@ -1555,8 +1554,6 @@ impl<'a, 'tcx> BoundVarContext<'a, 'tcx> {
         let mut scope = self.scope;
         let mut crossed_late_boundary = None;
 
-        println!("PARAM: {param_def_id:?}");
-
         let result = loop {
             match *scope {
                 Scope::Body { s, .. } => {
@@ -1689,7 +1686,6 @@ impl<'a, 'tcx> BoundVarContext<'a, 'tcx> {
         depth: usize,
         generic_args: &'tcx hir::GenericArgs<'tcx>,
     ) {
-        println!("SEGMENT");
         if let Some((inputs, output)) = generic_args.paren_sugar_inputs_output() {
             self.visit_fn_like_elision(inputs, Some(output), false);
             return;

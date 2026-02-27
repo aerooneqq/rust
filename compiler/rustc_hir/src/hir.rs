@@ -1661,6 +1661,7 @@ impl<'tcx> AttributeMap<'tcx> {
 /// Map of all HIR nodes inside the current owner.
 /// These nodes are mapped by `ItemLocalId` alongside the index of their parent node.
 /// The HIR tree, including bodies, is pre-hashed.
+#[derive(Clone)]
 pub struct OwnerNodes<'tcx> {
     /// Pre-computed hash of the full HIR. Used in the crate hash. Only present
     /// when incr. comp. is enabled.
@@ -5200,6 +5201,7 @@ impl<'hir> Node<'hir> {
         expect_crate,         &'hir Mod<'hir>,          Node::Crate(n),        n;
         expect_infer,         &'hir InferArg,           Node::Infer(n),        n;
         expect_closure,       &'hir Closure<'hir>, Node::Expr(Expr { kind: ExprKind::Closure(n), .. }), n;
+        expect_where_predicate,      &'hir WherePredicate<'hir>,           Node::WherePredicate(n),     n;
     }
 }
 

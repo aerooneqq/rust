@@ -18,7 +18,7 @@ use rustc_macros::{Decodable, Encodable, HashStable};
 use rustc_span::{ErrorGuaranteed, ExpnId, Ident, Span, kw};
 
 use crate::query::Providers;
-use crate::ty::{GenericParamDefKind, TyCtxt};
+use crate::ty::{GenericParamDef, GenericParamDefKind, TyCtxt};
 
 /// Gather the LocalDefId for each item-like within a module, including items contained within
 /// bodies. The Ids are in visitor order. This is used to partition a pass between modules.
@@ -465,25 +465,58 @@ pub fn provide(providers: &mut Providers) {
         tcx.hir_crate(()).owners[id.def_id].as_owner().map(|owner_info| &owner_info.trait_map)
     };
 
-    providers.get_delegation_hir_generics = |tcx, def_id| {
+    providers.get_delegation_hir_generics = |tcx: TyCtxt<'_>, def_id| {
         let generics = tcx.generics_of(def_id);
         let span = tcx.def_span(def_id);
+
+        let generate_lifetime_predicate = |p: &GenericParamDef| {
+            let id = tcx.virtual_hir.borrow_mut().attach(tcx, def_id, None, |hir_id| {
+                Node::Lifetime(tcx.hir_arena.alloc(Lifetime {
+                    hir_id,
+                    ident: Ident::with_dummy_span(p.name),
+                    kind: rustc_hir::LifetimeKind::Param(p.def_id.expect_local()),
+                    source: rustc_hir::LifetimeSource::Path {
+                        angle_brackets: rustc_hir::AngleBrackets::Full,
+                    },
+                    syntax: rustc_hir::LifetimeSyntax::ExplicitBound,
+                }))
+            });
+
+            let lifetime = tcx.virtual_hir.borrow().get(id).unwrap().expect_lifetime();
+
+            let id = tcx.virtual_hir.borrow_mut().attach(tcx, def_id, None, |hir_id| {
+                Node::WherePredicate(tcx.hir_arena.alloc(WherePredicate {
+                    hir_id,
+                    span,
+                    kind: tcx.hir_arena.alloc(WherePredicateKind::RegionPredicate(
+                        WhereRegionPredicate {
+                            in_where_clause: true,
+                            lifetime,
+                            bounds: tcx.hir_arena.alloc_slice(&[GenericBound::Outlives(lifetime)]),
+                        },
+                    )),
+                }))
+            });
+
+            *tcx.virtual_hir.borrow().get(id).unwrap().expect_where_predicate()
+        };
 
         tcx.hir_arena.alloc(Generics {
             params: tcx.hir_arena.alloc_from_iter(generics.own_params.iter().map(|p| {
                 let id = tcx.local_def_id_to_hir_id(p.def_id.expect_local());
                 tcx.virtual_hir.borrow().get(id).unwrap().expect_generic_param().clone()
             })),
-            predicates: &[],
+            predicates: tcx.hir_arena.alloc_from_iter(generics.own_params.iter().filter_map(|p| {
+                matches!(p.kind, GenericParamDefKind::Lifetime)
+                    .then(|| generate_lifetime_predicate(p))
+            })),
             span,
             where_clause_span: span,
             has_where_clause_predicates: false,
         })
     };
 
-    providers.get_delegation_args = |tcx, (def_id, kind)| {
-        println!("{def_id:?}, {kind:?}");
-
+    providers.get_delegation_args = |tcx: TyCtxt<'_>, (def_id, kind)| {
         let hir_id = tcx.local_def_id_to_hir_id(def_id);
         let node = tcx.hir_node(hir_id);
 
@@ -547,16 +580,23 @@ pub fn provide(providers: &mut Providers) {
                             p.def_id.into(),
                         );
 
+                        let id = tcx.virtual_hir.borrow_mut().attach(tcx, def_id, None, |hir_id| {
+                            Node::PathSegment(tcx.hir_arena.alloc(PathSegment {
+                                args: PathSegmentArgs::none(),
+                                hir_id,
+                                ident: Ident::with_dummy_span(p.name),
+                                infer_args: false,
+                                res,
+                            }))
+                        });
+
+                        let segment =
+                            tcx.virtual_hir.borrow().get(id).unwrap().expect_path_segment();
+
                         QPath::Resolved(
                             None,
                             tcx.hir_arena.alloc(Path {
-                                segments: tcx.hir_arena.alloc_slice(&[PathSegment {
-                                    args: PathSegmentArgs::none(),
-                                    hir_id: HirId::INVALID,
-                                    ident: Ident::with_dummy_span(p.name),
-                                    infer_args: false,
-                                    res,
-                                }]),
+                                segments: tcx.hir_arena.alloc_slice(&[segment.clone()]),
                                 res,
                                 span,
                             }),
@@ -566,8 +606,11 @@ pub fn provide(providers: &mut Providers) {
                     match p.kind {
                         GenericParamDefKind::Lifetime { .. } => match kind {
                             DelegationSegmentKind::Parent => {
-                                let id =
-                                    tcx.virtual_hir.borrow_mut().attach(def_id, None, |hir_id| {
+                                let id = tcx.virtual_hir.borrow_mut().attach(
+                                    tcx,
+                                    def_id,
+                                    None,
+                                    |hir_id| {
                                         Node::Lifetime(tcx.hir_arena.alloc(Lifetime {
                                             hir_id,
                                             ident: Ident::with_dummy_span(p.name),
@@ -577,7 +620,8 @@ pub fn provide(providers: &mut Providers) {
                                             },
                                             syntax: LifetimeSyntax::ExplicitBound,
                                         }))
-                                    });
+                                    },
+                                );
 
                                 Some(GenericArg::Lifetime(
                                     tcx.virtual_hir.borrow().get(id).unwrap().expect_lifetime(),
@@ -586,13 +630,15 @@ pub fn provide(providers: &mut Providers) {
                             DelegationSegmentKind::Child => None,
                         },
                         GenericParamDefKind::Type { .. } => {
-                            let id = tcx.virtual_hir.borrow_mut().attach(def_id, None, |hir_id| {
-                                Node::Ty(tcx.hir_arena.alloc(Ty {
-                                    hir_id,
-                                    span,
-                                    kind: TyKind::Path(create_path()),
-                                }))
-                            });
+                            let path = create_path();
+                            let id =
+                                tcx.virtual_hir.borrow_mut().attach(tcx, def_id, None, |hir_id| {
+                                    Node::Ty(tcx.hir_arena.alloc(Ty {
+                                        hir_id,
+                                        span,
+                                        kind: TyKind::Path(path),
+                                    }))
+                                });
 
                             Some(GenericArg::Type(
                                 tcx.virtual_hir
@@ -605,13 +651,15 @@ pub fn provide(providers: &mut Providers) {
                             ))
                         }
                         GenericParamDefKind::Const { .. } => {
-                            let id = tcx.virtual_hir.borrow_mut().attach(def_id, None, |hir_id| {
-                                Node::ConstArg(tcx.hir_arena.alloc(ConstArg {
-                                    hir_id,
-                                    kind: ConstArgKind::Path(create_path()),
-                                    span,
-                                }))
-                            });
+                            let path = create_path();
+                            let id =
+                                tcx.virtual_hir.borrow_mut().attach(tcx, def_id, None, |hir_id| {
+                                    Node::ConstArg(tcx.hir_arena.alloc(ConstArg {
+                                        hir_id,
+                                        kind: ConstArgKind::Path(path),
+                                        span,
+                                    }))
+                                });
 
                             Some(GenericArg::Const(
                                 tcx.virtual_hir

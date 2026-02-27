@@ -1,3 +1,15 @@
+error[E0794]: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
+  --> $DIR/free-fn-to-free-fn.rs:19:12
+   |
+LL |     late::<'static>(&0u8);
+   |            ^^^^^^^
+   |
+note: the late bound lifetime parameter is introduced here
+  --> $DIR/free-fn-to-free-fn.rs:8:17
+   |
+LL |     pub fn late<'a>(x: &'a u8) -> u8 {
+   |                 ^^
+
 error[E0277]: the trait bound `S: Clone` is not satisfied
   --> $DIR/free-fn-to-free-fn.rs:23:12
    |
@@ -20,6 +32,7 @@ LL +     #[derive(Clone)]
 LL |     struct S;
    |
 
-error: aborting due to 1 previous error
+error: aborting due to 2 previous errors
 
-For more information about this error, try `rustc --explain E0277`.
+Some errors have detailed explanations: E0277, E0794.
+For more information about an error, try `rustc --explain E0277`.

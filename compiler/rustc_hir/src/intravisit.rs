@@ -582,8 +582,15 @@ pub fn walk_item<'v, V: Visitor<'v>>(visitor: &mut V, item: &'v Item<'v>) -> V::
         }
         ItemKind::Fn { ident, sig, ref generics, body: body_id, .. } => {
             try_visit!(visitor.visit_ident(ident));
+
+            let generics = if V::NestedFilter::INTRA {
+                generics.get(&visitor.maybe_tcx())
+            } else {
+                generics.default_or_empty()
+            };
+
             try_visit!(visitor.visit_fn(
-                FnKind::ItemFn(ident, generics.default_or_empty(), sig.header),
+                FnKind::ItemFn(ident, generics, sig.header),
                 sig.decl,
                 body_id,
                 item.span,
@@ -1287,7 +1294,7 @@ pub fn walk_trait_item<'v, V: Visitor<'v>>(
     } = *trait_item;
     let hir_id = trait_item.hir_id();
     try_visit!(visitor.visit_ident(ident));
-    if V::NestedFilter::INTER {
+    if V::NestedFilter::INTRA {
         let generics = generics.get(&visitor.maybe_tcx());
         try_visit!(visitor.visit_generics(generics));
     } else {
@@ -1343,7 +1350,7 @@ pub fn walk_impl_item<'v, V: Visitor<'v>>(
 
     try_visit!(visitor.visit_ident(ident));
 
-    if V::NestedFilter::INTER {
+    if V::NestedFilter::INTRA {
         let generics = generics.get(&visitor.maybe_tcx());
         try_visit!(visitor.visit_generics(generics));
     } else {

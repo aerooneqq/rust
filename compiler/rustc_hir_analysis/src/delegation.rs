@@ -8,8 +8,8 @@ use rustc_hir::def::DefKind;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_hir::definitions::DisambiguatorState;
 use rustc_hir::{
-    GenericParam, GenericParamKind, GenericParamSource, HirId, LifetimeParamKind, Node, ParamName,
-    PathSegment,
+    DelegationGenerics, GenericParam, GenericParamKind, GenericParamSource, HirId,
+    LifetimeParamKind, Node, ParamName, PathSegment,
 };
 use rustc_middle::ty::{
     self, EarlyBinder, GenericParamDefKind, Ty, TyCtxt, TypeFoldable, TypeFolder,
@@ -581,13 +581,7 @@ fn get_delegation_user_specified_args<'tcx>(
     tcx: TyCtxt<'tcx>,
     delegation_id: LocalDefId,
 ) -> (&'tcx [ty::GenericArg<'tcx>], &'tcx [ty::GenericArg<'tcx>]) {
-    let info = tcx
-        .hir_node(tcx.local_def_id_to_hir_id(delegation_id))
-        .fn_sig()
-        .expect("Lowering delegation")
-        .decl
-        .opt_delegation_generics_info()
-        .expect("Lowering delegation");
+    let info = get_generics_info(tcx, delegation_id);
 
     let get_segment = |hir_id: Option<HirId>| -> Option<(&'tcx PathSegment<'tcx>, DefId)> {
         hir_id.map(|hir_id| {
@@ -645,6 +639,16 @@ fn get_delegation_user_specified_args<'tcx>(
     (parent_args.unwrap_or(&[]), child_args.unwrap_or(&[]))
 }
 
+fn get_generics_info<'tcx>(tcx: TyCtxt<'tcx>, delegation_id: LocalDefId) -> DelegationGenerics {
+    tcx.hir_node(tcx.local_def_id_to_hir_id(delegation_id))
+        .fn_sig()
+        .expect("Lowering delegation")
+        .decl
+        .opt_delegation_generics_info()
+        .expect("Lowering delegation")
+        .clone()
+}
+
 fn build_generics<'tcx>(
     tcx: TyCtxt<'tcx>,
     def_id: LocalDefId,
@@ -652,6 +656,7 @@ fn build_generics<'tcx>(
     parent: Option<DefId>,
     inh_kind: InheritanceKind,
 ) -> ty::Generics {
+    let info = get_generics_info(tcx, def_id);
     let mut own_params = vec![];
 
     let sig_generics = tcx.generics_of(sig_id);
@@ -659,13 +664,23 @@ fn build_generics<'tcx>(
         && let Some(parent_def_id) = sig_generics.parent
     {
         let sig_parent_generics = tcx.generics_of(parent_def_id);
-        own_params.append(&mut sig_parent_generics.own_params.clone());
-        if !has_self {
-            own_params.remove(0);
+
+        if info.parent_args_segment_id.is_none() {
+            own_params.append(&mut sig_parent_generics.own_params.clone());
+            if !has_self {
+                own_params.remove(0);
+            }
+        } else {
+            let self_pos = create_self_position_kind(fn_kind(tcx, def_id), fn_kind(tcx, sig_id));
+            if matches!(self_pos, SelfPositionKind::AfterLifetimes) {
+                own_params.push(sig_parent_generics.own_params[0].clone());
+            }
         }
     }
 
-    own_params.append(&mut sig_generics.own_params.clone());
+    if info.child_args_segment_id.is_none() {
+        own_params.append(&mut sig_generics.own_params.clone());
+    }
 
     // Lifetime parameters must be declared before type and const parameters.
     // Therefore, When delegating from a free function to a associated function,
@@ -719,7 +734,24 @@ fn build_generics<'tcx>(
             .def_id()
             .to_def_id();
 
-        tcx.virtual_hir.borrow_mut().attach(def_id, Some(param_def_id.expect_local()), |hir_id| {
+        let const_ty = if let GenericParamDefKind::Const { .. } = param.kind {
+            let ty_id = tcx.virtual_hir.borrow_mut().attach(tcx, def_id, None, |hir_id| {
+                Node::Ty(tcx.hir_arena.alloc(rustc_hir::Ty {
+                    hir_id,
+                    span,
+                    kind: rustc_hir::TyKind::InferDelegation(
+                        sig_id,
+                        rustc_hir::InferDelegationKind::Const(param.def_id),
+                    ),
+                }))
+            });
+
+            Some(tcx.virtual_hir.borrow().get(ty_id).unwrap().expect_ty())
+        } else {
+            None
+        };
+
+        tcx.virtual_hir.borrow_mut().attach(tcx, def_id, Some(param_def_id.expect_local()), |hir_id| {
             Node::GenericParam(tcx.hir_arena.alloc(GenericParam {
                 source: GenericParamSource::Generics,
                 span,
@@ -734,17 +766,9 @@ fn build_generics<'tcx>(
                     GenericParamDefKind::Type { synthetic, .. } => {
                         GenericParamKind::Type { default: None, synthetic }
                     }
-                    GenericParamDefKind::Const { .. } => GenericParamKind::Const {
-                        ty: tcx.hir_arena.alloc(rustc_hir::Ty {
-                            hir_id: HirId::INVALID,
-                            span,
-                            kind: rustc_hir::TyKind::InferDelegation(
-                                sig_id,
-                                rustc_hir::InferDelegationKind::Const(param.def_id),
-                            ),
-                        }),
-                        default: None,
-                    },
+                    GenericParamDefKind::Const { .. } => {
+                        GenericParamKind::Const { ty: const_ty.unwrap(), default: None }
+                    }
                 },
                 colon_span: None,
             }))

@@ -770,16 +770,18 @@ pub struct VirtualHir<'hir> {
 impl<'hir> VirtualHir<'hir> {
     pub fn attach(
         &mut self,
+        tcx: TyCtxt<'hir>,
         parent_id: LocalDefId,
         def_id: Option<LocalDefId>,
         factory: impl Fn(HirId) -> Node<'hir>,
     ) -> HirId {
         let owner = OwnerId { def_id: parent_id };
+        let next_id = tcx.opt_hir_owner_nodes(owner).unwrap().nodes.len() as u32;
 
         let local_id = self
             .hirs
             .entry(parent_id)
-            .or_default()
+            .or_insert_with(|| DefVirtualHir { start_id: next_id, next_id, nodes: vec![] })
             .add(|local_id| factory(HirId { owner, local_id }));
 
         let hir_id = HirId { owner, local_id };
@@ -794,6 +796,10 @@ impl<'hir> VirtualHir<'hir> {
         self.hirs.get(&id.owner.def_id)?.get(id.local_id)
     }
 
+    pub fn get_all_owner_nodes(&self, def_id: LocalDefId) -> Option<Vec<Node<'hir>>> {
+        Some(self.hirs.get(&def_id)?.nodes.clone())
+    }
+
     pub fn get_hir_id_for_def(&self, def_id: LocalDefId) -> Option<HirId> {
         self.defs_to_hirs.get(&def_id).copied()
     }
@@ -801,20 +807,23 @@ impl<'hir> VirtualHir<'hir> {
 
 #[derive(Default, Debug)]
 struct DefVirtualHir<'hir> {
+    start_id: u32,
+    next_id: u32,
     nodes: Vec<Node<'hir>>,
 }
 
 impl<'hir> DefVirtualHir<'hir> {
     fn add(&mut self, factory: impl Fn(ItemLocalId) -> Node<'hir>) -> ItemLocalId {
-        let id = ItemLocalId::MAX_AS_U32 - self.nodes.len() as u32;
+        self.nodes.push(factory(ItemLocalId::from_u32(self.next_id)));
+        self.next_id += 1;
 
-        self.nodes.push(factory(ItemLocalId::from_u32(id)));
-
-        ItemLocalId::from_u32(id)
+        ItemLocalId::from_u32(self.next_id - 1)
     }
 
     fn get(&self, id: ItemLocalId) -> Option<&Node<'hir>> {
-        self.nodes.get((ItemLocalId::MAX_AS_U32 - id.as_u32()) as usize)
+        let id = id.as_usize();
+        let start_id = self.start_id as usize;
+        if id < start_id { None } else { self.nodes.get(id - start_id) }
     }
 }
 

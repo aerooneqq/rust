@@ -12,11 +12,11 @@ LL |     reuse to_reuse::bar2::<i32, i32, i32, i32, i32, i32, 123, true> as bar4
 error[E0107]: function takes at most 2 generic arguments but 3 generic arguments were supplied
   --> $DIR/impl-trait-wrong-args-count.rs:23:21
    |
-LL |     fn bar<'x: 'x, 'y: 'y, AA, BB, const NN: usize>(&self) {}
-   |                                  ----------------- help: remove the unnecessary generic argument
-...
 LL |     reuse to_reuse::bar;
-   |                     ^^^ expected at most 2 generic arguments
+   |                     ^^^
+   |                     |
+   |                     expected at most 2 generic arguments
+   |                     help: remove the unnecessary generic argument
    |
 note: function defined here, with at most 2 generic parameters: `A`, `B`
   --> $DIR/impl-trait-wrong-args-count.rs:5:12

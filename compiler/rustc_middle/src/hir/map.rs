@@ -20,8 +20,8 @@ use rustc_span::{ErrorGuaranteed, Ident, Span, Symbol, kw, with_metavar_spans};
 use crate::hir::{ModuleItems, nested_filter};
 use crate::middle::debugger_visualizer::DebuggerVisualizerFile;
 use crate::query::LocalCrate;
+use crate::ty::TyCtxt;
 use crate::ty::layout::HasTyCtxt;
-use crate::ty::{TyCtxt};
 
 /// An iterator that walks up the ancestor tree of a given `HirId`.
 /// Constructed using `tcx.hir_parent_iter(hir_id)`.
@@ -104,8 +104,22 @@ impl<'tcx> Iterator for ParentOwnerIterator<'tcx> {
 impl<'tcx> TyCtxt<'tcx> {
     #[inline]
     fn expect_hir_owner_nodes(self, def_id: LocalDefId) -> &'tcx OwnerNodes<'tcx> {
-        self.opt_hir_owner_nodes(def_id)
-            .unwrap_or_else(|| span_bug!(self.def_span(def_id), "{def_id:?} is not an owner"))
+        let nodes: &'tcx OwnerNodes<'tcx> = self
+            .opt_hir_owner_nodes(def_id)
+            .unwrap_or_else(|| span_bug!(self.def_span(def_id), "{def_id:?} is not an owner"));
+
+        if let Some(virtual_nodes) = self.virtual_hir.lock().get_all_owner_nodes(def_id) {
+            let mut new_nodes = nodes.clone();
+            new_nodes.nodes.extend(
+                virtual_nodes
+                    .into_iter()
+                    .map(|node| ParentedNode { parent: ItemLocalId::ZERO, node }),
+            );
+
+            self.arena.alloc(new_nodes)
+        } else {
+            nodes
+        }
     }
 
     #[inline]
