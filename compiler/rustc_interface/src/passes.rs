@@ -884,6 +884,9 @@ pub static DEFAULT_QUERY_PROVIDERS: LazyLock<Providers> = LazyLock::new(|| {
     // `delayed_owner` is fed during `lower_delayed_owner`, by default it returns phantom,
     // as if this query was not fed it means that `MaybeOwner` does not exist for provided LocalDefId.
     providers.queries.delayed_owner = |_, _| MaybeOwner::Phantom;
+    providers.hooks.cycle_recovery_fallback_owner =
+        rustc_ast_lowering::cycle_recovery_fallback_owner;
+
     providers.queries.resolver_for_lowering_raw = resolver_for_lowering_raw;
     providers.queries.stripped_cfg_items = |tcx, _| &tcx.resolutions(()).stripped_cfg_items[..];
     providers.queries.resolutions = |tcx, ()| tcx.resolver_for_lowering_raw(()).1;
@@ -903,7 +906,7 @@ pub static DEFAULT_QUERY_PROVIDERS: LazyLock<Providers> = LazyLock::new(|| {
     rustc_query_impl::provide(providers);
     rustc_resolve::provide(&mut providers.queries);
     rustc_hir_analysis::provide(&mut providers.queries);
-    rustc_hir_typeck::provide(&mut providers.queries);
+    rustc_hir_typeck::provide(providers);
     ty::provide(&mut providers.queries);
     traits::provide(&mut providers.queries);
     solve::provide(&mut providers.queries);

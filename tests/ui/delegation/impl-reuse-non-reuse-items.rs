@@ -25,7 +25,6 @@ mod non_delegatable_items {
     //~| ERROR item `Type` is an associated method, which doesn't match its trait `Trait`
     //~| ERROR duplicate definitions with name `method`
     //~| ERROR expected function, found associated constant `Trait::CONST`
-    //~| ERROR expected function, found associated type `Trait::Type`
     //~| ERROR not all trait items implemented, missing: `CONST`, `Type`, `method`
 }
 

@@ -154,10 +154,15 @@ fn associated_types_for_impl_traits_in_trait_or_impl<'tcx>(
         ItemKind::Trait(.., trait_item_refs) => trait_item_refs
             .iter()
             .filter_map(move |item| {
+                let fn_def_id = item.owner_id.def_id;
                 if !matches!(tcx.def_kind(item.owner_id), DefKind::AssocFn) {
                     return None;
                 }
-                let fn_def_id = item.owner_id.def_id;
+
+                if tcx.opt_hir_delayed_owner(fn_def_id).is_some() {
+                    return Some((fn_def_id.to_def_id(), vec![]));
+                }
+
                 let Some(output) = tcx.hir_get_fn_output(fn_def_id) else {
                     return Some((fn_def_id.to_def_id(), vec![]));
                 };

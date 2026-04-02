@@ -13,8 +13,10 @@ trait Trait {
 impl Trait for () {
     reuse std::path::<> as bar;
     //~^ ERROR expected function, found module `std::path`
+    //~| ERROR: type annotations needed
     reuse core::<> as bar2;
     //~^ ERROR expected function, found crate `core`
+    //~| ERROR: type annotations needed
 }
 
 fn main() {}

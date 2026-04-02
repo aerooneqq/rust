@@ -211,7 +211,7 @@ rustc_queries! {
         desc { "getting the crate HIR" }
     }
 
-    query lower_delayed_owner(def_id: LocalDefId) {
+    query lower_delayed_owner(def_id: LocalDefId) -> hir::MaybeOwner<'tcx> {
         eval_always
         desc { "lowering the delayed AST owner `{}`", tcx.def_path_str(def_id) }
     }

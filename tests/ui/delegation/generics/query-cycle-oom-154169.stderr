@@ -1,3 +1,11 @@
+error[E0390]: cannot define inherent `impl` for primitive types
+  --> $DIR/query-cycle-oom-154169.rs:49:5
+   |
+LL |     impl () {
+   |     ^^^^^^^
+   |
+   = help: consider using an extension trait instead
+
 error[E0107]: missing generics for struct `test_1::S`
   --> $DIR/query-cycle-oom-154169.rs:6:32
    |
@@ -15,19 +23,19 @@ LL |         fn foo(&self, x: T) -> S<T> { x }
    |                                 +++
 
 error[E0220]: associated type `Assoc` not found for `Self`
-  --> $DIR/query-cycle-oom-154169.rs:21:27
+  --> $DIR/query-cycle-oom-154169.rs:22:27
    |
 LL |         fn foo() -> Self::Assoc;
    |                           ^^^^^ associated type `Assoc` not found
 
 error[E0220]: associated type `Assoc` not found for `Self`
-  --> $DIR/query-cycle-oom-154169.rs:42:32
+  --> $DIR/query-cycle-oom-154169.rs:43:32
    |
 LL |         fn foo(&self) -> Self::Assoc<3> {
    |                                ^^^^^ associated type `Assoc` not found
 
 error[E0046]: not all trait items implemented, missing: `foo`
-  --> $DIR/query-cycle-oom-154169.rs:27:5
+  --> $DIR/query-cycle-oom-154169.rs:28:5
    |
 LL |         fn foo() -> Self::Assoc;
    |         ------------------------ `foo` from trait
@@ -35,24 +43,27 @@ LL |         fn foo() -> Self::Assoc;
 LL |     impl Trait for u8 {
    |     ^^^^^^^^^^^^^^^^^ missing `foo` in implementation
 
-error[E0390]: cannot define inherent `impl` for primitive types
-  --> $DIR/query-cycle-oom-154169.rs:48:5
-   |
-LL |     impl () {
-   |     ^^^^^^^
-   |
-   = help: consider using an extension trait instead
-
-error[E0433]: cannot find module or crate `to_reuse` in this scope
-  --> $DIR/query-cycle-oom-154169.rs:14:15
+error[E0277]: the trait bound `F: test_1::Trait<_>` is not satisfied
+  --> $DIR/query-cycle-oom-154169.rs:14:31
    |
 LL |         reuse to_reuse::foo { &self.0 }
-   |               ^^^^^^^^ use of unresolved module or unlinked crate `to_reuse`
+   |                         ---   ^^^^^^^ unsatisfied trait bound
+   |                         |
+   |                         required by a bound introduced by this call
    |
-   = help: you might be missing a crate named `to_reuse`
+help: the trait `test_1::Trait<_>` is not implemented for `F`
+  --> $DIR/query-cycle-oom-154169.rs:9:5
+   |
+LL |     struct F;
+   |     ^^^^^^^^
+help: the trait `test_1::Trait<T>` is implemented for `test_1::S<U>`
+  --> $DIR/query-cycle-oom-154169.rs:13:5
+   |
+LL |     impl<T, U> Trait<T> for S<U> {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error[E0061]: this function takes 0 arguments but 1 argument was supplied
-  --> $DIR/query-cycle-oom-154169.rs:21:12
+  --> $DIR/query-cycle-oom-154169.rs:22:12
    |
 LL |         fn foo() -> Self::Assoc;
    |            ^^^
@@ -61,7 +72,7 @@ LL |         reuse Trait::* { &self.0 }
    |                          ------- unexpected argument
    |
 note: associated function defined here
-  --> $DIR/query-cycle-oom-154169.rs:21:12
+  --> $DIR/query-cycle-oom-154169.rs:22:12
    |
 LL |         fn foo() -> Self::Assoc;
    |            ^^^
@@ -86,7 +97,7 @@ LL +         fn fo&self.0 }
    |
 
 error[E0599]: no method named `foo` found for reference `&()` in the current scope
-  --> $DIR/query-cycle-oom-154169.rs:42:12
+  --> $DIR/query-cycle-oom-154169.rs:43:12
    |
 LL |         fn foo(&self) -> Self::Assoc<3> {
    |            ^^^ method not found in `&()`
@@ -97,7 +108,15 @@ LL |         fn foo(&self) -> Self::Assoc<3> {
            candidate #2: `test_2::Trait`
            candidate #3: `test_3::Trait`
 
-error: aborting due to 8 previous errors
+error[E0433]: cannot find module or crate `to_reuse` in this scope
+  --> $DIR/query-cycle-oom-154169.rs:14:15
+   |
+LL |         reuse to_reuse::foo { &self.0 }
+   |               ^^^^^^^^ use of unresolved module or unlinked crate `to_reuse`
+   |
+   = help: you might be missing a crate named `to_reuse`
 
-Some errors have detailed explanations: E0046, E0061, E0107, E0220, E0390, E0433, E0599.
+error: aborting due to 9 previous errors
+
+Some errors have detailed explanations: E0046, E0061, E0107, E0220, E0277, E0390, E0433, E0599.
 For more information about an error, try `rustc --explain E0046`.

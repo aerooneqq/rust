@@ -44,17 +44,18 @@ use rustc_errors::codes::*;
 use rustc_errors::{Applicability, Diag, ErrorGuaranteed, pluralize, struct_span_code_err};
 use rustc_hir as hir;
 use rustc_hir::def::{DefKind, Res};
+use rustc_hir::def_id::DefId;
 use rustc_hir::{HirId, HirIdMap, Node};
 use rustc_hir_analysis::check::{check_abi, check_custom_abi};
 use rustc_hir_analysis::hir_ty_lowering::HirTyLowerer;
 use rustc_infer::traits::{ObligationCauseCode, ObligationInspector, WellFormedLoc};
 use rustc_middle::middle::codegen_fn_attrs::CodegenFnAttrFlags;
-use rustc_middle::query::Providers;
-use rustc_middle::ty::{self, Ty, TyCtxt};
+use rustc_middle::ty::{self, ParamEnv, Ty, TyCtxt};
+use rustc_middle::util::Providers;
 use rustc_middle::{bug, span_bug};
 use rustc_session::config;
-use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
+use rustc_span::{Ident, Span};
 use tracing::{debug, instrument};
 use typeck_root_ctxt::TypeckRootCtxt;
 
@@ -64,6 +65,7 @@ use crate::diverges::Diverges;
 use crate::expectation::Expectation;
 use crate::fn_ctxt::LoweredTy;
 use crate::gather_locals::GatherLocalsVisitor;
+use crate::method::probe::{IsSuggestion, Mode};
 
 #[macro_export]
 macro_rules! type_error_struct {
@@ -658,13 +660,41 @@ fn fatally_break_rust(tcx: TyCtxt<'_>, span: Span) -> ! {
     diag.emit()
 }
 
+pub(crate) fn resolve_delegation_sig<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    span: Span,
+    parent_id: LocalDefId,
+    parent_ty: Ty<'tcx>,
+    function_ident: Ident,
+) -> Option<DefId> {
+    let param_env = ParamEnv::empty();
+    let root_ctxt = TypeckRootCtxt::new_delegation(tcx, parent_id);
+    let fn_ctxt = FnCtxt::new(&root_ctxt, param_env, parent_id);
+
+    let pick = fn_ctxt.probe_op(
+        span,
+        Mode::Path(true),
+        Some(function_ident),
+        None,
+        IsSuggestion(false),
+        parent_ty,
+        HirId::INVALID,
+        method::probe::ProbeScope::AllTraits,
+        |probe_cx| probe_cx.pick(),
+    );
+
+    pick.ok().map(|p| p.item.def_id)
+}
+
 /// Adds query implementations to the [Providers] vtable, see [`rustc_middle::query`]
 pub fn provide(providers: &mut Providers) {
-    *providers = Providers {
+    providers.queries = rustc_middle::query::Providers {
         method_autoderef_steps: method::probe::method_autoderef_steps,
         typeck_root,
         used_trait_imports,
         check_transmutes: intrinsicck::check_transmutes,
-        ..*providers
+        ..providers.queries
     };
+
+    providers.hooks.resolve_delegation_sig = resolve_delegation_sig;
 }

@@ -71,7 +71,7 @@ impl<'hir> Crate<'hir> {
         }
 
         if self.delayed_ids.contains(&def_id) {
-            tcx.ensure_done().lower_delayed_owner(def_id);
+            return tcx.lower_delayed_owner(def_id);
         }
 
         tcx.delayed_owner(def_id)
@@ -211,6 +211,7 @@ impl<'tcx> TyCtxt<'tcx> {
     pub fn force_delayed_owners_lowering(self) {
         let krate = self.hir_crate(());
         self.ensure_done().hir_crate_items(());
+        self.ensure_done().crate_inherent_impls(());
 
         for &id in &krate.delayed_ids {
             self.ensure_done().lower_delayed_owner(id);
@@ -507,7 +508,13 @@ pub fn provide(providers: &mut Providers) {
     };
     providers.opt_ast_lowering_delayed_lints =
         |tcx, id| tcx.hir_crate(()).owner(tcx, id.def_id).as_owner().map(|o| &o.delayed_lints);
-    providers.def_span = |tcx, def_id| tcx.hir_span(tcx.local_def_id_to_hir_id(def_id));
+    providers.def_span = |tcx, def_id| {
+        if let Some(delayed_owner) = tcx.opt_hir_delayed_owner(def_id) {
+            return delayed_owner.ident.span;
+        }
+
+        tcx.hir_span(tcx.local_def_id_to_hir_id(def_id))
+    };
     providers.def_ident_span = |tcx, def_id| {
         let hir_id = tcx.local_def_id_to_hir_id(def_id);
         tcx.hir_opt_ident_span(hir_id)

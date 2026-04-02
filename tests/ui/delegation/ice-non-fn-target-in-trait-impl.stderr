@@ -5,11 +5,38 @@ LL |     reuse std::path::<> as bar;
    |           ^^^^^^^^^^^^^ not a function
 
 error[E0423]: expected function, found crate `core`
-  --> $DIR/ice-non-fn-target-in-trait-impl.rs:16:11
+  --> $DIR/ice-non-fn-target-in-trait-impl.rs:17:11
    |
 LL |     reuse core::<> as bar2;
    |           ^^^^^^^^ not a function
 
-error: aborting due to 2 previous errors
+error[E0283]: type annotations needed
+  --> $DIR/ice-non-fn-target-in-trait-impl.rs:14:16
+   |
+LL |     reuse std::path::<> as bar;
+   |                ^^^^ cannot infer type
+   |
+   = note: the type must implement `Trait`
+help: the trait `Trait` is implemented for `()`
+  --> $DIR/ice-non-fn-target-in-trait-impl.rs:13:1
+   |
+LL | impl Trait for () {
+   | ^^^^^^^^^^^^^^^^^
 
-For more information about this error, try `rustc --explain E0423`.
+error[E0283]: type annotations needed
+  --> $DIR/ice-non-fn-target-in-trait-impl.rs:17:11
+   |
+LL |     reuse core::<> as bar2;
+   |           ^^^^ cannot infer type
+   |
+   = note: the type must implement `Trait`
+help: the trait `Trait` is implemented for `()`
+  --> $DIR/ice-non-fn-target-in-trait-impl.rs:13:1
+   |
+LL | impl Trait for () {
+   | ^^^^^^^^^^^^^^^^^
+
+error: aborting due to 4 previous errors
+
+Some errors have detailed explanations: E0283, E0423.
+For more information about an error, try `rustc --explain E0283`.

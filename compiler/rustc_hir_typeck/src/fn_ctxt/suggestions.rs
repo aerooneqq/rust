@@ -1801,7 +1801,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             | hir::ExprKind::Path(QPath::TypeRelative(ty, segment))
                 if let Some(self_ty) = self.typeck_results.borrow().node_type_opt(ty.hir_id)
                     && let Ok(pick) = self.probe_for_name(
-                        Mode::Path,
+                        Mode::Path(false),
                         Ident::new(capitalized_name, segment.ident.span),
                         Some(expected_ty),
                         IsSuggestion(true),

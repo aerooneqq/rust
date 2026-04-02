@@ -1409,7 +1409,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                                     self.tcx.at(span).type_of(*def_id).instantiate_identity()
                                         != rcvr_ty
                                 }
-                                (Mode::Path, false, _) => true,
+                                (Mode::Path(_), false, _) => true,
                                 _ => false,
                             }
                         } else {
@@ -2247,7 +2247,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             } else {
                 err.span_help(tcx.def_span(similar_candidate.def_id), msg);
             }
-        } else if let Mode::Path = mode
+        } else if let Mode::Path(_) = mode
             && args.unwrap_or(&[]).is_empty()
         {
             // We have an associated item syntax and we found something that isn't an fn.
@@ -2494,7 +2494,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                 matches!(item.kind, ty::AssocKind::Fn { has_self: false, .. })
                     && self
                         .probe_for_name(
-                            Mode::Path,
+                            Mode::Path(false),
                             item.ident(self.tcx),
                             None,
                             IsSuggestion(true),
@@ -3609,7 +3609,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         };
         for (deref_ty, _) in self.autoderef(DUMMY_SP, rcvr_ty).silence_errors().skip(1) {
             if let Ok(pick) = self.probe_for_name(
-                Mode::Path,
+                Mode::Path(false),
                 item_name,
                 expected.only_has_type(self),
                 IsSuggestion(true),

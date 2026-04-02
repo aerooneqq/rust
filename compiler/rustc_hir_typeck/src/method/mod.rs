@@ -15,7 +15,7 @@ use rustc_infer::infer::{BoundRegionConversionTime, InferOk};
 use rustc_infer::traits::PredicateObligations;
 use rustc_middle::traits::ObligationCause;
 use rustc_middle::ty::{
-    self, GenericArgs, GenericArgsRef, GenericParamDefKind, Ty, TypeVisitableExt,
+    self, AssocItems, GenericArgs, GenericArgsRef, GenericParamDefKind, Ty, TypeVisitableExt,
 };
 use rustc_middle::{bug, span_bug};
 use rustc_span::{ErrorGuaranteed, Ident, Span, Symbol};
@@ -526,7 +526,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         }
 
         let pick = self.probe_for_name(
-            probe::Mode::Path,
+            probe::Mode::Path(false),
             method_name,
             None,
             IsSuggestion(false),
@@ -568,9 +568,15 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
     /// Finds item with name `item_ident` defined in impl/trait `def_id`
     /// and return it, or `None`, if no such item was defined there.
     fn associated_value(&self, def_id: DefId, item_ident: Ident) -> Option<ty::AssocItem> {
-        self.tcx
-            .associated_items(def_id)
-            .find_by_ident_and_namespace(self.tcx, item_ident, Namespace::ValueNS, def_id)
-            .copied()
+        self.associated_value_from_items(self.tcx.associated_items(def_id), item_ident, def_id)
+    }
+
+    fn associated_value_from_items(
+        &self,
+        items: &AssocItems,
+        item_ident: Ident,
+        def_id: DefId,
+    ) -> Option<ty::AssocItem> {
+        items.find_by_ident_and_namespace(self.tcx, item_ident, Namespace::ValueNS, def_id).copied()
     }
 }

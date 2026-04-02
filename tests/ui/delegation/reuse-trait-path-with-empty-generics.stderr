@@ -4,6 +4,20 @@ error[E0423]: expected function, found trait `Trait`
 LL |     reuse Trait::<> as bar4;
    |           ^^^^^^^^^ not a function
 
-error: aborting due to 1 previous error
+error[E0283]: type annotations needed
+  --> $DIR/reuse-trait-path-with-empty-generics.rs:10:11
+   |
+LL |     reuse Trait::<> as bar4;
+   |           ^^^^^ cannot infer type
+   |
+   = note: the type must implement `Trait`
+help: the trait `Trait` is implemented for `()`
+  --> $DIR/reuse-trait-path-with-empty-generics.rs:9:1
+   |
+LL | impl Trait for () {
+   | ^^^^^^^^^^^^^^^^^
 
-For more information about this error, try `rustc --explain E0423`.
+error: aborting due to 2 previous errors
+
+Some errors have detailed explanations: E0283, E0423.
+For more information about an error, try `rustc --explain E0283`.

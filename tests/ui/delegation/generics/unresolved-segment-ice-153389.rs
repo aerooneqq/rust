@@ -8,6 +8,7 @@ trait Trait{
 impl Trait for () {
     reuse missing::<> as bar;
     //~^ ERROR: cannot find function `missing` in this scope
+    //~| ERROR: type annotations needed
 }
 
 fn main() {}

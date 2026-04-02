@@ -13,6 +13,7 @@ mod test_1 {
     impl<T, U> Trait<T> for S<U> {
         reuse to_reuse::foo { &self.0 }
         //~^ ERROR: cannot find module or crate `to_reuse` in this scope
+        //~| ERROR: the trait bound `F: test_1::Trait<_>` is not satisfied
     }
 }
 

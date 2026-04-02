@@ -214,7 +214,8 @@ fn get_delegation_parent_args_count_without_self<'tcx>(
         | (FnKind::AssocTraitImpl, FnKind::AssocTrait) => 0,
 
         (FnKind::AssocInherentImpl, FnKind::Free)
-        | (FnKind::AssocInherentImpl, FnKind::AssocTrait) => {
+        | (FnKind::AssocInherentImpl, FnKind::AssocTrait)
+        | (_, FnKind::AssocInherentImpl) => {
             delegation_parent_args_count /* No Self in AssocInherentImpl */
         }
 
@@ -224,9 +225,7 @@ fn get_delegation_parent_args_count_without_self<'tcx>(
 
         // For trait impl's `sig_id` is always equal to the corresponding trait method.
         // For inherent methods delegation is not yet supported.
-        (FnKind::AssocTraitImpl, _)
-        | (_, FnKind::AssocTraitImpl)
-        | (_, FnKind::AssocInherentImpl) => unreachable!(),
+        (FnKind::AssocTraitImpl, _) | (_, FnKind::AssocTraitImpl) => unreachable!(),
     }
 }
 
@@ -244,18 +243,22 @@ fn get_parent_and_inheritance_kind<'tcx>(
             (Some(tcx.parent(def_id.to_def_id())), InheritanceKind::Own)
         }
 
+        (FnKind::Free, FnKind::AssocInherentImpl)
+        | (FnKind::AssocTrait, FnKind::AssocInherentImpl) => {
+            (None, InheritanceKind::WithParent(false))
+        }
+
         (FnKind::AssocInherentImpl, FnKind::AssocTrait)
         | (FnKind::AssocTrait, FnKind::AssocTrait)
         | (FnKind::AssocInherentImpl, FnKind::Free)
-        | (FnKind::AssocTrait, FnKind::Free) => {
+        | (FnKind::AssocTrait, FnKind::Free)
+        | (_, FnKind::AssocInherentImpl) => {
             (Some(tcx.parent(def_id.to_def_id())), InheritanceKind::WithParent(false))
         }
 
         // For trait impl's `sig_id` is always equal to the corresponding trait method.
         // For inherent methods delegation is not yet supported.
-        (FnKind::AssocTraitImpl, _)
-        | (_, FnKind::AssocTraitImpl)
-        | (_, FnKind::AssocInherentImpl) => unreachable!(),
+        (FnKind::AssocTraitImpl, _) | (_, FnKind::AssocTraitImpl) => unreachable!(),
     }
 }
 
@@ -268,7 +271,8 @@ fn get_delegation_self_ty<'tcx>(tcx: TyCtxt<'tcx>, delegation_id: LocalDefId) ->
         | (FnKind::AssocInherentImpl, FnKind::Free)
         | (FnKind::Free, FnKind::Free)
         | (FnKind::AssocTrait, FnKind::Free)
-        | (FnKind::AssocTrait, FnKind::AssocTrait) => {
+        | (FnKind::AssocTrait, FnKind::AssocTrait)
+        | (FnKind::AssocTrait, FnKind::AssocInherentImpl) => {
             match create_self_position_kind(caller_kind, callee_kind) {
                 SelfPositionKind::None => None,
                 SelfPositionKind::AfterLifetimes => {
@@ -281,7 +285,8 @@ fn get_delegation_self_ty<'tcx>(tcx: TyCtxt<'tcx>, delegation_id: LocalDefId) ->
         }
 
         (FnKind::AssocTraitImpl, FnKind::AssocTrait)
-        | (FnKind::AssocInherentImpl, FnKind::AssocTrait) => {
+        | (FnKind::AssocInherentImpl, _)
+        | (FnKind::AssocTraitImpl, FnKind::AssocInherentImpl) => {
             Some(tcx.type_of(tcx.local_parent(delegation_id)).instantiate_identity())
         }
 
@@ -328,7 +333,9 @@ fn create_generic_args<'tcx>(
         | (FnKind::Free, FnKind::AssocTrait)
         | (FnKind::AssocInherentImpl, FnKind::Free)
         | (FnKind::AssocTrait, FnKind::Free)
-        | (FnKind::AssocTrait, FnKind::AssocTrait) => delegation_args,
+        | (FnKind::AssocTrait, FnKind::AssocTrait)
+        | (FnKind::Free, FnKind::AssocInherentImpl)
+        | (FnKind::AssocTrait, FnKind::AssocInherentImpl) => delegation_args,
 
         (FnKind::AssocTraitImpl, FnKind::AssocTrait) => {
             // Special case, as user specifies Trait args in trait impl header, we want to treat
@@ -342,7 +349,9 @@ fn create_generic_args<'tcx>(
             tcx.mk_args(&delegation_args[delegation_parent_args_count..])
         }
 
-        (FnKind::AssocInherentImpl, FnKind::AssocTrait) => {
+        (FnKind::AssocInherentImpl, FnKind::AssocTrait)
+        | (FnKind::AssocInherentImpl, FnKind::AssocInherentImpl)
+        | (FnKind::AssocTraitImpl, FnKind::AssocInherentImpl) => {
             let self_ty = tcx.type_of(tcx.local_parent(delegation_id)).instantiate_identity();
 
             tcx.mk_args_from_iter(
@@ -352,9 +361,7 @@ fn create_generic_args<'tcx>(
 
         // For trait impl's `sig_id` is always equal to the corresponding trait method.
         // For inherent methods delegation is not yet supported.
-        (FnKind::AssocTraitImpl, _)
-        | (_, FnKind::AssocTraitImpl)
-        | (_, FnKind::AssocInherentImpl) => unreachable!(),
+        (FnKind::AssocTraitImpl, _) | (_, FnKind::AssocTraitImpl) => unreachable!(),
     };
 
     let mut new_args = vec![];

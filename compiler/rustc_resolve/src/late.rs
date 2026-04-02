@@ -479,11 +479,11 @@ impl PathSource<'_, '_, '_> {
             | PathSource::Pat
             | PathSource::Struct(_)
             | PathSource::TupleStruct(..)
-            | PathSource::ReturnTypeNotation => true,
+            | PathSource::ReturnTypeNotation
+            | PathSource::Delegation => true,
             PathSource::Trait(_)
             | PathSource::TraitItem(..)
             | PathSource::DefineOpaques
-            | PathSource::Delegation
             | PathSource::PreciseCapturingArg(..)
             | PathSource::Macro
             | PathSource::Module => false,

@@ -78,13 +78,14 @@ impl<'tcx> Deref for TypeckRootCtxt<'tcx> {
 
 impl<'tcx> TypeckRootCtxt<'tcx> {
     pub(crate) fn new(tcx: TyCtxt<'tcx>, def_id: LocalDefId) -> Self {
+        Self::new_internal(tcx, def_id, TypingMode::typeck_for_body(tcx, def_id))
+    }
+
+    fn new_internal(tcx: TyCtxt<'tcx>, def_id: LocalDefId, mode: TypingMode<'tcx>) -> Self {
         let hir_owner = tcx.local_def_id_to_hir_id(def_id).owner;
 
-        let infcx = tcx
-            .infer_ctxt()
-            .ignoring_regions()
-            .in_hir_typeck()
-            .build(TypingMode::typeck_for_body(tcx, def_id));
+        let infcx = tcx.infer_ctxt().ignoring_regions().in_hir_typeck().build(mode);
+
         let typeck_results = RefCell::new(ty::TypeckResults::new(hir_owner));
         let fulfillment_cx = RefCell::new(<dyn TraitEngine<'_, _>>::new(&infcx));
 
@@ -102,6 +103,10 @@ impl<'tcx> TypeckRootCtxt<'tcx> {
             deferred_repeat_expr_checks: RefCell::new(Vec::new()),
             diverging_type_vars: RefCell::new(Default::default()),
         }
+    }
+
+    pub(crate) fn new_delegation(tcx: TyCtxt<'tcx>, def_id: LocalDefId) -> Self {
+        Self::new_internal(tcx, def_id, TypingMode::non_body_analysis())
     }
 
     #[instrument(level = "debug", skip(self))]

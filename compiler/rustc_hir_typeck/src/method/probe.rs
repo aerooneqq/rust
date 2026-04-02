@@ -256,7 +256,7 @@ pub(crate) enum Mode {
     // An expression of the form `Type::item` or `<T>::item`.
     // No autoderefs are performed, lookup is done based on the type each
     // implementation is for, and static methods are included.
-    Path,
+    Path(bool),
 }
 
 #[derive(PartialEq, Eq, Copy, Clone, Debug)]
@@ -408,7 +408,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
         let steps = match mode {
             Mode::MethodCall => self.tcx.method_autoderef_steps(query_input),
-            Mode::Path => self.probe(|_| {
+            Mode::Path(_) => self.probe(|_| {
                 // Mode::Path - the deref steps is "trivial". This turns
                 // our CanonicalQuery into a "trivial" QueryResponse. This
                 // is a bit inefficient, but I don't think that writing
@@ -800,7 +800,7 @@ impl<'a, 'tcx> ProbeContext<'a, 'tcx> {
     fn variance(&self) -> ty::Variance {
         match self.mode {
             Mode::MethodCall => ty::Covariant,
-            Mode::Path => ty::Invariant,
+            Mode::Path(_) => ty::Invariant,
         }
     }
 
@@ -1182,7 +1182,7 @@ impl<'a, 'tcx> ProbeContext<'a, 'tcx> {
     // THE ACTUAL SEARCH
 
     #[instrument(level = "debug", skip(self))]
-    fn pick(mut self) -> PickResult<'tcx> {
+    pub(crate) fn pick(mut self) -> PickResult<'tcx> {
         assert!(self.method_name.is_some());
 
         let mut unsatisfied_predicates = Vec::new();
@@ -1290,16 +1290,20 @@ impl<'a, 'tcx> ProbeContext<'a, 'tcx> {
                 !step.self_ty.value.references_error() && !step.from_unsafe_deref
             })
             .find_map(|step| {
-                let InferOk { value: self_ty, obligations: instantiate_self_ty_obligations } = self
-                    .fcx
-                    .probe_instantiate_query_response(
-                        self.span,
-                        self.orig_steps_var_values,
-                        &step.self_ty,
-                    )
-                    .unwrap_or_else(|_| {
-                        span_bug!(self.span, "{:?} was applicable but now isn't?", step.self_ty)
-                    });
+                let InferOk { value: self_ty, obligations: mut instantiate_self_ty_obligations } =
+                    self.fcx
+                        .probe_instantiate_query_response(
+                            self.span,
+                            self.orig_steps_var_values,
+                            &step.self_ty,
+                        )
+                        .unwrap_or_else(|_| {
+                            span_bug!(self.span, "{:?} was applicable but now isn't?", step.self_ty)
+                        });
+
+                if matches!(self.mode, Mode::Path(true)) {
+                    instantiate_self_ty_obligations.clear();
+                }
 
                 let by_value_pick = self.pick_by_value_method(
                     step,
@@ -2509,7 +2513,7 @@ impl<'a, 'tcx> ProbeContext<'a, 'tcx> {
         // associated value (i.e., methods, constants) but not types.
         match self.mode {
             Mode::MethodCall => item.is_method(),
-            Mode::Path => match item.kind {
+            Mode::Path(_) => match item.kind {
                 ty::AssocKind::Type { .. } => false,
                 ty::AssocKind::Fn { .. } | ty::AssocKind::Const { .. } => true,
             },
@@ -2585,7 +2589,7 @@ impl<'a, 'tcx> ProbeContext<'a, 'tcx> {
     fn is_relevant_kind_for_mode(&self, kind: ty::AssocKind) -> bool {
         match (self.mode, kind) {
             (Mode::MethodCall, ty::AssocKind::Fn { .. }) => true,
-            (Mode::Path, ty::AssocKind::Const { .. } | ty::AssocKind::Fn { .. }) => true,
+            (Mode::Path(_), ty::AssocKind::Const { .. } | ty::AssocKind::Fn { .. }) => true,
             _ => false,
         }
     }
@@ -2653,8 +2657,7 @@ impl<'a, 'tcx> ProbeContext<'a, 'tcx> {
                     .copied()
                     .collect()
             } else {
-                self.fcx
-                    .associated_value(def_id, name)
+                self.delegation_aware_assoc_value(def_id, name)
                     .filter(|x| self.is_relevant_kind_for_mode(x.kind))
                     .map_or_else(SmallVec::new, |x| SmallVec::from_buf([x]))
             }
@@ -2665,6 +2668,24 @@ impl<'a, 'tcx> ProbeContext<'a, 'tcx> {
                 .filter(|x| self.is_relevant_kind_for_mode(x.kind))
                 .copied()
                 .collect()
+        }
+    }
+
+    fn delegation_aware_assoc_value(&self, def_id: DefId, name: Ident) -> Option<ty::AssocItem> {
+        if self.mode == Mode::Path(true) {
+            self.associated_value_from_items(
+                &ty::AssocItems::new(
+                    self.tcx
+                        .associated_item_def_ids(def_id)
+                        .iter()
+                        .filter(|id| !self.tcx.lowered_delegations.lock().contains(*id))
+                        .map(|id| self.tcx.associated_item(*id)),
+                ),
+                name,
+                def_id,
+            )
+        } else {
+            self.fcx.associated_value(def_id, name)
         }
     }
 }

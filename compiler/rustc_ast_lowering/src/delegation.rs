@@ -122,10 +122,10 @@ impl<'hir, R: ResolverAstLoweringExt<'hir>> LoweringContext<'_, 'hir, R> {
         let span = self.lower_span(delegation.path.segments.last().unwrap().ident.span);
 
         // Delegation can be unresolved in illegal places such as function bodies in extern blocks (see #151356)
-        let sig_id = if let Some(delegation_info) =
-            self.resolver.delegation_info(self.local_def_id(item_id))
+        let sig_id = if !self.is_cycle_recovery
+            && let Some(delegation_info) = self.resolver.delegation_info(self.local_def_id(item_id))
         {
-            self.get_sig_id(delegation_info.resolution_node, span)
+            self.get_sig_id(delegation_info.resolution_node, span, delegation)
         } else {
             self.dcx().span_delayed_bug(
                 span,
@@ -147,6 +147,7 @@ impl<'hir, R: ResolverAstLoweringExt<'hir>> LoweringContext<'_, 'hir, R> {
 
                 let body_id = self.lower_delegation_body(
                     delegation,
+                    sig_id,
                     is_method,
                     param_count,
                     &mut generics,
@@ -224,14 +225,34 @@ impl<'hir, R: ResolverAstLoweringExt<'hir>> LoweringContext<'_, 'hir, R> {
             .collect::<Vec<_>>()
     }
 
-    fn get_sig_id(&self, mut node_id: NodeId, span: Span) -> Result<DefId, ErrorGuaranteed> {
+    fn get_sig_id(
+        &self,
+        mut node_id: NodeId,
+        span: Span,
+        delegation: &Delegation,
+    ) -> Result<DefId, ErrorGuaranteed> {
         let mut visited: FxHashSet<NodeId> = Default::default();
         let mut path: SmallVec<[DefId; 1]> = Default::default();
 
         loop {
             visited.insert(node_id);
 
-            let Some(def_id) = self.get_resolution_id(node_id) else {
+            let Some(def_id) = self.get_resolution_id(node_id).or_else(|| {
+                if let [.., parent, child] = delegation.path.segments.as_slice()
+                    && let Some(parent_id) = self.get_resolution_id(parent.id)
+                    && matches!(self.tcx.def_kind(parent_id), DefKind::Enum | DefKind::Struct)
+                {
+                    let parent = parent_id.expect_local();
+                    let ty = self.tcx.type_of(parent).instantiate_identity();
+                    self.tcx.resolve_delegation_sig(span, parent, ty, child.ident).filter(
+                        |&sig_id| {
+                            matches!(self.tcx.def_kind(sig_id), DefKind::Fn | DefKind::AssocFn)
+                        },
+                    )
+                } else {
+                    None
+                }
+            }) else {
                 return Err(self.tcx.dcx().span_delayed_bug(
                     span,
                     format!(
@@ -265,7 +286,9 @@ impl<'hir, R: ResolverAstLoweringExt<'hir>> LoweringContext<'_, 'hir, R> {
     }
 
     fn get_resolution_id(&self, node_id: NodeId) -> Option<DefId> {
-        self.resolver.get_partial_res(node_id).and_then(|r| r.expect_full_res().opt_def_id())
+        self.resolver
+            .get_partial_res(node_id)
+            .and_then(|r| r.full_res().and_then(|r| r.opt_def_id()))
     }
 
     // Function parameter count, including C variadic `...` if present.
@@ -395,6 +418,7 @@ impl<'hir, R: ResolverAstLoweringExt<'hir>> LoweringContext<'_, 'hir, R> {
     fn lower_delegation_body(
         &mut self,
         delegation: &Delegation,
+        sig_id: DefId,
         is_method: bool,
         param_count: usize,
         generics: &mut GenericsGenerationResults<'hir>,
@@ -440,7 +464,7 @@ impl<'hir, R: ResolverAstLoweringExt<'hir>> LoweringContext<'_, 'hir, R> {
                 args.push(this.lower_target_expr(&block));
             }
 
-            let final_expr = this.finalize_body_lowering(delegation, args, generics, span);
+            let final_expr = this.finalize_body_lowering(delegation, args, generics, span, sig_id);
 
             (this.arena.alloc_from_iter(parameters), final_expr)
         })
@@ -480,6 +504,7 @@ impl<'hir, R: ResolverAstLoweringExt<'hir>> LoweringContext<'_, 'hir, R> {
         args: Vec<hir::Expr<'hir>>,
         generics: &mut GenericsGenerationResults<'hir>,
         span: Span,
+        sig_id: DefId,
     ) -> hir::Expr<'hir> {
         let args = self.arena.alloc_from_iter(args);
 
@@ -545,6 +570,10 @@ impl<'hir, R: ResolverAstLoweringExt<'hir>> LoweringContext<'_, 'hir, R> {
                             }
                         }),
                     );
+
+                    if matches!(new_path.res, Res::Err) {
+                        new_path.res = Res::Def(self.tcx.def_kind(sig_id), sig_id);
+                    }
 
                     hir::QPath::Resolved(ty, self.arena.alloc(new_path))
                 }
