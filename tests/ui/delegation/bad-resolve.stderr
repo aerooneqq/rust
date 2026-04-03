@@ -67,6 +67,66 @@ error[E0425]: cannot find function `foo` in this scope
 LL |     reuse foo { &self.0 }
    |           ^^^ not found in this scope
 
+error: failed to resolve delegation
+  --> $DIR/bad-resolve.rs:24:25
+   |
+LL |     reuse <F as Trait>::C;
+   |                         ^
+
+error: failed to resolve delegation
+  --> $DIR/bad-resolve.rs:27:25
+   |
+LL |     reuse <F as Trait>::Type;
+   |                         ^^^^
+
+error: failed to resolve delegation
+  --> $DIR/bad-resolve.rs:30:25
+   |
+LL |     reuse <F as Trait>::baz;
+   |                         ^^^
+
+error: failed to resolve delegation
+  --> $DIR/bad-resolve.rs:37:18
+   |
+LL |     reuse Trait::foo2 { self.0 }
+   |                  ^^^^
+
+error: failed to resolve delegation
+  --> $DIR/bad-resolve.rs:42:27
+   |
+LL | reuse unresolved_prefix::{a, b, c};
+   |                           ^
+
+error: failed to resolve delegation
+  --> $DIR/bad-resolve.rs:42:30
+   |
+LL | reuse unresolved_prefix::{a, b, c};
+   |                              ^
+
+error: failed to resolve delegation
+  --> $DIR/bad-resolve.rs:42:33
+   |
+LL | reuse unresolved_prefix::{a, b, c};
+   |                                 ^
+
+error: failed to resolve delegation
+  --> $DIR/bad-resolve.rs:46:16
+   |
+LL | reuse prefix::{self, super, crate};
+   |                ^^^^
+
+error: failed to resolve delegation
+  --> $DIR/bad-resolve.rs:46:22
+   |
+LL | reuse prefix::{self, super, crate};
+   |                      ^^^^^
+
+error: failed to resolve delegation
+  --> $DIR/bad-resolve.rs:46:29
+   |
+LL | reuse prefix::{self, super, crate};
+   |                             ^^^^^
+
 error[E0046]: not all trait items implemented, missing: `Type`
   --> $DIR/bad-resolve.rs:22:1
    |
@@ -85,12 +145,12 @@ LL | reuse unresolved_prefix::{a, b, c};
    = help: you might be missing a crate named `unresolved_prefix`
 
 error[E0433]: `crate` in paths can only be used in start position
-  --> $DIR/bad-resolve.rs:43:29
+  --> $DIR/bad-resolve.rs:46:29
    |
 LL | reuse prefix::{self, super, crate};
    |                             ^^^^^ can only be used in path start position
 
-error: aborting due to 11 previous errors
+error: aborting due to 21 previous errors
 
 Some errors have detailed explanations: E0046, E0324, E0407, E0423, E0425, E0433, E0575, E0576.
 For more information about an error, try `rustc --explain E0046`.

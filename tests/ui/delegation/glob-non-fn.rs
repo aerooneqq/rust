@@ -3,10 +3,10 @@
 
 trait Trait {
     fn method(&self);
-    const CONST: u8;
-    type Type;
+    const CONST: u8; //~ ERROR: failed to resolve delegation
+    type Type; //~ ERROR: failed to resolve delegation
     #[allow(non_camel_case_types)]
-    type method;
+    type method; //~ ERROR: failed to resolve delegation
 }
 
 impl Trait for u8 {

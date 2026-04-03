@@ -345,6 +345,14 @@ LL |     let _in_return_in_local_variable = || -> impl Fn() { || {} };
    |
    = note: `impl Trait` is only allowed in arguments and return types of functions and methods
 
+error[E0118]: no nominal type found for inherent implementation
+  --> $DIR/where-allowed.rs:241:1
+   |
+LL | impl<T = impl Debug> T {}
+   | ^^^^^^^^^^^^^^^^^^^^^^ impl requires a nominal type
+   |
+   = note: either implement a trait on it or create a newtype to wrap it instead
+
 error[E0053]: method `in_trait_impl_return` has an incompatible type for trait
   --> $DIR/where-allowed.rs:129:34
    |
@@ -406,29 +414,21 @@ LL | type InTypeAlias<R> = impl Debug;
    |
    = note: `InTypeAlias` must be used in combination with a concrete type within the same crate
 
-error[E0118]: no nominal type found for inherent implementation
-  --> $DIR/where-allowed.rs:241:1
-   |
-LL | impl<T = impl Debug> T {}
-   | ^^^^^^^^^^^^^^^^^^^^^^ impl requires a nominal type
-   |
-   = note: either implement a trait on it or create a newtype to wrap it instead
-
 error: aborting due to 48 previous errors
 
 Some errors have detailed explanations: E0053, E0118, E0283, E0562, E0658, E0666.
 For more information about an error, try `rustc --explain E0053`.
 Future incompatibility report: Future breakage diagnostic:
 warning: defaults for generic parameters are not allowed here
-  --> $DIR/where-allowed.rs:247:36
-   |
-LL | fn in_method_generic_param_default<T = impl Debug>(_: T) {}
-   |                                    ^^^^^^^^^^^^^^
-
-Future breakage diagnostic:
-warning: defaults for generic parameters are not allowed here
   --> $DIR/where-allowed.rs:241:6
    |
 LL | impl<T = impl Debug> T {}
    |      ^^^^^^^^^^^^^^
+
+Future breakage diagnostic:
+warning: defaults for generic parameters are not allowed here
+  --> $DIR/where-allowed.rs:247:36
+   |
+LL | fn in_method_generic_param_default<T = impl Debug>(_: T) {}
+   |                                    ^^^^^^^^^^^^^^
 

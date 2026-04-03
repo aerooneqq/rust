@@ -1,9 +1,3 @@
-error[E0601]: `main` function not found in crate `issue_109768`
-  --> $DIR/issue-109768.rs:12:2
-   |
-LL | }
-   |  ^ consider adding a `main` function to `$DIR/issue-109768.rs`
-
 error[E0107]: missing generics for struct `Local`
   --> $DIR/issue-109768.rs:7:9
    |
@@ -19,6 +13,12 @@ help: add missing generic arguments
    |
 LL | impl<T> Local<T, U> {
    |              ++++++
+
+error[E0601]: `main` function not found in crate `issue_109768`
+  --> $DIR/issue-109768.rs:12:2
+   |
+LL | }
+   |  ^ consider adding a `main` function to `$DIR/issue-109768.rs`
 
 error[E0658]: inherent associated types are unstable
   --> $DIR/issue-109768.rs:8:5

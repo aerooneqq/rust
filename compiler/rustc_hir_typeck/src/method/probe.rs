@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 use std::cmp::max;
 use std::debug_assert_matches;
@@ -2648,8 +2649,8 @@ impl<'a, 'tcx> ProbeContext<'a, 'tcx> {
         if let Some(name) = self.method_name {
             if self.allow_similar_names {
                 let max_dist = max(name.as_str().len(), 3) / 3;
-                self.tcx
-                    .associated_items(def_id)
+                self.delegation_aware_assoc_items(def_id)
+                    .as_ref()
                     .in_definition_order()
                     .filter(|x| {
                         if !self.is_relevant_kind_for_mode(x.kind) {
@@ -2681,25 +2682,25 @@ impl<'a, 'tcx> ProbeContext<'a, 'tcx> {
         }
     }
 
-    fn delegation_aware_assoc_value(&self, def_id: DefId, name: Ident) -> Option<ty::AssocItem> {
+    fn delegation_aware_assoc_items(&self, def_id: DefId) -> Cow<'_, ty::AssocItems> {
         if let Some(adjusting) = self.candidates_adjusting {
-            self.associated_value_from_items(
-                &ty::AssocItems::new(
-                    self.tcx
-                        .associated_item_def_ids(def_id)
-                        .iter()
-                        .filter(|id| match adjusting {
-                            CandidateAdjustingKind::Exclude(index_set) => !index_set.contains(*id),
-                            CandidateAdjustingKind::Only(index_set) => index_set.contains(*id),
-                        })
-                        .map(|id| self.tcx.associated_item(*id)),
-                ),
-                name,
-                def_id,
-            )
+            Cow::Owned(ty::AssocItems::new(
+                self.tcx
+                    .associated_item_def_ids(def_id)
+                    .iter()
+                    .filter(|id| match adjusting {
+                        CandidateAdjustingKind::Exclude(index_set) => !index_set.contains(*id),
+                        CandidateAdjustingKind::Only(index_set) => index_set.contains(*id),
+                    })
+                    .map(|id| self.tcx.associated_item(*id)),
+            ))
         } else {
-            self.fcx.associated_value(def_id, name)
+            Cow::Borrowed(self.tcx.associated_items(def_id))
         }
+    }
+
+    fn delegation_aware_assoc_value(&self, def_id: DefId, name: Ident) -> Option<ty::AssocItem> {
+        self.associated_value_from_items(&self.delegation_aware_assoc_items(def_id), name, def_id)
     }
 }
 

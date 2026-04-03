@@ -43,6 +43,12 @@ note: the function `foo` is defined here
 LL |         fn foo() {}
    |         ^^^^^^^^
 
+error: failed to resolve delegation
+  --> $DIR/recursive-delegation-ice-150152.rs:12:25
+   |
+LL |         reuse to_reuse::foo;
+   |                         ^^^
+
 error[E0392]: type parameter `S` is never used
   --> $DIR/recursive-delegation-ice-150152.rs:6:15
    |
@@ -68,7 +74,7 @@ help: add missing generic argument
 LL |     impl Item for S<S<S>> {
    |                      +++
 
-error: aborting due to 6 previous errors
+error: aborting due to 7 previous errors
 
 Some errors have detailed explanations: E0107, E0392, E0405, E0425, E0603.
 For more information about an error, try `rustc --explain E0107`.

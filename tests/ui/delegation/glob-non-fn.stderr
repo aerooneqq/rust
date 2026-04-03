@@ -34,6 +34,24 @@ error[E0423]: expected function, found associated constant `Trait::CONST`
 LL |     reuse Trait::* { &self.0 }
    |           ^^^^^ not a function
 
+error: failed to resolve delegation
+  --> $DIR/glob-non-fn.rs:6:11
+   |
+LL |     const CONST: u8;
+   |           ^^^^^
+
+error: failed to resolve delegation
+  --> $DIR/glob-non-fn.rs:7:10
+   |
+LL |     type Type;
+   |          ^^^^
+
+error: failed to resolve delegation
+  --> $DIR/glob-non-fn.rs:9:10
+   |
+LL |     type method;
+   |          ^^^^^^
+
 error[E0046]: not all trait items implemented, missing: `CONST`, `Type`, `method`
   --> $DIR/glob-non-fn.rs:29:1
    |
@@ -48,7 +66,7 @@ LL |     type method;
 LL | impl Trait for Bad {
    | ^^^^^^^^^^^^^^^^^^ missing `CONST`, `Type`, `method` in implementation
 
-error: aborting due to 5 previous errors
+error: aborting due to 8 previous errors
 
 Some errors have detailed explanations: E0046, E0201, E0324, E0423.
 For more information about an error, try `rustc --explain E0046`.

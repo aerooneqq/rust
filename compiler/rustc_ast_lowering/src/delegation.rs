@@ -237,13 +237,7 @@ impl<'hir, R: ResolverAstLoweringExt<'hir>> LoweringContext<'_, 'hir, R> {
                 .or_else(|| self.tcx.delegation_resolutions.lock().get(&node_id).copied());
 
             let Some(def_id) = def_id else {
-                return Err(self.tcx.dcx().span_delayed_bug(
-                    span,
-                    format!(
-                        "LoweringContext: couldn't resolve node {:?} in delegation item",
-                        node_id
-                    ),
-                ));
+                return Err(self.tcx.dcx().span_err(span, format!("failed to resolve delegation")));
             };
 
             path.push(def_id);

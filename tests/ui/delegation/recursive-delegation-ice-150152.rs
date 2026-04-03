@@ -9,7 +9,7 @@ mod first_example {
     impl Item for S<S> {
         //~^ ERROR cannot find trait `Item` in this scope
         //~| ERROR missing generics for struct `S`
-        reuse to_reuse::foo;
+        reuse to_reuse::foo; //~ ERROR: failed to resolve delegation
     }
 }
 

@@ -25,7 +25,7 @@ mod fn_to_other {
     reuse Trait::foo1;
     reuse <S as Trait>::foo2;
     reuse to_reuse::foo3;
-    reuse S::foo4;
+    reuse S::foo4; //~ ERROR: failed to resolve delegation
 }
 
 mod inherent_impl_assoc_fn_to_other {
@@ -35,7 +35,8 @@ mod inherent_impl_assoc_fn_to_other {
         reuse Trait::foo1 { self.0 }
         reuse <S as Trait>::foo2;
         reuse to_reuse::foo3;
-        reuse F::foo4 { &self.0 }
+        reuse F::foo4 { &self.0 } //~ ERROR: invalid `self` parameter type: `&F
+        //~^ ERROR: no field `0` on type `&F`
     }
 }
 
@@ -45,7 +46,7 @@ mod trait_impl_assoc_fn_to_other {
     impl Trait for S {
         reuse Trait::foo1 { self.0 }
         reuse <F as Trait>::foo2;
-        reuse to_reuse::foo3;
+        reuse to_reuse::foo3; //~ ERROR: failed to resolve delegation
         //~^ ERROR method `foo3` is not a member of trait `Trait`
         reuse F::foo4 { &self.0 }
         //~^ ERROR method `foo4` is not a member of trait `Trait`
@@ -61,7 +62,7 @@ mod trait_assoc_fn_to_other {
         //~^ ERROR mismatched types
         reuse <F as Trait>::foo2;
         reuse to_reuse::foo3;
-        reuse F::foo4 { &F }
+        reuse F::foo4 { &F } //~ ERROR: invalid `self` parameter type: `&F
     }
 }
 

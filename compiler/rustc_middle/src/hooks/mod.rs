@@ -122,7 +122,6 @@ declare_hooks! {
     hook encode_query_values(encoder: &mut CacheEncoder<'_, 'tcx>) -> ();
 
     hook resolve_delegation_sig(span: Span, parent_id: LocalDefId, parent_type: Ty<'tcx>, ident: Ident, candidates: CandidateAdjustingKind<'_>) -> Option<DefId>;
-    hook resolve_all_delegations() -> ();
 }
 
 #[cold]

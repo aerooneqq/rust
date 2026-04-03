@@ -10,6 +10,9 @@ error[E0575]: expected method or associated constant, found associated type `Ite
 LL |     reuse< std::fmt::Debug as Iterator >::*;
    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not a method or associated constant
 
+error: failed to resolve delegation
+  --> $SRC_DIR/core/src/iter/traits/iterator.rs:LL:COL
+
 error[E0782]: expected a type, found a trait
   --> $DIR/synth-params-ice-143498.rs:22:12
    |
@@ -21,7 +24,7 @@ help: you can add the `dyn` keyword if you want a trait object
 LL |     reuse< dyn std::fmt::Debug as Iterator >::*;
    |            +++
 
-error: aborting due to 3 previous errors
+error: aborting due to 4 previous errors
 
 Some errors have detailed explanations: E0425, E0575, E0782.
 For more information about an error, try `rustc --explain E0425`.

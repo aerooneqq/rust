@@ -16,7 +16,7 @@ mod to_reuse {
 
 impl Trait for S {
     reuse to_reuse::foo { self }
-    reuse Trait::foo;
+    reuse Trait::foo; //~ ERROR: failed to resolve delegation
     //~^ ERROR  duplicate definitions with name `foo`
     //~| ERROR: this function takes 1 argument but 0 arguments were supplied
     //~| ERROR: mismatched types

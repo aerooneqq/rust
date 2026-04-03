@@ -47,6 +47,7 @@ use rustc_data_structures::fx::FxIndexSet;
 use rustc_data_structures::sorted_map::SortedMap;
 use rustc_data_structures::stable_hasher::{HashStable, StableHasher};
 use rustc_data_structures::steal::Steal;
+use rustc_data_structures::sync::spawn;
 use rustc_data_structures::tagged_ptr::TaggedRef;
 use rustc_errors::{DiagArgFromDisplay, DiagCtxtHandle};
 use rustc_hir::def::{DefKind, LifetimeRes, Namespace, PartialRes, PerNS, Res};
@@ -676,6 +677,24 @@ pub fn lower_to_hir(tcx: TyCtxt<'_>, (): ()) -> mid_hir::Crate<'_> {
 
     let delayed_resolver = Steal::new((resolver, krate));
     mid_hir::Crate::new(owners, delayed_ids, delayed_resolver, opt_hir_hash)
+}
+
+pub fn force_delayed_owners_lowering(tcx: TyCtxt<'_>, _: ()) {
+    resolve_all_delegations(tcx);
+
+    let krate = tcx.hir_crate(());
+    for &id in &krate.delayed_ids {
+        tcx.ensure_done().lower_delayed_owner(id);
+    }
+
+    let (_, krate) = krate.delayed_resolver.steal();
+    let prof = tcx.sess.prof.clone();
+
+    // Drop AST to free memory. It can be expensive so try to drop it on a separate thread.
+    spawn(move || {
+        let _timer = prof.verbose_generic_activity("drop_ast");
+        drop(krate);
+    });
 }
 
 pub fn resolve_all_delegations(tcx: TyCtxt<'_>) {

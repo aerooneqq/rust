@@ -1,4 +1,28 @@
 error: `Self` is not valid in the self type of an impl block
+  --> $DIR/resolve-self-in-impl.rs:16:6
+   |
+LL | impl Self {}
+   |      ^^^^
+   |
+   = note: replace `Self` with a different type
+
+error: `Self` is not valid in the self type of an impl block
+  --> $DIR/resolve-self-in-impl.rs:17:8
+   |
+LL | impl S<Self> {}
+   |        ^^^^
+   |
+   = note: replace `Self` with a different type
+
+error: `Self` is not valid in the self type of an impl block
+  --> $DIR/resolve-self-in-impl.rs:18:7
+   |
+LL | impl (Self, Self) {}
+   |       ^^^^  ^^^^
+   |
+   = note: replace `Self` with a different type
+
+error: `Self` is not valid in the self type of an impl block
   --> $DIR/resolve-self-in-impl.rs:14:13
    |
 LL | impl Tr for Self {}
@@ -27,30 +51,6 @@ note: cycle used when building specialization graph of trait `Tr`
 LL | trait Tr<T = u8> {
    | ^^^^^^^^^^^^^^^^
    = note: see https://rustc-dev-guide.rust-lang.org/overview.html#queries and https://rustc-dev-guide.rust-lang.org/query.html for more information
-
-error: `Self` is not valid in the self type of an impl block
-  --> $DIR/resolve-self-in-impl.rs:16:6
-   |
-LL | impl Self {}
-   |      ^^^^
-   |
-   = note: replace `Self` with a different type
-
-error: `Self` is not valid in the self type of an impl block
-  --> $DIR/resolve-self-in-impl.rs:17:8
-   |
-LL | impl S<Self> {}
-   |        ^^^^
-   |
-   = note: replace `Self` with a different type
-
-error: `Self` is not valid in the self type of an impl block
-  --> $DIR/resolve-self-in-impl.rs:18:7
-   |
-LL | impl (Self, Self) {}
-   |       ^^^^  ^^^^
-   |
-   = note: replace `Self` with a different type
 
 error: aborting due to 6 previous errors
 

@@ -2,12 +2,12 @@
 #![allow(incomplete_features)]
 
 trait Trait1 {
-    fn method(&self) -> u8;
+    fn method(&self) -> u8; //~ ERROR: failed to resolve delegation
     //~^ ERROR: this function takes 1 argument but 0 arguments were supplied
     //~| ERROR: mismatched types
 }
 trait Trait2 {
-    fn method(&self) -> u8;
+    fn method(&self) -> u8; //~ ERROR: failed to resolve delegation
     //~^ ERROR: this function takes 1 argument but 0 arguments were supplied
     //~| ERROR: mismatched types
 }

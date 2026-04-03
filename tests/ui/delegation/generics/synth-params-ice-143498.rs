@@ -25,3 +25,4 @@ impl X {
 }
 
 pub fn main() {}
+//~? ERROR: failed to resolve delegation

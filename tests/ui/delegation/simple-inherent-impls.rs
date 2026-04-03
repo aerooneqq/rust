@@ -68,6 +68,7 @@ mod test_3 {
     }
 
     reuse X::foo;
+    //~^ ERROR: failed to resolve delegation
 }
 
 // No query cycles when there are generics errors, methods are resolved, no errors
@@ -100,6 +101,53 @@ mod test_4 {
         assert_eq!(foo(), 123);
         assert_eq!(bar(Animal::Cat), Animal::Dog);
         //~^  ERROR: `fn(_) -> test_4::Animal<_> {test_4::Animal::<_>::Dog}` doesn't implement `Debug`
+    }
+}
+
+mod test_5 {
+    struct X;
+
+    impl X {
+        reuse Y::foo;
+        //~^ ERROR: failed to resolve delegation
+    }
+
+    struct Y;
+
+    impl Y {
+        reuse X::foo;
+        //~^ ERROR: failed to resolve delegation
+    }
+
+    fn check() {
+        X::foo();
+        Y::foo();
+    }
+}
+
+mod test_6 {
+    struct X;
+
+    impl X {
+        fn foo() {}
+    }
+
+    struct Y;
+    impl Y {
+        reuse X::foo as bar;
+    }
+
+    struct Z;
+    impl Z {
+        reuse Y::bar;
+    }
+
+    reuse Z::bar;
+
+    fn check() {
+        Y::bar();
+        Z::bar();
+        bar();
     }
 }
 

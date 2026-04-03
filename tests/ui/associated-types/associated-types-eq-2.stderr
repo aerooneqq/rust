@@ -41,6 +41,34 @@ LL | impl Tr3<X = 42, Y = Qux, Z = usize> for Bar {
    = help: add `#![feature(min_generic_const_args)]` to the crate attributes to enable
    = note: this compiler was built on YYYY-MM-DD; consider upgrading it if it is out of date
 
+error[E0107]: struct takes 1 generic argument but 0 generic arguments were supplied
+  --> $DIR/associated-types-eq-2.rs:117:13
+   |
+LL | impl<'a, T> St<'a , T = Qux> {
+   |             ^^ expected 1 generic argument
+   |
+note: struct defined here, with 1 generic parameter: `T`
+  --> $DIR/associated-types-eq-2.rs:115:8
+   |
+LL | struct St<'a, T> { v: &'a T }
+   |        ^^     -
+help: add missing generic argument
+   |
+LL | impl<'a, T> St<'a, T , T = Qux> {
+   |                  +++
+
+error[E0229]: associated item constraints are not allowed here
+  --> $DIR/associated-types-eq-2.rs:117:21
+   |
+LL | impl<'a, T> St<'a , T = Qux> {
+   |                     ^^^^^^^ associated item constraint not allowed here
+   |
+help: to use `Qux` as a generic argument specify it directly
+   |
+LL - impl<'a, T> St<'a , T = Qux> {
+LL + impl<'a, T> St<'a , Qux> {
+   |
+
 error[E0229]: associated item constraints are not allowed here
   --> $DIR/associated-types-eq-2.rs:20:10
    |
@@ -308,34 +336,6 @@ help: consider removing this associated item binding
    |
 LL - impl Tr3<X = 42, Y = Qux, Z = usize> for Bar {
 LL + impl Tr3<Y = Qux, Z = usize> for Bar {
-   |
-
-error[E0107]: struct takes 1 generic argument but 0 generic arguments were supplied
-  --> $DIR/associated-types-eq-2.rs:117:13
-   |
-LL | impl<'a, T> St<'a , T = Qux> {
-   |             ^^ expected 1 generic argument
-   |
-note: struct defined here, with 1 generic parameter: `T`
-  --> $DIR/associated-types-eq-2.rs:115:8
-   |
-LL | struct St<'a, T> { v: &'a T }
-   |        ^^     -
-help: add missing generic argument
-   |
-LL | impl<'a, T> St<'a, T , T = Qux> {
-   |                  +++
-
-error[E0229]: associated item constraints are not allowed here
-  --> $DIR/associated-types-eq-2.rs:117:21
-   |
-LL | impl<'a, T> St<'a , T = Qux> {
-   |                     ^^^^^^^ associated item constraint not allowed here
-   |
-help: to use `Qux` as a generic argument specify it directly
-   |
-LL - impl<'a, T> St<'a , T = Qux> {
-LL + impl<'a, T> St<'a , Qux> {
    |
 
 error: aborting due to 25 previous errors

@@ -226,6 +226,10 @@ rustc_queries! {
         desc { "getting delayed owner from `tcx.hir_crate(()).owners` for `{}`", tcx.def_path_str(def_id) }
     }
 
+    query force_delayed_owners_lowering(_: ()) {
+        desc { "forcing lowering of delayed owners" }
+    }
+
     /// All items in the crate.
     query hir_crate_items(_: ()) -> &'tcx rustc_middle::hir::ModuleItems {
         arena_cache
