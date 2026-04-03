@@ -3,6 +3,7 @@
 //! similar to queries, but queries come with a lot of machinery for caching and incremental
 //! compilation, whereas hooks are just plain function pointers without any of the query magic.
 
+use rustc_data_structures::fx::FxIndexSet;
 use rustc_hir::def_id::{DefId, DefPathHash};
 use rustc_session::StableCrateId;
 use rustc_span::def_id::{CrateNum, LocalDefId};
@@ -48,6 +49,12 @@ macro_rules! declare_hooks {
             fn clone(&self) -> Self { *self }
         }
     };
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum CandidateAdjustingKind<'a> {
+    Exclude(&'a FxIndexSet<DefId>),
+    Only(&'a FxIndexSet<DefId>),
 }
 
 declare_hooks! {
@@ -114,7 +121,8 @@ declare_hooks! {
     /// Serializes all eligible query return values into the on-disk cache.
     hook encode_query_values(encoder: &mut CacheEncoder<'_, 'tcx>) -> ();
 
-    hook resolve_delegation_sig(span: Span, parent_id: LocalDefId, parent_type: Ty<'tcx>, ident: Ident) -> Option<DefId>;
+    hook resolve_delegation_sig(span: Span, parent_id: LocalDefId, parent_type: Ty<'tcx>, ident: Ident, candidates: CandidateAdjustingKind<'_>) -> Option<DefId>;
+    hook resolve_all_delegations() -> ();
 
     hook cycle_recovery_fallback_owner(def_id: LocalDefId) -> rustc_hir::MaybeOwner<'tcx>;
 }

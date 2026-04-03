@@ -169,6 +169,10 @@ fn lints_that_dont_need_to_run(tcx: TyCtxt<'_>, (): ()) -> UnordSet<LintId> {
 
 #[instrument(level = "trace", skip(tcx), ret)]
 fn shallow_lint_levels_on(tcx: TyCtxt<'_>, owner: hir::OwnerId) -> ShallowLintLevelMap {
+    if tcx.opt_hir_delayed_owner(owner.def_id).is_some() {
+        return Default::default();
+    }
+
     let store = unerased_lint_store(tcx.sess);
     let attrs = tcx.hir_attr_map(owner);
 

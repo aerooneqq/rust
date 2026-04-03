@@ -3901,6 +3901,12 @@ pub struct Delegation {
     pub from_glob: bool,
 }
 
+impl Delegation {
+    pub fn span(&self) -> Span {
+        self.path.segments.last().unwrap().ident.span
+    }
+}
+
 #[derive(Clone, Encodable, Decodable, Debug, Walkable)]
 pub struct DelegationMac {
     pub qself: Option<Box<QSelf>>,

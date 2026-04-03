@@ -44,6 +44,7 @@ mod test_2 {
     }
 
     reuse X::foo;
+    //~^ ERROR: type annotations needed
 }
 
 // No error emitted but delayed bug is spawned

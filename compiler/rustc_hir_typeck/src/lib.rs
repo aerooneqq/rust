@@ -49,6 +49,7 @@ use rustc_hir::{HirId, HirIdMap, Node};
 use rustc_hir_analysis::check::{check_abi, check_custom_abi};
 use rustc_hir_analysis::hir_ty_lowering::HirTyLowerer;
 use rustc_infer::traits::{ObligationCauseCode, ObligationInspector, WellFormedLoc};
+use rustc_middle::hooks::CandidateAdjustingKind;
 use rustc_middle::middle::codegen_fn_attrs::CodegenFnAttrFlags;
 use rustc_middle::ty::{self, ParamEnv, Ty, TyCtxt};
 use rustc_middle::util::Providers;
@@ -666,6 +667,7 @@ pub(crate) fn resolve_delegation_sig<'tcx>(
     parent_id: LocalDefId,
     parent_ty: Ty<'tcx>,
     function_ident: Ident,
+    candidates: CandidateAdjustingKind<'_>,
 ) -> Option<DefId> {
     let param_env = ParamEnv::empty();
     let root_ctxt = TypeckRootCtxt::new_delegation(tcx, parent_id);
@@ -680,6 +682,7 @@ pub(crate) fn resolve_delegation_sig<'tcx>(
         parent_ty,
         HirId::INVALID,
         method::probe::ProbeScope::AllTraits,
+        Some(candidates),
         |probe_cx| probe_cx.pick(),
     );
 

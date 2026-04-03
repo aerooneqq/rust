@@ -267,6 +267,7 @@ pub fn print<'tcx>(sess: &Session, ppm: PpMode, ex: PrintExtra<'tcx>) {
         Hir(s) => {
             debug!("pretty printing HIR {:?}", s);
             let tcx = ex.tcx();
+            tcx.force_delayed_owners_lowering();
             let f = |annotation: &dyn pprust_hir::PpAnn| {
                 let sm = sess.source_map();
                 let attrs = |id| tcx.hir_attrs(id);

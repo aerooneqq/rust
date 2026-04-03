@@ -209,10 +209,9 @@ impl ModuleItems {
 
 impl<'tcx> TyCtxt<'tcx> {
     pub fn force_delayed_owners_lowering(self) {
-        let krate = self.hir_crate(());
-        self.ensure_done().hir_crate_items(());
-        self.ensure_done().crate_inherent_impls(());
+        self.resolve_all_delegations();
 
+        let krate = self.hir_crate(());
         for &id in &krate.delayed_ids {
             self.ensure_done().lower_delayed_owner(id);
         }

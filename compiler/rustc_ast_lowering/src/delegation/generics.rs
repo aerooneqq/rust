@@ -10,6 +10,7 @@ use rustc_span::{Ident, Span};
 
 use crate::{LoweringContext, ResolverAstLoweringExt};
 
+#[derive(Debug)]
 pub(super) enum DelegationGenerics<T> {
     /// User-specified args are present: `reuse foo::<String>;`.
     UserSpecified,
@@ -34,16 +35,19 @@ pub(super) enum DelegationGenerics<T> {
 /// meaning we did not propagate them and thus we do not need to generate generic params
 /// (i.e., method call scenarios), in such a case this approach helps
 /// a lot as if `into_hir_generics` will not be called then uplifting will not happen.
+#[derive(Debug)]
 pub(super) enum HirOrTyGenerics<'hir> {
     Ty(DelegationGenerics<&'hir [ty::GenericParamDef]>),
     Hir(DelegationGenerics<&'hir hir::Generics<'hir>>),
 }
 
+#[derive(Debug)]
 pub(super) struct GenericsGenerationResult<'hir> {
     pub(super) generics: HirOrTyGenerics<'hir>,
     pub(super) args_segment_id: Option<HirId>,
 }
 
+#[derive(Debug)]
 pub(super) struct GenericsGenerationResults<'hir> {
     pub(super) parent: GenericsGenerationResult<'hir>,
     pub(super) child: GenericsGenerationResult<'hir>,
@@ -247,7 +251,10 @@ impl<'hir, R: ResolverAstLoweringExt<'hir>> LoweringContext<'_, 'hir, R> {
 
         let can_add_generics_to_parent = len >= 2
             && self.get_resolution_id(segments[len - 2].id).is_some_and(|def_id| {
-                matches!(self.tcx.def_kind(def_id), DefKind::Trait | DefKind::TraitAlias)
+                matches!(
+                    self.tcx.def_kind(def_id),
+                    DefKind::Trait | DefKind::TraitAlias | DefKind::Struct | DefKind::Enum
+                )
             });
 
         let generate_self = delegation_in_free_ctx && sig_in_trait;
@@ -262,7 +269,7 @@ impl<'hir, R: ResolverAstLoweringExt<'hir>> LoweringContext<'_, 'hir, R> {
                     DelegationGenerics::UserSpecified
                 }
             } else {
-                let skip_self = usize::from(!generate_self);
+                let skip_self = usize::from(!generate_self && sig_in_trait);
                 DelegationGenerics::Default(&sig_parent_params[skip_self..])
             }
         } else {

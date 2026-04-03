@@ -3003,6 +3003,7 @@ impl<'a, 'b, 'tcx> ArgsCtxt<'a, 'b, 'tcx> {
                 callee_ty.peel_refs(),
                 self.call_ctxt.callee_expr.unwrap().hir_id,
                 TraitsInScope,
+                None,
                 |mut ctxt| ctxt.probe_for_similar_candidate(),
             )
             && assoc.is_method()

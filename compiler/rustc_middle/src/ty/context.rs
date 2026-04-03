@@ -17,9 +17,10 @@ use std::{fmt, iter, mem};
 
 use rustc_abi::{ExternAbi, FieldIdx, Layout, LayoutData, TargetDataLayout, VariantIdx};
 use rustc_ast as ast;
+use rustc_ast::node_id::NodeMap;
 use rustc_data_structures::defer;
 use rustc_data_structures::fingerprint::Fingerprint;
-use rustc_data_structures::fx::{FxHashMap, FxIndexSet};
+use rustc_data_structures::fx::FxHashMap;
 use rustc_data_structures::intern::Interned;
 use rustc_data_structures::jobserver::Proxy;
 use rustc_data_structures::profiling::SelfProfilerRef;
@@ -805,8 +806,6 @@ pub struct GlobalCtxt<'tcx> {
     // Internal caches for metadata decoding. No need to track deps on this.
     pub ty_rcache: Lock<FxHashMap<ty::CReaderCacheKey, Ty<'tcx>>>,
 
-    pub lowered_delegations: Lock<FxIndexSet<DefId>>,
-
     /// Caches the results of trait selection. This cache is used
     /// for things that do not have to do with the parameters in scope.
     pub selection_cache: traits::SelectionCache<'tcx, ty::TypingEnv<'tcx>>,
@@ -828,6 +827,8 @@ pub struct GlobalCtxt<'tcx> {
     /// Caches the instantiation of a canonical binder given a set of args.
     pub clauses_cache:
         Lock<FxHashMap<(ty::Clauses<'tcx>, &'tcx [ty::GenericArg<'tcx>]), ty::Clauses<'tcx>>>,
+
+    pub delegation_resolutions: Lock<NodeMap<DefId>>,
 
     /// Data layout specification for the current target.
     pub data_layout: TargetDataLayout,
@@ -1055,12 +1056,12 @@ impl<'tcx> TyCtxt<'tcx> {
             ty_rcache: Default::default(),
             selection_cache: Default::default(),
             evaluation_cache: Default::default(),
-            lowered_delegations: Default::default(),
             new_solver_evaluation_cache: Default::default(),
             new_solver_canonical_param_env_cache: Default::default(),
             canonical_param_env_cache: Default::default(),
             highest_var_in_clauses_cache: Default::default(),
             clauses_cache: Default::default(),
+            delegation_resolutions: Default::default(),
             data_layout,
             alloc_map: interpret::AllocMap::new(),
             current_gcx,

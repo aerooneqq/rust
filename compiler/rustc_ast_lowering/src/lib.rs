@@ -50,7 +50,7 @@ use rustc_data_structures::steal::Steal;
 use rustc_data_structures::tagged_ptr::TaggedRef;
 use rustc_errors::{DiagArgFromDisplay, DiagCtxtHandle};
 use rustc_hir::def::{DefKind, LifetimeRes, Namespace, PartialRes, PerNS, Res};
-use rustc_hir::def_id::{CRATE_DEF_ID, LOCAL_CRATE, LocalDefId};
+use rustc_hir::def_id::{CRATE_DEF_ID, DefId, LOCAL_CRATE, LocalDefId};
 use rustc_hir::definitions::{DefPathData, DisambiguatorState};
 use rustc_hir::lints::{AttributeLint, DelayedLint};
 use rustc_hir::{
@@ -60,6 +60,7 @@ use rustc_hir::{
 use rustc_index::{Idx, IndexSlice, IndexVec};
 use rustc_macros::extension;
 use rustc_middle::hir::{self as mid_hir};
+use rustc_middle::hooks::CandidateAdjustingKind;
 use rustc_middle::span_bug;
 use rustc_middle::ty::{DelegationInfo, ResolverAstLowering, TyCtxt};
 use rustc_session::parse::add_feature_diagnostics;
@@ -533,6 +534,29 @@ enum AstOwner<'a> {
     ForeignItem(&'a ast::ForeignItem),
 }
 
+impl AstOwner<'_> {
+    fn as_delegation(&self) -> Option<(&Delegation, DelayedOwner)> {
+        match self {
+            AstOwner::Item(Item { kind: ItemKind::Delegation(box delegation), .. }) => Some((
+                delegation,
+                DelayedOwner { kind: hir::DelayedOwnerKind::Item, ident: delegation.ident },
+            )),
+            AstOwner::AssocItem(
+                Item { kind: AssocItemKind::Delegation(box delegation), .. },
+                ctx,
+            ) => {
+                let kind = match ctx {
+                    AssocCtxt::Trait => hir::DelayedOwnerKind::TraitItem,
+                    AssocCtxt::Impl { .. } => hir::DelayedOwnerKind::ImplItem,
+                };
+
+                Some((delegation, DelayedOwner { kind, ident: delegation.ident }))
+            }
+            _ => None,
+        }
+    }
+}
+
 #[derive(Copy, Clone, Debug)]
 enum TryBlockScope {
     /// There isn't a `try` block, so a `?` will use `return`.
@@ -636,26 +660,7 @@ pub fn lower_to_hir(tcx: TyCtxt<'_>, (): ()) -> mid_hir::Crate<'_> {
     let mut delayed_ids: FxIndexSet<LocalDefId> = Default::default();
 
     for def_id in ast_index.indices() {
-        let delayed_owner = match &ast_index[def_id] {
-            AstOwner::Item(Item {
-                kind: ItemKind::Delegation(box Delegation { ident, .. }),
-                ..
-            }) => Some(DelayedOwner { kind: hir::DelayedOwnerKind::Item, ident: *ident }),
-            AstOwner::AssocItem(
-                Item { kind: AssocItemKind::Delegation(box Delegation { ident, .. }), .. },
-                ctx,
-            ) => {
-                let kind = match ctx {
-                    AssocCtxt::Trait => hir::DelayedOwnerKind::TraitItem,
-                    AssocCtxt::Impl { .. } => hir::DelayedOwnerKind::ImplItem,
-                };
-
-                Some(DelayedOwner { kind, ident: *ident })
-            }
-            _ => None,
-        };
-
-        if let Some(delayed_owner) = delayed_owner {
+        if let Some((_, delayed_owner)) = ast_index[def_id].as_delegation() {
             delayed_ids.insert(def_id);
 
             let owner = lowerer.owners.get_or_insert_mut(def_id);
@@ -675,11 +680,80 @@ pub fn lower_to_hir(tcx: TyCtxt<'_>, (): ()) -> mid_hir::Crate<'_> {
     mid_hir::Crate::new(owners, delayed_ids, delayed_resolver, opt_hir_hash)
 }
 
+pub fn resolve_all_delegations(tcx: TyCtxt<'_>) {
+    let hir_crate = tcx.hir_crate(());
+    tcx.ensure_done().hir_crate_items(());
+    tcx.ensure_done().crate_inherent_impls(());
+
+    let (resolver, ast_krate) = &*hir_crate.delayed_resolver.borrow();
+
+    // FIXME!!!(fn_delegation): make ast index lifetime same as resolver.
+    let ast_index = index_crate(resolver, ast_krate);
+
+    let mut first_iteration = true;
+    let mut prev_resolved = FxIndexSet::<DefId>::default();
+
+    let mut queued_delayed: FxIndexSet<DefId> =
+        hir_crate.delayed_ids.iter().map(|lid| lid.to_def_id()).collect();
+
+    loop {
+        if queued_delayed.is_empty() {
+            break;
+        }
+
+        let mut resolved = vec![];
+
+        let candidates = if first_iteration {
+            first_iteration = false;
+            CandidateAdjustingKind::Exclude(&queued_delayed)
+        } else {
+            CandidateAdjustingKind::Only(&prev_resolved)
+        };
+
+        for &id in &queued_delayed {
+            let (delegation, _) =
+                ast_index[id.expect_local()].as_delegation().expect("must be delegation");
+
+            if let [.., parent, child] = delegation.path.segments.as_slice()
+                && let Some(parent_id) = resolver
+                    .get_partial_res(parent.id)
+                    .and_then(|r| r.full_res().and_then(|r| r.opt_def_id()))
+                && matches!(tcx.def_kind(parent_id), DefKind::Enum | DefKind::Struct)
+                && let Some(delegation_info) = resolver.delegation_info(id.expect_local())
+            {
+                let parent = parent_id.expect_local();
+                let ty = tcx.type_of(parent).instantiate_identity();
+                let span = delegation.span();
+                let sig_id = tcx.resolve_delegation_sig(span, parent, ty, child.ident, candidates);
+                let sig_id = sig_id.filter(|&sig_id| {
+                    matches!(tcx.def_kind(sig_id), DefKind::Fn | DefKind::AssocFn)
+                });
+
+                if let Some(sig_id) = sig_id {
+                    tcx.delegation_resolutions
+                        .lock()
+                        .insert(delegation_info.resolution_node, sig_id);
+
+                    resolved.push(id);
+                }
+            }
+        }
+
+        if resolved.is_empty() {
+            break;
+        }
+
+        for &resolved_id in &resolved {
+            queued_delayed.swap_remove(&resolved_id);
+        }
+
+        prev_resolved = resolved.into_iter().collect();
+    }
+}
+
 /// Lowers an AST owner corresponding to `def_id`, now only delegations are lowered this way.
 pub fn lower_delayed_owner<'hir>(tcx: TyCtxt<'hir>, def_id: LocalDefId) -> hir::MaybeOwner<'hir> {
-    tcx.lowered_delegations.lock().insert(def_id.to_def_id());
     let map = lower_delayed_owner_internal(tcx, def_id, false);
-    tcx.lowered_delegations.lock().swap_remove(&def_id.to_def_id());
 
     for (&child_def_id, &owner) in &map {
         if child_def_id != def_id {
@@ -696,7 +770,6 @@ fn lower_delayed_owner_internal<'hir>(
     is_cycle_recovery: bool,
 ) -> FxIndexMap<LocalDefId, hir::MaybeOwner<'hir>> {
     let krate = tcx.hir_crate(());
-
     let (resolver, krate) = &*krate.delayed_resolver.borrow();
 
     // FIXME!!!(fn_delegation): make ast index lifetime same as resolver,

@@ -46,9 +46,9 @@ use rustc_ast as ast;
 use rustc_ast::*;
 use rustc_data_structures::fx::FxHashSet;
 use rustc_errors::ErrorGuaranteed;
-use rustc_hir as hir;
 use rustc_hir::attrs::{AttributeKind, InlineAttr};
 use rustc_hir::def_id::DefId;
+use rustc_hir::{self as hir, QPath};
 use rustc_middle::span_bug;
 use rustc_middle::ty::Asyncness;
 use rustc_span::symbol::kw;
@@ -119,13 +119,13 @@ impl<'hir, R: ResolverAstLoweringExt<'hir>> LoweringContext<'_, 'hir, R> {
         delegation: &Delegation,
         item_id: NodeId,
     ) -> DelegationResults<'hir> {
-        let span = self.lower_span(delegation.path.segments.last().unwrap().ident.span);
+        let span = self.lower_span(delegation.span());
 
         // Delegation can be unresolved in illegal places such as function bodies in extern blocks (see #151356)
         let sig_id = if !self.is_cycle_recovery
             && let Some(delegation_info) = self.resolver.delegation_info(self.local_def_id(item_id))
         {
-            self.get_sig_id(delegation_info.resolution_node, span, delegation)
+            self.get_sig_id(delegation_info.resolution_node, span)
         } else {
             self.dcx().span_delayed_bug(
                 span,
@@ -225,34 +225,18 @@ impl<'hir, R: ResolverAstLoweringExt<'hir>> LoweringContext<'_, 'hir, R> {
             .collect::<Vec<_>>()
     }
 
-    fn get_sig_id(
-        &self,
-        mut node_id: NodeId,
-        span: Span,
-        delegation: &Delegation,
-    ) -> Result<DefId, ErrorGuaranteed> {
+    fn get_sig_id(&self, mut node_id: NodeId, span: Span) -> Result<DefId, ErrorGuaranteed> {
         let mut visited: FxHashSet<NodeId> = Default::default();
         let mut path: SmallVec<[DefId; 1]> = Default::default();
 
         loop {
             visited.insert(node_id);
 
-            let Some(def_id) = self.get_resolution_id(node_id).or_else(|| {
-                if let [.., parent, child] = delegation.path.segments.as_slice()
-                    && let Some(parent_id) = self.get_resolution_id(parent.id)
-                    && matches!(self.tcx.def_kind(parent_id), DefKind::Enum | DefKind::Struct)
-                {
-                    let parent = parent_id.expect_local();
-                    let ty = self.tcx.type_of(parent).instantiate_identity();
-                    self.tcx.resolve_delegation_sig(span, parent, ty, child.ident).filter(
-                        |&sig_id| {
-                            matches!(self.tcx.def_kind(sig_id), DefKind::Fn | DefKind::AssocFn)
-                        },
-                    )
-                } else {
-                    None
-                }
-            }) else {
+            let def_id = self
+                .get_resolution_id(node_id)
+                .or_else(|| self.tcx.delegation_resolutions.lock().get(&node_id).copied());
+
+            let Some(def_id) = def_id else {
                 return Err(self.tcx.dcx().span_delayed_bug(
                     span,
                     format!(
@@ -577,8 +561,33 @@ impl<'hir, R: ResolverAstLoweringExt<'hir>> LoweringContext<'_, 'hir, R> {
 
                     hir::QPath::Resolved(ty, self.arena.alloc(new_path))
                 }
-                hir::QPath::TypeRelative(ty, segment) => {
+                hir::QPath::TypeRelative(mut ty, segment) => {
                     let segment = self.process_segment(span, segment, &mut generics.child, false);
+
+                    ty = if let hir::TyKind::Path(QPath::Resolved(ty, path)) = ty.kind {
+                        let mut new_path = path.clone();
+
+                        new_path.segments = self.arena.alloc_from_iter(
+                            new_path.segments.iter().enumerate().map(|(idx, segment)| {
+                                if idx + 1 == new_path.segments.len() {
+                                    self.process_segment(span, segment, &mut generics.parent, true)
+                                } else {
+                                    segment.clone()
+                                }
+                            }),
+                        );
+
+                        self.arena.alloc(hir::Ty {
+                            hir_id: self.next_id(),
+                            span,
+                            kind: hir::TyKind::Path(QPath::Resolved(
+                                ty,
+                                self.arena.alloc(new_path),
+                            )),
+                        })
+                    } else {
+                        ty
+                    };
 
                     hir::QPath::TypeRelative(ty, self.arena.alloc(segment))
                 }

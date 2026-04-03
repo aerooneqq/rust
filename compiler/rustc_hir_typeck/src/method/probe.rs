@@ -13,6 +13,7 @@ use rustc_infer::infer::canonical::{Canonical, OriginalQueryValues, QueryRespons
 use rustc_infer::infer::{BoundRegionConversionTime, DefineOpaqueTypes, InferOk, TyCtxtInferExt};
 use rustc_infer::traits::{ObligationCauseCode, PredicateObligation, query};
 use rustc_macros::Diagnostic;
+use rustc_middle::hooks::CandidateAdjustingKind;
 use rustc_middle::middle::stability;
 use rustc_middle::ty::elaborate::supertrait_def_ids;
 use rustc_middle::ty::fast_reject::{DeepRejectCtxt, TreatParams, simplify_type};
@@ -53,6 +54,7 @@ pub(crate) struct ProbeContext<'a, 'tcx> {
     fcx: &'a FnCtxt<'a, 'tcx>,
     span: Span,
     mode: Mode,
+    candidates_adjusting: Option<CandidateAdjustingKind<'a>>,
     method_name: Option<Ident>,
     return_type: Option<Ty<'tcx>>,
 
@@ -298,6 +300,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                 self_ty,
                 scope_expr_id,
                 ProbeScope::AllTraits,
+                None,
                 |probe_cx| Ok(probe_cx.candidate_method_names(candidate_filter)),
             )
             .unwrap_or_default();
@@ -313,6 +316,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                     self_ty,
                     scope_expr_id,
                     ProbeScope::AllTraits,
+                    None,
                     |probe_cx| probe_cx.pick(),
                 )
                 .ok()
@@ -341,6 +345,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             self_ty,
             scope_expr_id,
             scope,
+            None,
             |probe_cx| probe_cx.pick(),
         )
     }
@@ -365,6 +370,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             self_ty,
             scope_expr_id,
             scope,
+            None,
             |probe_cx| {
                 Ok(probe_cx
                     .inherent_candidates
@@ -385,6 +391,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         self_ty: Ty<'tcx>,
         scope_expr_id: HirId,
         scope: ProbeScope,
+        candidates_adjusting: Option<CandidateAdjustingKind<'a>>,
         op: OP,
     ) -> Result<R, MethodError<'tcx>>
     where
@@ -545,6 +552,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                 steps.steps,
                 scope_expr_id,
                 is_suggestion,
+                candidates_adjusting,
             );
 
             match scope {
@@ -764,11 +772,13 @@ impl<'a, 'tcx> ProbeContext<'a, 'tcx> {
         steps: &'tcx [CandidateStep<'tcx>],
         scope_expr_id: HirId,
         is_suggestion: IsSuggestion,
+        candidates_adjusting: Option<CandidateAdjustingKind<'a>>,
     ) -> ProbeContext<'a, 'tcx> {
         ProbeContext {
             fcx,
             span,
             mode,
+            candidates_adjusting,
             method_name,
             return_type,
             inherent_candidates: Vec::new(),
@@ -1290,20 +1300,16 @@ impl<'a, 'tcx> ProbeContext<'a, 'tcx> {
                 !step.self_ty.value.references_error() && !step.from_unsafe_deref
             })
             .find_map(|step| {
-                let InferOk { value: self_ty, obligations: mut instantiate_self_ty_obligations } =
-                    self.fcx
-                        .probe_instantiate_query_response(
-                            self.span,
-                            self.orig_steps_var_values,
-                            &step.self_ty,
-                        )
-                        .unwrap_or_else(|_| {
-                            span_bug!(self.span, "{:?} was applicable but now isn't?", step.self_ty)
-                        });
-
-                if matches!(self.mode, Mode::Path(true)) {
-                    instantiate_self_ty_obligations.clear();
-                }
+                let InferOk { value: self_ty, obligations: instantiate_self_ty_obligations } = self
+                    .fcx
+                    .probe_instantiate_query_response(
+                        self.span,
+                        self.orig_steps_var_values,
+                        &step.self_ty,
+                    )
+                    .unwrap_or_else(|_| {
+                        span_bug!(self.span, "{:?} was applicable but now isn't?", step.self_ty)
+                    });
 
                 let by_value_pick = self.pick_by_value_method(
                     step,
@@ -1989,25 +1995,28 @@ impl<'a, 'tcx> ProbeContext<'a, 'tcx> {
                     }
                     // FIXME: Weirdly, we normalize the ret ty in this candidate, but no other candidates.
                     xform_ret_ty = ocx.normalize(cause, self.param_env, xform_ret_ty);
-                    // Check whether the impl imposes obligations we have to worry about.
-                    let impl_def_id = probe.item.container_id(self.tcx);
-                    let impl_bounds =
-                        self.tcx.predicates_of(impl_def_id).instantiate(self.tcx, impl_args);
-                    let impl_bounds = ocx.normalize(cause, self.param_env, impl_bounds);
-                    // Convert the bounds into obligations.
-                    ocx.register_obligations(traits::predicates_for_generics(
-                        |idx, span| {
-                            let code = ObligationCauseCode::WhereClauseInExpr(
-                                impl_def_id,
-                                span,
-                                self.scope_expr_id,
-                                idx,
-                            );
-                            self.cause(self.span, code)
-                        },
-                        self.param_env,
-                        impl_bounds,
-                    ));
+
+                    if self.mode != Mode::Path(true) {
+                        // Check whether the impl imposes obligations we have to worry about.
+                        let impl_def_id = probe.item.container_id(self.tcx);
+                        let impl_bounds =
+                            self.tcx.predicates_of(impl_def_id).instantiate(self.tcx, impl_args);
+                        let impl_bounds = ocx.normalize(cause, self.param_env, impl_bounds);
+                        // Convert the bounds into obligations.
+                        ocx.register_obligations(traits::predicates_for_generics(
+                            |idx, span| {
+                                let code = ObligationCauseCode::WhereClauseInExpr(
+                                    impl_def_id,
+                                    span,
+                                    self.scope_expr_id,
+                                    idx,
+                                );
+                                self.cause(self.span, code)
+                            },
+                            self.param_env,
+                            impl_bounds,
+                        ));
+                    }
                 }
                 TraitCandidate(poly_trait_ref, _) => {
                     // Some trait methods are excluded for arrays before 2021.
@@ -2456,6 +2465,7 @@ impl<'a, 'tcx> ProbeContext<'a, 'tcx> {
                 self.steps,
                 self.scope_expr_id,
                 IsSuggestion(true),
+                self.candidates_adjusting,
             );
             pcx.allow_similar_names = true;
             pcx.assemble_inherent_candidates();
@@ -2672,13 +2682,16 @@ impl<'a, 'tcx> ProbeContext<'a, 'tcx> {
     }
 
     fn delegation_aware_assoc_value(&self, def_id: DefId, name: Ident) -> Option<ty::AssocItem> {
-        if self.mode == Mode::Path(true) {
+        if let Some(adjusting) = self.candidates_adjusting {
             self.associated_value_from_items(
                 &ty::AssocItems::new(
                     self.tcx
                         .associated_item_def_ids(def_id)
                         .iter()
-                        .filter(|id| !self.tcx.lowered_delegations.lock().contains(*id))
+                        .filter(|id| match adjusting {
+                            CandidateAdjustingKind::Exclude(index_set) => !index_set.contains(*id),
+                            CandidateAdjustingKind::Only(index_set) => index_set.contains(*id),
+                        })
                         .map(|id| self.tcx.associated_item(*id)),
                 ),
                 name,

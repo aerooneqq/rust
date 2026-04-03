@@ -886,7 +886,7 @@ pub static DEFAULT_QUERY_PROVIDERS: LazyLock<Providers> = LazyLock::new(|| {
     providers.queries.delayed_owner = |_, _| MaybeOwner::Phantom;
     providers.hooks.cycle_recovery_fallback_owner =
         rustc_ast_lowering::cycle_recovery_fallback_owner;
-
+    providers.hooks.resolve_all_delegations = rustc_ast_lowering::resolve_all_delegations;
     providers.queries.resolver_for_lowering_raw = resolver_for_lowering_raw;
     providers.queries.stripped_cfg_items = |tcx, _| &tcx.resolutions(()).stripped_cfg_items[..];
     providers.queries.resolutions = |tcx, ()| tcx.resolver_for_lowering_raw(()).1;

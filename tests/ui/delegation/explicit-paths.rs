@@ -36,8 +36,6 @@ mod inherent_impl_assoc_fn_to_other {
         reuse <S as Trait>::foo2;
         reuse to_reuse::foo3;
         reuse F::foo4 { &self.0 }
-        //~^ ERROR: invalid `self` parameter type: `&F`
-        //~| ERROR: no field `0` on type `&F`
     }
 }
 
@@ -64,7 +62,6 @@ mod trait_assoc_fn_to_other {
         reuse <F as Trait>::foo2;
         reuse to_reuse::foo3;
         reuse F::foo4 { &F }
-        //~^ ERROR: invalid `self` parameter type: `&F`
     }
 }
 
