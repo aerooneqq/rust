@@ -43,7 +43,7 @@ use rustc_ast::visit::AssocCtxt;
 use rustc_ast::{self as ast, *};
 use rustc_attr_parsing::{AttributeParser, Late, OmitDoc};
 use rustc_data_structures::fingerprint::Fingerprint;
-use rustc_data_structures::fx::{FxIndexMap, FxIndexSet};
+use rustc_data_structures::fx::FxIndexSet;
 use rustc_data_structures::sorted_map::SortedMap;
 use rustc_data_structures::stable_hasher::{HashStable, StableHasher};
 use rustc_data_structures::steal::Steal;
@@ -93,7 +93,6 @@ mod path;
 pub mod stability;
 
 struct LoweringContext<'a, 'hir, R> {
-    is_cycle_recovery: bool,
     tcx: TyCtxt<'hir>,
     resolver: &'a mut R,
     disambiguator: DisambiguatorState,
@@ -156,10 +155,9 @@ struct LoweringContext<'a, 'hir, R> {
 }
 
 impl<'a, 'hir, R: ResolverAstLoweringExt<'hir>> LoweringContext<'a, 'hir, R> {
-    fn new(tcx: TyCtxt<'hir>, resolver: &'a mut R, is_cycle_recovery: bool) -> Self {
+    fn new(tcx: TyCtxt<'hir>, resolver: &'a mut R) -> Self {
         let registered_tools = tcx.registered_tools(()).iter().map(|x| x.name).collect();
         Self {
-            is_cycle_recovery,
             tcx,
             resolver,
             disambiguator: DisambiguatorState::new(),
@@ -668,7 +666,7 @@ pub fn lower_to_hir(tcx: TyCtxt<'_>, (): ()) -> mid_hir::Crate<'_> {
                 *owner = hir::MaybeOwner::Delayed(delayed_owner)
             }
         } else {
-            lowerer.lower_node(def_id, false);
+            lowerer.lower_node(def_id);
         }
     }
 
@@ -753,22 +751,6 @@ pub fn resolve_all_delegations(tcx: TyCtxt<'_>) {
 
 /// Lowers an AST owner corresponding to `def_id`, now only delegations are lowered this way.
 pub fn lower_delayed_owner<'hir>(tcx: TyCtxt<'hir>, def_id: LocalDefId) -> hir::MaybeOwner<'hir> {
-    let map = lower_delayed_owner_internal(tcx, def_id, false);
-
-    for (&child_def_id, &owner) in &map {
-        if child_def_id != def_id {
-            tcx.feed_delayed_owner(child_def_id, owner);
-        }
-    }
-
-    map[&def_id]
-}
-
-fn lower_delayed_owner_internal<'hir>(
-    tcx: TyCtxt<'hir>,
-    def_id: LocalDefId,
-    is_cycle_recovery: bool,
-) -> FxIndexMap<LocalDefId, hir::MaybeOwner<'hir>> {
     let krate = tcx.hir_crate(());
     let (resolver, krate) = &*krate.delayed_resolver.borrow();
 
@@ -791,16 +773,15 @@ fn lower_delayed_owner_internal<'hir>(
         ast_index: &ast_index,
         owners: Owners::Map(&mut map),
     }
-    .lower_node(def_id, is_cycle_recovery);
+    .lower_node(def_id);
 
-    map
-}
+    for (&child_def_id, &owner) in &map {
+        if child_def_id != def_id {
+            tcx.feed_delayed_owner(child_def_id, owner);
+        }
+    }
 
-pub fn cycle_recovery_fallback_owner<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    def_id: LocalDefId,
-) -> hir::MaybeOwner<'tcx> {
-    lower_delayed_owner_internal(tcx, def_id, true)[&def_id]
+    map[&def_id]
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]

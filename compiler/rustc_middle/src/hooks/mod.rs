@@ -123,8 +123,6 @@ declare_hooks! {
 
     hook resolve_delegation_sig(span: Span, parent_id: LocalDefId, parent_type: Ty<'tcx>, ident: Ident, candidates: CandidateAdjustingKind<'_>) -> Option<DefId>;
     hook resolve_all_delegations() -> ();
-
-    hook cycle_recovery_fallback_owner(def_id: LocalDefId) -> rustc_hir::MaybeOwner<'tcx>;
 }
 
 #[cold]

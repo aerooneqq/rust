@@ -122,8 +122,8 @@ impl<'hir, R: ResolverAstLoweringExt<'hir>> LoweringContext<'_, 'hir, R> {
         let span = self.lower_span(delegation.span());
 
         // Delegation can be unresolved in illegal places such as function bodies in extern blocks (see #151356)
-        let sig_id = if !self.is_cycle_recovery
-            && let Some(delegation_info) = self.resolver.delegation_info(self.local_def_id(item_id))
+        let sig_id = if let Some(delegation_info) =
+            self.resolver.delegation_info(self.local_def_id(item_id))
         {
             self.get_sig_id(delegation_info.resolution_node, span)
         } else {

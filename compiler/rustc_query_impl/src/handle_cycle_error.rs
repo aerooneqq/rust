@@ -40,11 +40,6 @@ pub(crate) fn specialize_query_vtables<'tcx>(vtables: &mut QueryVTables<'tcx>) {
         let _guar = err.delay_as_bug();
         erase_val(Err(layout_of(tcx, cycle)))
     };
-
-    vtables.lower_delayed_owner.handle_cycle_error_fn = |tcx, key, _, err| {
-        let _guar = err.cancel();
-        erase_val(tcx.cycle_recovery_fallback_owner(key))
-    }
 }
 
 pub(crate) fn default(err: Diag<'_>) -> ! {
