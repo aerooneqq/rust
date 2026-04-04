@@ -1371,7 +1371,10 @@ impl<'tcx> ItemCollector<'tcx> {
 
 impl<'hir> Visitor<'hir> for ItemCollector<'hir> {
     type NestedFilter = nested_filter::All;
-    const VISIT_DELAYED: bool = false;
+
+    fn visit_delayed(&self) -> bool {
+        !self.crate_collector
+    }
 
     fn maybe_tcx(&mut self) -> Self::MaybeTyCtxt {
         self.tcx
