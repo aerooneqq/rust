@@ -1226,14 +1226,8 @@ fn upstream_crates(tcx: TyCtxt<'_>) -> Vec<(StableCrateId, Svh)> {
     upstream_crates
 }
 
-#[derive(Clone, Copy)]
-enum ItemCollectionKind {
-    Crate,
-    Mod(LocalModDefId),
-}
-
 pub(super) fn hir_module_items(tcx: TyCtxt<'_>, module_id: LocalModDefId) -> ModuleItems {
-    let mut collector = ItemCollector::new(tcx, ItemCollectionKind::Mod(module_id));
+    let mut collector = ItemCollector::new(tcx, false);
 
     let (hir_mod, span, hir_id) = tcx.hir_get_module(module_id);
     collector.visit_mod(hir_mod, span, hir_id);
@@ -1266,7 +1260,7 @@ pub(super) fn hir_module_items(tcx: TyCtxt<'_>, module_id: LocalModDefId) -> Mod
 }
 
 pub(crate) fn hir_crate_items(tcx: TyCtxt<'_>, _: ()) -> ModuleItems {
-    let mut collector = ItemCollector::new(tcx, ItemCollectionKind::Crate);
+    let mut collector = ItemCollector::new(tcx, true);
 
     // A "crate collector" and "module collector" start at a
     // module item (the former starts at the crate root) but only
@@ -1329,9 +1323,9 @@ struct ItemCollector<'tcx> {
 }
 
 impl<'tcx> ItemCollector<'tcx> {
-    fn new(tcx: TyCtxt<'tcx>, collection_kind: ItemCollectionKind) -> ItemCollector<'tcx> {
+    fn new(tcx: TyCtxt<'tcx>, crate_collector: bool) -> ItemCollector<'tcx> {
         let mut collector = ItemCollector {
-            crate_collector: matches!(collection_kind, ItemCollectionKind::Crate),
+            crate_collector,
             tcx,
             submodules: Vec::default(),
             items: Vec::default(),
@@ -1345,28 +1339,30 @@ impl<'tcx> ItemCollector<'tcx> {
             eiis: Vec::default(),
         };
 
-        let krate = tcx.hir_crate(());
-        let delayed_kinds = krate
-            .delayed_ids
-            .iter()
-            .copied()
-            .map(|id| (id, krate.owners[id].expect_delayed().kind))
-            .filter(|(id, _)| match collection_kind {
-                ItemCollectionKind::Crate => true,
-                ItemCollectionKind::Mod(mod_id) => tcx.parent_module_from_def_id(*id) == mod_id,
-            });
+        if crate_collector {
+            let krate = tcx.hir_crate(());
+            let delayed_kinds = krate
+                .delayed_ids
+                .iter()
+                .copied()
+                .map(|id| (id, krate.owners[id].expect_delayed().kind));
 
-        // FIXME(fn_delegation): need to add delayed lints, eiis
-        for (def_id, kind) in delayed_kinds {
-            let owner_id = OwnerId { def_id };
+            // FIXME(fn_delegation): need to add delayed lints, eiis
+            for (def_id, kind) in delayed_kinds {
+                let owner_id = OwnerId { def_id };
 
-            match kind {
-                DelayedOwnerKind::Item => collector.items.push(ItemId { owner_id }),
-                DelayedOwnerKind::ImplItem => collector.impl_items.push(ImplItemId { owner_id }),
-                DelayedOwnerKind::TraitItem => collector.trait_items.push(TraitItemId { owner_id }),
-            };
+                match kind {
+                    DelayedOwnerKind::Item => collector.items.push(ItemId { owner_id }),
+                    DelayedOwnerKind::ImplItem => {
+                        collector.impl_items.push(ImplItemId { owner_id })
+                    }
+                    DelayedOwnerKind::TraitItem => {
+                        collector.trait_items.push(TraitItemId { owner_id })
+                    }
+                };
 
-            collector.body_owners.push(def_id);
+                collector.body_owners.push(def_id);
+            }
         }
 
         collector
