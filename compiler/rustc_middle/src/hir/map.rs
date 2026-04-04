@@ -1340,18 +1340,11 @@ impl<'tcx> ItemCollector<'tcx> {
         };
 
         if crate_collector {
-            let krate = tcx.hir_crate(());
-            let delayed_kinds = krate
-                .delayed_ids
-                .iter()
-                .copied()
-                .map(|id| (id, krate.owners[id].expect_delayed().kind));
-
             // FIXME(fn_delegation): need to add delayed lints, eiis
-            for (def_id, kind) in delayed_kinds {
+            for &(def_id, delayed_owner) in tcx.delayed_owners(()) {
                 let owner_id = OwnerId { def_id };
 
-                match kind {
+                match delayed_owner.kind {
                     DelayedOwnerKind::Item => collector.items.push(ItemId { owner_id }),
                     DelayedOwnerKind::ImplItem => {
                         collector.impl_items.push(ImplItemId { owner_id })

@@ -233,6 +233,11 @@ rustc_queries! {
         desc { "getting HIR crate items" }
     }
 
+    query delayed_owners(_: ()) -> &'tcx [(LocalDefId, hir::DelayedOwner)] {
+        eval_always
+        desc { "getting delayed owners" }
+    }
+
     /// The items in a module.
     ///
     /// This can be conveniently accessed by `tcx.hir_visit_item_likes_in_module`.
