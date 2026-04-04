@@ -3408,7 +3408,9 @@ fn for_each_def(tcx: TyCtxt<'_>, mut collect_fn: impl for<'b> FnMut(&'b Ident, N
         }
 
         let def_id = id.owner_id.def_id;
-        let Some(ident) = tcx.hir_opt_ident(HirId::make_owner(def_id)) else { continue };
+        let Some(ident) = tcx.hir_opt_ident_delayed_aware(HirId::make_owner(def_id)) else {
+            continue;
+        };
 
         let def_id = def_id.to_def_id();
         let ns = tcx.def_kind(def_id).ns().unwrap_or(Namespace::TypeNS);

@@ -835,12 +835,17 @@ impl<'tcx> TyCtxt<'tcx> {
     }
 
     #[inline]
-    pub fn hir_opt_ident(self, id: HirId) -> Option<Ident> {
+    pub fn hir_opt_ident_delayed_aware(self, id: HirId) -> Option<Ident> {
         // If possible don't force lowering of delayed owner, as it can lead to cycles.
         if let Some(delayed_owner) = self.opt_hir_delayed_owner(id.owner.def_id) {
             return Some(delayed_owner.ident);
         }
 
+        self.hir_opt_ident(id)
+    }
+
+    #[inline]
+    fn hir_opt_ident(self, id: HirId) -> Option<Ident> {
         match self.hir_node(id) {
             Node::Pat(&Pat { kind: PatKind::Binding(_, _, ident, _), .. }) => Some(ident),
             // A `Ctor` doesn't have an identifier itself, but its parent
