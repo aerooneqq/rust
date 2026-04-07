@@ -230,7 +230,10 @@ pub trait Visitor<'v>: Sized {
     /// or `ControlFlow<T>`.
     type Result: VisitorResult = ();
 
-    const VISIT_DELAYED: bool = true;
+    #[inline]
+    fn visit_delayed(&self) -> bool {
+        true
+    }
 
     /// If `type NestedFilter` is set to visit nested items, this method
     /// must also be overridden to provide a map to retrieve nested items.
@@ -259,7 +262,7 @@ pub trait Visitor<'v>: Sized {
 
     // Now delayed owners are only delegations, which are either item, trait item or impl item.
     fn should_visit_maybe_delayed_inter(&mut self, id: LocalDefId) -> bool {
-        Self::NestedFilter::INTER && (Self::VISIT_DELAYED || !self.maybe_tcx().is_delayed(id))
+        Self::NestedFilter::INTER && (self.visit_delayed() || !self.maybe_tcx().is_delayed(id))
     }
 
     /// Like `visit_nested_item()`, but for trait items. See
