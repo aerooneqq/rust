@@ -9,6 +9,12 @@ LL |     reuse to_reuse::foo { self }
 LL |     reuse Trait::foo;
    |     ^^^^^^^^^^^^^^^^^ duplicate definition
 
+error: failed to resolve delegation
+  --> $DIR/duplicate-definition-inside-trait-impl.rs:19:18
+   |
+LL |     reuse Trait::foo;
+   |                  ^^^
+
 error[E0061]: this function takes 1 argument but 0 arguments were supplied
   --> $DIR/duplicate-definition-inside-trait-impl.rs:19:18
    |
@@ -34,7 +40,7 @@ LL |     reuse Trait::foo;
    |                  expected `()`, found `u32`
    |                  expected `()` because of default return type
 
-error: aborting due to 3 previous errors
+error: aborting due to 4 previous errors
 
 Some errors have detailed explanations: E0061, E0201, E0308.
 For more information about an error, try `rustc --explain E0061`.

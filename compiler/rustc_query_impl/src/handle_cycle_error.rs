@@ -19,29 +19,6 @@ use crate::job::create_cycle_error;
 
 // Default cycle handler used for all queries that don't use the `handle_cycle_error` query
 // modifier.
-pub(crate) fn specialize_query_vtables<'tcx>(vtables: &mut QueryVTables<'tcx>) {
-    vtables.fn_sig.handle_cycle_error_fn = |tcx, key, _, err| {
-        let guar = err.delay_as_bug();
-        erase_val(fn_sig(tcx, key, guar))
-    };
-
-    vtables.check_representability.handle_cycle_error_fn =
-        |tcx, _, cycle, _err| check_representability(tcx, cycle);
-
-    vtables.check_representability_adt_ty.handle_cycle_error_fn =
-        |tcx, _, cycle, _err| check_representability(tcx, cycle);
-
-    vtables.variances_of.handle_cycle_error_fn = |tcx, key, _, err| {
-        let _guar = err.delay_as_bug();
-        erase_val(variances_of(tcx, key))
-    };
-
-    vtables.layout_of.handle_cycle_error_fn = |tcx, _, cycle, err| {
-        let _guar = err.delay_as_bug();
-        erase_val(Err(layout_of(tcx, cycle)))
-    };
-}
-
 pub(crate) fn default(err: Diag<'_>) -> ! {
     let guar = err.emit();
     guar.raise_fatal()

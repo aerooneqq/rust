@@ -11,13 +11,13 @@ LL +     impl<'a, T, const N: usize, const N: usize> X<'a, T, N> {
    |
 
 error[E0107]: missing generics for struct `test_4::X`
-  --> $DIR/simple-inherent-impls.rs:79:10
+  --> $DIR/simple-inherent-impls.rs:80:10
    |
 LL |     impl X {
    |          ^ expected 1 generic argument
    |
 note: struct defined here, with 1 generic parameter: `T`
-  --> $DIR/simple-inherent-impls.rs:77:12
+  --> $DIR/simple-inherent-impls.rs:78:12
    |
 LL |     struct X<T>;
    |            ^ -
@@ -27,13 +27,13 @@ LL |     impl X<T> {
    |           +++
 
 error[E0107]: missing generics for enum `test_4::Animal`
-  --> $DIR/simple-inherent-impls.rs:91:10
+  --> $DIR/simple-inherent-impls.rs:92:10
    |
 LL |     impl Animal {
    |          ^^^^^^ expected 1 generic argument
    |
 note: enum defined here, with 1 generic parameter: `T`
-  --> $DIR/simple-inherent-impls.rs:86:10
+  --> $DIR/simple-inherent-impls.rs:87:10
    |
 LL |     enum Animal<T> {
    |          ^^^^^^ -
@@ -49,13 +49,13 @@ LL |     reuse X::foo;
    |              ^^^
 
 error[E0107]: missing generics for enum `test_4::Animal`
-  --> $DIR/simple-inherent-impls.rs:92:29
+  --> $DIR/simple-inherent-impls.rs:93:29
    |
 LL |         pub fn foo(self) -> Animal {
    |                             ^^^^^^ expected 1 generic argument
    |
 note: enum defined here, with 1 generic parameter: `T`
-  --> $DIR/simple-inherent-impls.rs:86:10
+  --> $DIR/simple-inherent-impls.rs:87:10
    |
 LL |     enum Animal<T> {
    |          ^^^^^^ -
@@ -65,13 +65,13 @@ LL |         pub fn foo(self) -> Animal<T> {
    |                                   +++
 
 error: failed to resolve delegation
-  --> $DIR/simple-inherent-impls.rs:111:18
+  --> $DIR/simple-inherent-impls.rs:112:18
    |
 LL |         reuse Y::foo;
    |                  ^^^
 
 error: failed to resolve delegation
-  --> $DIR/simple-inherent-impls.rs:118:18
+  --> $DIR/simple-inherent-impls.rs:119:18
    |
 LL |         reuse X::foo;
    |                  ^^^
@@ -86,7 +86,7 @@ LL |     impl<'a, T, const N: usize> X<'a, T, const N: usize> {
    = note: proving the result of expressions other than the parameter are unique is not supported
 
 error[E0392]: type parameter `T` is never used
-  --> $DIR/simple-inherent-impls.rs:77:14
+  --> $DIR/simple-inherent-impls.rs:78:14
    |
 LL |     struct X<T>;
    |              ^ unused type parameter
@@ -109,13 +109,30 @@ LL |     impl<'a, T, const N: usize> X<'a, T, const N: usize> {
 LL |         fn foo() -> usize {
    |            --- required by a bound in this associated function
 
+error[E0599]: no associated function or constant named `foo` found for struct `test_3::X` in the current scope
+  --> $DIR/simple-inherent-impls.rs:70:14
+   |
+LL |     struct X;
+   |     -------- associated function or constant `foo` not found for this struct
+...
+LL |     reuse X::foo;
+   |              ^^^ associated function or constant not found in `test_3::X`
+   |
+   = help: items from traits can only be used if the trait is in scope
+help: the following traits which provide `foo` are implemented but not in scope; perhaps you want to import one of them
+   |
+LL +     use test_3::Trait1;
+   |
+LL +     use test_3::Trait;
+   |
+
 error[E0277]: `fn(_) -> test_4::Animal<_> {test_4::Animal::<_>::Dog}` doesn't implement `Debug`
-  --> $DIR/simple-inherent-impls.rs:102:9
+  --> $DIR/simple-inherent-impls.rs:103:9
    |
 LL |         assert_eq!(bar(Animal::Cat), Animal::Dog);
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `Debug` is not implemented for fn item `fn(_) -> test_4::Animal<_> {test_4::Animal::<_>::Dog}`
 
-error: aborting due to 11 previous errors
+error: aborting due to 12 previous errors
 
-Some errors have detailed explanations: E0107, E0207, E0277, E0284, E0392.
+Some errors have detailed explanations: E0107, E0207, E0277, E0284, E0392, E0599.
 For more information about an error, try `rustc --explain E0107`.

@@ -26,6 +26,8 @@ mod fn_to_other {
     reuse <S as Trait>::foo2;
     reuse to_reuse::foo3;
     reuse S::foo4; //~ ERROR: failed to resolve delegation
+    //~^ ERROR: method `foo4` is private
+    //~| ERROR: this function takes 1 argument but 0 arguments were supplied
 }
 
 mod inherent_impl_assoc_fn_to_other {

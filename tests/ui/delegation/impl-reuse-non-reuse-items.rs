@@ -1,5 +1,6 @@
 #![allow(incomplete_features)]
 #![feature(fn_delegation)]
+#![allow(bare_trait_objects)]
 
 mod non_delegatable_items {
     trait Trait {
@@ -26,6 +27,7 @@ mod non_delegatable_items {
     //~| ERROR duplicate definitions with name `method`
     //~| ERROR expected function, found associated constant `Trait::CONST`
     //~| ERROR not all trait items implemented, missing: `CONST`, `Type`, `method`
+    //~| ERROR: the trait `non_delegatable_items::Trait` is not dyn compatible
 }
 
 fn main() {}

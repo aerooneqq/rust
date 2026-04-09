@@ -1,5 +1,6 @@
 #![feature(fn_delegation)]
 #![allow(incomplete_features)]
+#![allow(bare_trait_objects)]
 
 trait Trait {
     const C: u32 = 0;
@@ -36,6 +37,7 @@ impl Trait for S {
     //~^ ERROR cannot find function `foo` in this scope
     reuse Trait::foo2 { self.0 } //~ ERROR: failed to resolve delegation
     //~^ ERROR method `foo2` is not a member of trait `Trait`
+    //~| ERROR: the trait `Trait` is not dyn compatible
 }
 
 mod prefix {}

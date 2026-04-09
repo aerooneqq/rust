@@ -1,5 +1,6 @@
 #![feature(fn_delegation)]
 #![allow(incomplete_features)]
+#![allow(bare_trait_objects)]
 
 trait Trait {
     fn method(&self);
@@ -32,6 +33,7 @@ impl Trait for Bad { //~ ERROR not all trait items implemented, missing: `CONST`
     //~| ERROR item `Type` is an associated method, which doesn't match its trait `Trait`
     //~| ERROR duplicate definitions with name `method`
     //~| ERROR expected function, found associated constant `Trait::CONST`
+    //~| ERROR: the trait `Trait` is not dyn compatible
 }
 
 fn main() {}

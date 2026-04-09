@@ -69,6 +69,7 @@ mod test_3 {
 
     reuse X::foo;
     //~^ ERROR: failed to resolve delegation
+    //~| ERROR: no associated function or constant named `foo` found for struct `test_3::X` in the current scope
 }
 
 // No query cycles when there are generics errors, methods are resolved, no errors
