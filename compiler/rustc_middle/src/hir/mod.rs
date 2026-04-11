@@ -210,10 +210,14 @@ impl ModuleItems {
 impl<'tcx> TyCtxt<'tcx> {
     pub fn force_delayed_owners_lowering(self) {
         let krate = self.hir_crate(());
-        self.ensure_done().hir_crate_items(());
+        let has_delayed_owners = !krate.delayed_ids.is_empty();
 
-        for &id in &krate.delayed_ids {
-            self.ensure_done().lower_delayed_owner(id);
+        if has_delayed_owners {
+            self.ensure_done().hir_crate_items(());
+
+            for &id in &krate.delayed_ids {
+                self.ensure_done().lower_delayed_owner(id);
+            }
         }
 
         let (_, krate) = krate.delayed_resolver.steal();
@@ -224,6 +228,10 @@ impl<'tcx> TyCtxt<'tcx> {
             let _timer = prof.verbose_generic_activity("drop_ast");
             drop(krate);
         });
+
+        if !has_delayed_owners {
+            self.ensure_done().hir_crate_items(());
+        }
     }
 
     pub fn parent_module(self, id: HirId) -> LocalModDefId {

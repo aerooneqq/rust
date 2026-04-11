@@ -341,6 +341,8 @@ pub(crate) fn run_global_ctxt(
         source_macro_expansion(&krate, &render_options, output_format, tcx.sess.source_map())
     };
 
+    tcx.force_delayed_owners_lowering();
+
     // NOTE: this does not call `tcx.analysis()` so that we won't
     // typeck function bodies or run the default rustc lints.
     // (see `override_queries` in the `config`)
