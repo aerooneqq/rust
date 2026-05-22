@@ -1462,7 +1462,7 @@ impl<'a, 'ra, 'tcx> DefCollector<'a, 'ra, 'tcx> {
             let parent = self.parent_scope.module.expect_local();
             let expansion = self.parent_scope.expansion;
             self.r.define_local(parent, ident, ns, self.res(def_id), vis, item.span, expansion);
-        } else if !matches!(&item.kind, AssocItemKind::Delegation(deleg) if deleg.from_glob)
+        } else if !matches!(&item.kind, AssocItemKind::Delegation(deleg) if deleg.from_glob_or_list)
             && ident.name != kw::Underscore
         {
             // Don't add underscore names, they cannot be looked up anyway.

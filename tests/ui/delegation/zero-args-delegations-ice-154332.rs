@@ -3,7 +3,7 @@
 mod test_ice {
     fn a() {}
 
-    reuse a as b { //~ ERROR: this function takes 0 arguments but 1 argument was supplied
+    reuse a as b { //~ ERROR: delegation block is specified for function with no params
         let closure = || {
             fn foo<'a, 'b, T: Clone, const N: usize, U: Clone>(_t: &'a T, _u: &'b U) {}
 
@@ -23,7 +23,7 @@ mod test_2 {
     }
 
     reuse to_reuse::zero_args { self }
-    //~^ ERROR: this function takes 0 arguments but 1 argument was supplied
+    //~^ ERROR: delegation block is specified for function with no params
 }
 
 fn main() {}

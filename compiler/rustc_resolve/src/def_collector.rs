@@ -51,20 +51,38 @@ impl<'a, 'ra, 'tcx> DefCollector<'a, 'ra, 'tcx> {
         def_kind: DefKind,
         span: Span,
     ) -> TyCtxtFeed<'tcx, LocalDefId> {
+        self.create_feed(node_id, name, def_kind, span, false)
+    }
+
+    fn create_feed(
+        &mut self,
+        node_id: NodeId,
+        name: Option<Symbol>,
+        def_kind: DefKind,
+        span: Span,
+        is_owner: bool,
+    ) -> TyCtxtFeed<'tcx, LocalDefId> {
         let parent_def = self.invocation_parent.parent_def;
         debug!(
             "create_def(node_id={:?}, def_kind={:?}, parent_def={:?})",
             node_id, def_kind, parent_def
         );
-        self.r.create_def(
+
+        let feed = self.r.create_def(
             parent_def,
             node_id,
             name,
             def_kind,
             self.parent_scope.expansion.to_expn_id(),
             span.with_parent(None),
-            false,
-        )
+            is_owner,
+        );
+
+        if let Some(last_delegation) = self.invocation_parent.last_delegation {
+            self.r.defs_in_delegations_blocks.insert(feed.def_id(), last_delegation);
+        }
+
+        feed
     }
 
     fn with_parent<F: FnOnce(&mut Self)>(&mut self, parent_def: LocalDefId, f: F) {
@@ -86,16 +104,8 @@ impl<'a, 'ra, 'tcx> DefCollector<'a, 'ra, 'tcx> {
         // We only get here if the owner didn't exist yet. After the owner has been created,
         // future invocations of `collect_definitions` will get the owner out of the `owners`
         // table.
-        let parent_def = self.invocation_parent.parent_def;
-        let feed = self.r.create_def(
-            parent_def,
-            owner,
-            name,
-            def_kind,
-            self.parent_scope.expansion.to_expn_id(),
-            span.with_parent(None),
-            true,
-        );
+
+        let feed = self.create_feed(owner, name, def_kind, span, true);
         let tables = PerOwnerResolverData::new(owner, feed.key());
 
         let orig_invoc_owner = mem::replace(&mut self.invocation_parent.owner, owner);
@@ -238,6 +248,22 @@ impl<'a, 'ra, 'tcx> visit::Visitor<'a> for DefCollector<'a, 'ra, 'tcx> {
                 });
             },
         );
+    }
+
+    fn visit_delegation(&mut self, node: &'a Delegation) {
+        // Do not map defs in path (i.e., consts with blocks), consider only
+        // delegation's block which is its first argument.
+        visit::walk_path(self, &node.path);
+        node.qself.as_ref().inspect(|qself| visit::walk_qself(self, qself));
+
+        let orig_last_delegation = mem::replace(
+            &mut self.invocation_parent.last_delegation,
+            Some(self.invocation_parent.parent_def),
+        );
+
+        node.body.as_ref().inspect(|block| self.brg_visit_block(block));
+
+        self.invocation_parent.last_delegation = orig_last_delegation;
     }
 
     fn visit_block(&mut self, block: &'a Block) {

@@ -50,13 +50,16 @@ use rustc_hir::attrs::{AttributeKind, InlineAttr};
 use rustc_hir::def_id::DefId;
 use rustc_hir::{self as hir, FnDeclFlags};
 use rustc_middle::span_bug;
-use rustc_middle::ty::Asyncness;
+use rustc_middle::ty::{Asyncness, TyCtxt};
 use rustc_span::symbol::kw;
 use rustc_span::{Ident, Span, Symbol};
 use smallvec::SmallVec;
 
 use crate::delegation::generics::{GenericsGenerationResult, GenericsGenerationResults};
-use crate::errors::{CycleInDelegationSignatureResolution, UnresolvedDelegationCallee};
+use crate::errors::{
+    CycleInDelegationSignatureResolution, DelegationBlockSpecifiedWhenNoParams,
+    UnresolvedDelegationCallee,
+};
 use crate::{
     AllowReturnTypeNotation, GenericArgsMode, ImplTraitContext, ImplTraitPosition, LoweringContext,
     ParamMode, ResolverAstLoweringExt,
@@ -105,6 +108,12 @@ static ATTRS_ADDITIONS: &[AttrAdditionInfo] = &[
     },
 ];
 
+// Function parameter count, including C variadic `...` if present.
+pub(crate) fn param_count(tcx: TyCtxt<'_>, def_id: DefId) -> (usize, bool /*c_variadic*/) {
+    let sig = tcx.fn_sig(def_id).skip_binder().skip_binder();
+    (sig.inputs().len() + usize::from(sig.c_variadic()), sig.c_variadic())
+}
+
 impl<'hir> LoweringContext<'_, 'hir> {
     fn is_method(&self, def_id: DefId, span: Span) -> bool {
         match self.tcx.def_kind(def_id) {
@@ -140,13 +149,13 @@ impl<'hir> LoweringContext<'_, 'hir> {
 
                 let is_method = self.is_method(sig_id, span);
 
-                let (param_count, c_variadic) = self.param_count(sig_id);
+                let (param_count, c_variadic) = param_count(self.tcx, sig_id);
 
                 let mut generics = self.uplift_delegation_generics(delegation, sig_id, is_method);
 
                 let body_id = self.lower_delegation_body(
                     delegation,
-                    is_method,
+                    sig_id,
                     param_count,
                     &mut generics,
                     span,
@@ -265,12 +274,6 @@ impl<'hir> LoweringContext<'_, 'hir> {
 
     fn get_resolution_id(&self, node_id: NodeId) -> Option<DefId> {
         self.get_partial_res(node_id).and_then(|r| r.expect_full_res().opt_def_id())
-    }
-
-    // Function parameter count, including C variadic `...` if present.
-    fn param_count(&self, def_id: DefId) -> (usize, bool /*c_variadic*/) {
-        let sig = self.tcx.fn_sig(def_id).skip_binder().skip_binder();
-        (sig.inputs().len() + usize::from(sig.c_variadic()), sig.c_variadic())
     }
 
     fn lower_delegation_decl(
@@ -396,7 +399,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
     fn lower_delegation_body(
         &mut self,
         delegation: &Delegation,
-        is_method: bool,
+        sig_id: DefId,
         param_count: usize,
         generics: &mut GenericsGenerationResults<'hir>,
         span: Span,
@@ -407,12 +410,20 @@ impl<'hir> LoweringContext<'_, 'hir> {
             let mut parameters: Vec<hir::Param<'_>> = Vec::with_capacity(param_count);
             let mut args: Vec<hir::Expr<'_>> = Vec::with_capacity(param_count);
 
+            let is_method = this.is_method(sig_id, span);
+
+            // Should be in sync with conditions in `lower_delayed_owner::is_dead_code`.
+            let generate_block = is_method
+                || matches!(this.tcx.def_kind(sig_id), DefKind::Fn)
+                || !delegation.from_glob_or_list;
+
             for idx in 0..param_count {
                 let (param, pat_node_id) = this.generate_param(is_method, idx, span);
                 parameters.push(param);
 
                 let arg = if let Some(block) = block
                     && idx == 0
+                    && generate_block
                 {
                     let mut self_resolver = SelfResolver {
                         ctxt: this,
@@ -429,15 +440,13 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 args.push(arg);
             }
 
-            // If we have no params in signature function but user still wrote some code in
-            // delegation body, then add this code as first arg, eventually an error will be shown,
-            // also nested delegations may need to access information about this code (#154332),
-            // so it is better to leave this code as opposed to bodies of extern functions,
-            // which are completely erased from existence.
+            // Report an error if user has explicitly specified delegation's block
+            // in a single delegation when reused function has no params.
             if param_count == 0
+                && !delegation.from_glob_or_list
                 && let Some(block) = block
             {
-                args.push(this.lower_target_expr(&block));
+                this.dcx().emit_err(DelegationBlockSpecifiedWhenNoParams { span: block.span });
             }
 
             let final_expr = this.finalize_body_lowering(delegation, args, generics, span);
