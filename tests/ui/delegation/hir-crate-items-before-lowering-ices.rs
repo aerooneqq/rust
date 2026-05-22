@@ -33,7 +33,7 @@ mod ice_155127 {
 mod ice_155128 {
     fn a() {}
 
-    reuse a as b { //[ice_155128]~ ERROR: this function takes 0 arguments but 1 argument was supplied
+    reuse a as b { //[ice_155128]~ ERROR: delegation block is specified for function with no params
         fn foo<T>() {};
         foo
     }

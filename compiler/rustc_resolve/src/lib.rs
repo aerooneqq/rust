@@ -188,6 +188,7 @@ struct InvocationParent {
     in_attr: bool,
     const_arg_context: ConstArgContext,
     owner: NodeId,
+    last_delegation: Option<LocalDefId>,
 }
 
 impl InvocationParent {
@@ -197,6 +198,7 @@ impl InvocationParent {
         in_attr: false,
         const_arg_context: ConstArgContext::NonDirect,
         owner: CRATE_NODE_ID,
+        last_delegation: None,
     };
 }
 
@@ -1508,8 +1510,10 @@ pub struct Resolver<'ra, 'tcx> {
     item_generics_num_lifetimes: FxHashMap<LocalDefId, usize> = default::fx_hash_map(),
     /// Generic args to suggest for required params (e.g. `<'_>`, `<_, _>`), if any.
     item_required_generic_args_suggestions: FxHashMap<LocalDefId, String> = default::fx_hash_map(),
+
     delegation_fn_sigs: LocalDefIdMap<DelegationFnSig> = Default::default(),
     delegation_infos: LocalDefIdMap<DelegationInfo> = Default::default(),
+    defs_in_delegations_blocks: LocalDefIdMap<LocalDefId> = Default::default(),
 
     main_def: Option<MainDefinition> = None,
     trait_impls: FxIndexMap<DefId, Vec<LocalDefId>>,
@@ -2004,6 +2008,7 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
             trait_map: self.trait_map,
             lint_buffer: Steal::new(self.lint_buffer),
             delegation_infos: self.delegation_infos,
+            defs_in_delegations_blocks: self.defs_in_delegations_blocks,
             disambiguators,
         };
         ResolverOutputs { global_ctxt, ast_lowering }

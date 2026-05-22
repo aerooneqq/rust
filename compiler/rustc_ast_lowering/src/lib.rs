@@ -541,13 +541,21 @@ pub fn lower_to_hir(tcx: TyCtxt<'_>, (): ()) -> mid_hir::Crate<'_> {
     let mut delayed_ids: FxIndexSet<LocalDefId> = Default::default();
 
     for def_id in ast_index.indices() {
-        match &ast_index[def_id] {
+        // Check if this def is inside delegation (or it is delegation itself), if so,
+        // we should lower it in delayed mode, as we need to resolve delegation in order
+        // to understand whether to generate block as first arg or not.
+        let def_inside_delegation = resolver.defs_in_delegations_blocks.contains_key(&def_id);
+        let is_delegation = matches!(
+            ast_index[def_id],
             AstOwner::Item(Item { kind: ItemKind::Delegation { .. }, .. })
-            | AstOwner::AssocItem(Item { kind: AssocItemKind::Delegation { .. }, .. }, _) => {
-                delayed_ids.insert(def_id);
-            }
-            _ => lowerer.lower_node(def_id),
-        };
+                | AstOwner::AssocItem(Item { kind: AssocItemKind::Delegation { .. }, .. }, _)
+        );
+
+        if def_inside_delegation || is_delegation {
+            delayed_ids.insert(def_id);
+        } else {
+            lowerer.lower_node(def_id);
+        }
     }
 
     // Don't hash unless necessary, because it's expensive.
@@ -576,10 +584,53 @@ pub fn lower_delayed_owner(tcx: TyCtxt<'_>, def_id: LocalDefId) {
         owners: Owners::Map(&mut map),
     };
 
-    lowerer.lower_node(def_id);
+    let is_dead_code = || -> bool {
+        // Try to find enclosing delegation (delegation in which block this `def_id` is placed).
+        let Some(&parent_del) = resolver.defs_in_delegations_blocks.get(&def_id) else {
+            return false;
+        };
 
-    for (child_def_id, owner) in map {
-        tcx.feed_delayed_owner(child_def_id, owner);
+        let from_glob_or_list = match &ast_index[parent_del] {
+            AstOwner::Item(Item { kind: ItemKind::Delegation(d), .. })
+            | AstOwner::AssocItem(Item { kind: AssocItemKind::Delegation(d), .. }, _) => {
+                d.from_glob_or_list
+            }
+            _ => unreachable!(),
+        };
+
+        let is_method_or_free = if let Some(info) = resolver.delegation_infos.get(&parent_del)
+            && let Some(sig_id) = resolver
+                .partial_res_map
+                .get(&info.resolution_node)
+                .and_then(|r| r.expect_full_res().opt_def_id())
+        {
+            tcx.opt_associated_item(sig_id).is_some_and(|a| a.is_method())
+                || matches!(tcx.def_kind(sig_id), DefKind::Fn)
+        } else {
+            // If delegation is unresolved for some reason we will generate an error delegation
+            // and some errors will be certainly emitted, so no delayed bugs should happen.
+            return false;
+        };
+
+        let (param_count, _) = delegation::param_count(tcx, parent_del.to_def_id());
+
+        // Should be in sync with conditions in `lower_delegation_body`.
+        (!is_method_or_free && from_glob_or_list) || param_count == 0
+    };
+
+    if !is_dead_code() {
+        lowerer.lower_node(def_id);
+
+        for (child_def_id, owner) in map {
+            // We can encounter `NonOwner` which will result in a phantom being written
+            // to the map, however this `NonOwner` could be inserted from lowering of
+            // other owner (for example use trees), so we do not feed delayed_owner
+            // with Phantom as (1) it is Phantom by default, (2) we want to avoid
+            // consistency assert during query feeding.
+            if !matches!(owner, hir::MaybeOwner::Phantom) {
+                tcx.feed_delayed_owner(child_def_id, owner);
+            }
+        }
     }
 }
 

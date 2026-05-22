@@ -3918,7 +3918,7 @@ pub struct Delegation {
     pub rename: Option<Ident>,
     pub body: Option<Box<Block>>,
     /// The item was expanded from a glob delegation item.
-    pub from_glob: bool,
+    pub from_glob_or_list: bool,
 }
 
 #[derive(Clone, Encodable, Decodable, Debug, Walkable)]

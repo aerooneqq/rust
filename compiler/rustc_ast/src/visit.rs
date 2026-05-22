@@ -428,7 +428,6 @@ macro_rules! common_visitor_and_walkers {
             ConstItem,
             ConstItemRhsKind,
             Defaultness,
-            Delegation,
             DelegationMac,
             DelegationSuffixes,
             DelimArgs,
@@ -573,6 +572,7 @@ macro_rules! common_visitor_and_walkers {
                 fn visit_fn_decl(FnDecl);
                 fn visit_fn_header(FnHeader);
                 fn visit_fn_ret_ty(FnRetTy);
+                fn visit_delegation(Delegation);
                 //fn visit_foreign_item(ForeignItem);
                 fn visit_foreign_mod(ForeignMod);
                 fn visit_format_args(FormatArgs);

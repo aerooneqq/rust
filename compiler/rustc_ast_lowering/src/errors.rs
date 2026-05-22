@@ -535,3 +535,10 @@ pub(crate) struct CycleInDelegationSignatureResolution {
     #[primary_span]
     pub span: Span,
 }
+
+#[derive(Diagnostic)]
+#[diag("delegation block is specified for function with no params")]
+pub(crate) struct DelegationBlockSpecifiedWhenNoParams {
+    #[primary_span]
+    pub span: Span,
+}
