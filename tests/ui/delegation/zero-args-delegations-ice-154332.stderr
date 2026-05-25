@@ -16,5 +16,18 @@ error: delegation block is specified for function with no params
 LL |     reuse to_reuse::zero_args { self }
    |                               ^^^^^^^^
 
-error: aborting due to 2 previous errors
+error: delegation block is specified for function with no params
+  --> $DIR/zero-args-delegations-ice-154332.rs:32:18
+   |
+LL |       reuse a as b {
+   |  __________________^
+LL | |         let closure = || {
+LL | |             reuse a as b {
+LL | |                 fn foo<'a, 'b, T: Clone, const N: usize, U: Clone>(_t: &'a T, _u: &'b U) {}
+...  |
+LL | |         closure();
+LL | |     }
+   | |_____^
+
+error: aborting due to 3 previous errors
 

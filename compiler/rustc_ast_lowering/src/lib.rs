@@ -567,7 +567,7 @@ pub fn lower_to_hir(tcx: TyCtxt<'_>, (): ()) -> mid_hir::Crate<'_> {
 }
 
 /// Lowers an AST owner corresponding to `def_id`, now only delegations are lowered this way.
-pub fn lower_delayed_owner(tcx: TyCtxt<'_>, def_id: LocalDefId) {
+pub fn lower_delayed_owner<'tcx>(tcx: TyCtxt<'tcx>, def_id: LocalDefId) {
     let krate = tcx.hir_crate(());
 
     let (resolver, krate) = &*krate.delayed_resolver.borrow();
@@ -584,11 +584,21 @@ pub fn lower_delayed_owner(tcx: TyCtxt<'_>, def_id: LocalDefId) {
         owners: Owners::Map(&mut map),
     };
 
-    let is_dead_code = || -> bool {
+    fn is_dead_code<'tcx>(
+        tcx: TyCtxt<'tcx>,
+        resolver: &ResolverAstLowering<'tcx>,
+        ast_index: &IndexVec<LocalDefId, AstOwner<'_>>,
+        def_id: LocalDefId,
+    ) -> bool {
         // Try to find enclosing delegation (delegation in which block this `def_id` is placed).
         let Some(&parent_del) = resolver.defs_in_delegations_blocks.get(&def_id) else {
             return false;
         };
+
+        // Check if the delegation itself is a dead-code (recursively up to topmost delegation).
+        if is_dead_code(tcx, resolver, ast_index, parent_del) {
+            return true;
+        }
 
         let from_glob_or_list = match &ast_index[parent_del] {
             AstOwner::Item(Item { kind: ItemKind::Delegation(d), .. })
@@ -616,9 +626,9 @@ pub fn lower_delayed_owner(tcx: TyCtxt<'_>, def_id: LocalDefId) {
 
         // Should be in sync with conditions in `lower_delegation_body`.
         (!is_method_or_free && from_glob_or_list) || param_count == 0
-    };
+    }
 
-    if !is_dead_code() {
+    if !is_dead_code(tcx, resolver, &ast_index, def_id) {
         lowerer.lower_node(def_id);
 
         for (child_def_id, owner) in map {
