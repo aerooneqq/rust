@@ -906,7 +906,7 @@ impl<'a> Parser<'a> {
                 ident,
                 rename,
                 body: self.parse_delegation_body()?,
-                from_glob_or_list: false,
+                source: DelegationSource::Single,
             }))
         })
     }

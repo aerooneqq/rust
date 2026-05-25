@@ -411,11 +411,12 @@ impl<'hir> LoweringContext<'_, 'hir> {
             let mut args: Vec<hir::Expr<'_>> = Vec::with_capacity(param_count);
 
             let is_method = this.is_method(sig_id, span);
+            let is_single_delegation = matches!(delegation.source, DelegationSource::Single);
 
             // Should be in sync with conditions in `lower_delayed_owner::is_dead_code`.
             let generate_block = is_method
                 || matches!(this.tcx.def_kind(sig_id), DefKind::Fn)
-                || !delegation.from_glob_or_list;
+                || is_single_delegation;
 
             for idx in 0..param_count {
                 let (param, pat_node_id) = this.generate_param(is_method, idx, span);
@@ -443,7 +444,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
             // Report an error if user has explicitly specified delegation's block
             // in a single delegation when reused function has no params.
             if param_count == 0
-                && !delegation.from_glob_or_list
+                && is_single_delegation
                 && let Some(block) = block
             {
                 this.dcx().emit_err(DelegationBlockSpecifiedWhenNoParams { span: block.span });
