@@ -26,4 +26,26 @@ mod test_2 {
     //~^ ERROR: delegation block is specified for function with no params
 }
 
+mod nested_delegations {
+    fn a() {}
+
+    reuse a as b { //~ ERROR: delegation block is specified for function with no params
+        let closure = || {
+            reuse a as b {
+                fn foo<'a, 'b, T: Clone, const N: usize, U: Clone>(_t: &'a T, _u: &'b U) {}
+
+                reuse foo::<String, 1, String> as bar;
+                bar(&"".to_string(), &"".to_string());
+
+                reuse a as b {
+                    reuse foo::<String, 1, String> as bar;
+                    bar(&"".to_string(), &"".to_string());
+                }
+            }
+        };
+
+        closure();
+    }
+}
+
 fn main() {}
