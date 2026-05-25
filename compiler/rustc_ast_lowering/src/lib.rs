@@ -603,7 +603,7 @@ pub fn lower_delayed_owner<'tcx>(tcx: TyCtxt<'tcx>, def_id: LocalDefId) {
         let from_glob_or_list = match &ast_index[parent_del] {
             AstOwner::Item(Item { kind: ItemKind::Delegation(d), .. })
             | AstOwner::AssocItem(Item { kind: AssocItemKind::Delegation(d), .. }, _) => {
-                d.from_glob_or_list
+                !matches!(d.source, DelegationSource::Single)
             }
             _ => unreachable!(),
         };

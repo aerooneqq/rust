@@ -3909,6 +3909,13 @@ pub struct EiiImpl {
 }
 
 #[derive(Clone, Encodable, Decodable, Debug, Walkable)]
+pub enum DelegationSource {
+    Single,
+    List,
+    Glob,
+}
+
+#[derive(Clone, Encodable, Decodable, Debug, Walkable)]
 pub struct Delegation {
     /// Path resolution id.
     pub id: NodeId,
@@ -3918,7 +3925,7 @@ pub struct Delegation {
     pub rename: Option<Ident>,
     pub body: Option<Box<Block>>,
     /// The item was expanded from a glob delegation item.
-    pub from_glob_or_list: bool,
+    pub source: DelegationSource,
 }
 
 #[derive(Clone, Encodable, Decodable, Debug, Walkable)]
