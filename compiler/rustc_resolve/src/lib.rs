@@ -1510,7 +1510,6 @@ pub struct Resolver<'ra, 'tcx> {
     item_generics_num_lifetimes: FxHashMap<LocalDefId, usize> = default::fx_hash_map(),
     /// Generic args to suggest for required params (e.g. `<'_>`, `<_, _>`), if any.
     item_required_generic_args_suggestions: FxHashMap<LocalDefId, String> = default::fx_hash_map(),
-
     delegation_fn_sigs: LocalDefIdMap<DelegationFnSig> = Default::default(),
     delegation_infos: LocalDefIdMap<DelegationInfo> = Default::default(),
 

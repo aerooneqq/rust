@@ -50,7 +50,7 @@ use rustc_hir::attrs::{AttributeKind, InlineAttr};
 use rustc_hir::def_id::DefId;
 use rustc_hir::{self as hir, FnDeclFlags};
 use rustc_middle::span_bug;
-use rustc_middle::ty::{Asyncness, TyCtxt};
+use rustc_middle::ty::Asyncness;
 use rustc_span::symbol::kw;
 use rustc_span::{Ident, Span, Symbol};
 use smallvec::SmallVec;
@@ -108,12 +108,6 @@ static ATTRS_ADDITIONS: &[AttrAdditionInfo] = &[
     },
 ];
 
-// Function parameter count, including C variadic `...` if present.
-pub(crate) fn param_count(tcx: TyCtxt<'_>, def_id: DefId) -> (usize, bool /*c_variadic*/) {
-    let sig = tcx.fn_sig(def_id).skip_binder().skip_binder();
-    (sig.inputs().len() + usize::from(sig.c_variadic()), sig.c_variadic())
-}
-
 impl<'hir> LoweringContext<'_, 'hir> {
     fn is_method(&self, def_id: DefId, span: Span) -> bool {
         match self.tcx.def_kind(def_id) {
@@ -150,7 +144,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
 
                 let is_method = self.is_method(sig_id, span);
 
-                let (param_count, c_variadic) = param_count(self.tcx, sig_id);
+                let (param_count, c_variadic) = self.param_count(sig_id);
 
                 if !self.check_block_soundness(delegation, sig_id, is_method, param_count) {
                     return self.generate_delegation_error(span, delegation);
@@ -319,6 +313,12 @@ impl<'hir> LoweringContext<'_, 'hir> {
 
     fn get_resolution_id(&self, node_id: NodeId) -> Option<DefId> {
         self.get_partial_res(node_id).and_then(|r| r.expect_full_res().opt_def_id())
+    }
+
+    // Function parameter count, including C variadic `...` if present.
+    fn param_count(&self, def_id: DefId) -> (usize, bool /*c_variadic*/) {
+        let sig = self.tcx.fn_sig(def_id).skip_binder().skip_binder();
+        (sig.inputs().len() + usize::from(sig.c_variadic()), sig.c_variadic())
     }
 
     fn lower_delegation_decl(

@@ -541,14 +541,12 @@ pub fn lower_to_hir(tcx: TyCtxt<'_>, (): ()) -> mid_hir::Crate<'_> {
     let mut delayed_ids: FxIndexSet<LocalDefId> = Default::default();
 
     for def_id in ast_index.indices() {
-        match ast_index[def_id] {
+        match &ast_index[def_id] {
             AstOwner::Item(Item { kind: ItemKind::Delegation { .. }, .. })
             | AstOwner::AssocItem(Item { kind: AssocItemKind::Delegation { .. }, .. }, _) => {
                 delayed_ids.insert(def_id);
             }
-            _ => {
-                lowerer.lower_node(def_id);
-            }
+            _ => lowerer.lower_node(def_id),
         }
     }
 
@@ -561,7 +559,7 @@ pub fn lower_to_hir(tcx: TyCtxt<'_>, (): ()) -> mid_hir::Crate<'_> {
 }
 
 /// Lowers an AST owner corresponding to `def_id`, now only delegations are lowered this way.
-pub fn lower_delayed_owner<'tcx>(tcx: TyCtxt<'tcx>, def_id: LocalDefId) {
+pub fn lower_delayed_owner(tcx: TyCtxt<'_>, def_id: LocalDefId) {
     let krate = tcx.hir_crate(());
 
     let (resolver, krate) = &*krate.delayed_resolver.borrow();
