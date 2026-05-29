@@ -57,8 +57,8 @@ use smallvec::SmallVec;
 
 use crate::delegation::generics::{GenericsGenerationResult, GenericsGenerationResults};
 use crate::errors::{
-    CycleInDelegationSignatureResolution, DelegationBlockSpecifiedWhenNoParams,
-    UnresolvedDelegationCallee,
+    CycleInDelegationSignatureResolution, DelegationAttemptedBlockWithDefsDeletion,
+    DelegationBlockSpecifiedWhenNoParams, UnresolvedDelegationCallee,
 };
 use crate::{
     AllowReturnTypeNotation, ImplTraitContext, ImplTraitPosition, LoweringContext, ParamMode,
@@ -131,7 +131,8 @@ impl<'hir> LoweringContext<'_, 'hir> {
         let span = self.lower_span(delegation.path.segments.last().unwrap().ident.span);
 
         // Delegation can be unresolved in illegal places such as function bodies in extern blocks (see #151356)
-        let sig_id = if let Some(delegation_info) = self.resolver.delegation_info(self.owner.def_id)
+        let sig_id = if let Some(resolution_node) =
+            self.resolver.delegation_info(self.owner.def_id).and_then(|i| i.resolution_node)
         {
             self.get_sig_id(delegation_info.resolution_id, span)
         } else {
@@ -150,6 +151,10 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 let is_method = self.is_method(sig_id, span);
 
                 let (param_count, c_variadic) = param_count(self.tcx, sig_id);
+
+                if !self.check_block_soundness(delegation, sig_id, is_method, param_count) {
+                    return self.generate_delegation_error(span, delegation);
+                }
 
                 let mut generics = self.uplift_delegation_generics(delegation, sig_id, is_method);
 
@@ -186,6 +191,48 @@ impl<'hir> LoweringContext<'_, 'hir> {
             }
             Err(_) => self.generate_delegation_error(span, delegation),
         }
+    }
+
+    fn check_block_soundness(
+        &self,
+        delegation: &Delegation,
+        sig_id: DefId,
+        is_method: bool,
+        param_count: usize,
+    ) -> bool {
+        let mut result = true;
+
+        // Report an error if user has explicitly specified delegation's block
+        // in a single delegation when reused function has no params.
+        if let Some(block) = delegation.body.as_ref() {
+            if param_count == 0 && matches!(delegation.source, DelegationSource::Single) {
+                self.dcx().emit_err(DelegationBlockSpecifiedWhenNoParams { span: block.span });
+                result = false;
+            }
+
+            if !self.should_generate_block(delegation, sig_id, is_method)
+                && self
+                    .resolver
+                    .delegation_info(self.owner.def_id)
+                    .is_some_and(|i| i.block_contains_defs)
+            {
+                self.dcx().emit_err(DelegationAttemptedBlockWithDefsDeletion { span: block.span });
+                result = false;
+            }
+        }
+
+        result
+    }
+
+    fn should_generate_block(
+        &self,
+        delegation: &Delegation,
+        sig_id: DefId,
+        is_method: bool,
+    ) -> bool {
+        is_method
+            || matches!(self.tcx.def_kind(sig_id), DefKind::Fn)
+            || matches!(delegation.source, DelegationSource::Single)
     }
 
     fn add_attrs_if_needed(&mut self, span: Span, sig_id: DefId) {
@@ -252,7 +299,8 @@ impl<'hir> LoweringContext<'_, 'hir> {
             // it means that we refer to another delegation as a callee, so in order to obtain
             // a signature DefId we obtain NodeId of the callee delegation and try to get signature from it.
             if let Some(local_id) = def_id.as_local()
-                && let Some(delegation_info) = self.resolver.delegation_info(local_id)
+                && let Some(resolution_node) =
+                    self.resolver.delegation_info(local_id).and_then(|i| i.resolution_node)
             {
                 def_id = delegation_info.resolution_id;
                 if visited.contains(&def_id) {
@@ -413,12 +461,6 @@ impl<'hir> LoweringContext<'_, 'hir> {
             let mut args: Vec<hir::Expr<'_>> = Vec::with_capacity(param_count);
 
             let is_method = this.is_method(sig_id, span);
-            let is_single_delegation = matches!(delegation.source, DelegationSource::Single);
-
-            // Should be in sync with conditions in `lower_delayed_owner::is_dead_code`.
-            let generate_block = is_method
-                || matches!(this.tcx.def_kind(sig_id), DefKind::Fn)
-                || is_single_delegation;
 
             for idx in 0..param_count {
                 let (param, pat_node_id) = this.generate_param(is_method, idx, span);
@@ -426,7 +468,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
 
                 let arg = if let Some(block) = block
                     && idx == 0
-                    && generate_block
+                    && this.should_generate_block(delegation, sig_id, is_method)
                 {
                     let mut self_resolver = SelfResolver {
                         ctxt: this,
@@ -441,15 +483,6 @@ impl<'hir> LoweringContext<'_, 'hir> {
                     this.generate_arg(is_method, idx, param.pat.hir_id, span)
                 };
                 args.push(arg);
-            }
-
-            // Report an error if user has explicitly specified delegation's block
-            // in a single delegation when reused function has no params.
-            if param_count == 0
-                && is_single_delegation
-                && let Some(block) = block
-            {
-                this.dcx().emit_err(DelegationBlockSpecifiedWhenNoParams { span: block.span });
             }
 
             let (final_expr, hir_id) =

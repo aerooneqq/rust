@@ -258,12 +258,11 @@ pub struct ResolverAstLowering<'tcx> {
 
     // Information about delegations which is used when handling recursive delegations
     pub delegation_infos: LocalDefIdMap<DelegationInfo>,
-    pub defs_in_delegations_blocks: LocalDefIdMap<LocalDefId>,
 
     pub disambiguators: LocalDefIdMap<Steal<PerParentDisambiguatorState>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct DelegationInfo {
     // `DefId` (either the resolution at delegation.id or item_id in case of a trait impl) for signature resolution,
     // for details see https://github.com/rust-lang/rust/issues/118212#issuecomment-2160686914
@@ -271,6 +270,7 @@ pub struct DelegationInfo {
     /// Usually points to the final resolution, as most "chains" are just
     /// one step to a trait or an impl.
     pub resolution_id: DefId,
+    pub block_contains_defs: bool,
 }
 
 #[derive(Clone, Copy, Debug, StableHash)]

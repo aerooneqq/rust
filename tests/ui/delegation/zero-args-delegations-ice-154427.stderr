@@ -4,22 +4,5 @@ error: delegation block is specified for function with no params
 LL |         reuse to_reuse::foo { self }
    |                             ^^^^^^^^
 
-error[E0061]: this function takes 1 argument but 0 arguments were supplied
-  --> $DIR/zero-args-delegations-ice-154427.rs:14:25
-   |
-LL |         reuse to_reuse::foo { self }
-   |                         ^^^ argument #1 of type `F` is missing
-   |
-note: function defined here
-  --> $DIR/zero-args-delegations-ice-154427.rs:11:16
-   |
-LL |         pub fn foo(_: F) {}
-   |                ^^^ ----
-help: provide the argument
-   |
-LL |         reuse to_reuse::foo(/* F */) { self }
-   |                            +++++++++
+error: aborting due to 1 previous error
 
-error: aborting due to 2 previous errors
-
-For more information about this error, try `rustc --explain E0061`.

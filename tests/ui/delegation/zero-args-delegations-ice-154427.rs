@@ -12,8 +12,7 @@ mod ice_154427 {
     }
     impl Trait for S {
         reuse to_reuse::foo { self }
-        //~^ ERROR: this function takes 1 argument but 0 arguments were supplied
-        //~| ERROR: delegation block is specified for function with no params
+        //~^ ERROR: delegation block is specified for function with no params
     }
 
     fn main() {}

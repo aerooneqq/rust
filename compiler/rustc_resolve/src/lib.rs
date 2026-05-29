@@ -1513,7 +1513,6 @@ pub struct Resolver<'ra, 'tcx> {
 
     delegation_fn_sigs: LocalDefIdMap<DelegationFnSig> = Default::default(),
     delegation_infos: LocalDefIdMap<DelegationInfo> = Default::default(),
-    defs_in_delegations_blocks: LocalDefIdMap<LocalDefId> = Default::default(),
 
     main_def: Option<MainDefinition> = None,
     trait_impls: FxIndexMap<DefId, Vec<LocalDefId>>,
@@ -2008,7 +2007,6 @@ impl<'ra, 'tcx> Resolver<'ra, 'tcx> {
             trait_map: self.trait_map,
             lint_buffer: Steal::new(self.lint_buffer),
             delegation_infos: self.delegation_infos,
-            defs_in_delegations_blocks: self.defs_in_delegations_blocks,
             disambiguators,
         };
         ResolverOutputs { global_ctxt, ast_lowering }

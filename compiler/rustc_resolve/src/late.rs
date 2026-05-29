@@ -29,7 +29,7 @@ use rustc_hir::def::{CtorKind, DefKind, LifetimeRes, NonMacroAttrKind, PartialRe
 use rustc_hir::def_id::{CRATE_DEF_ID, DefId, LOCAL_CRATE, LocalDefId};
 use rustc_hir::{MissingLifetimeKind, PrimTy};
 use rustc_middle::middle::resolve_bound_vars::Set1;
-use rustc_middle::ty::{AssocTag, DelegationInfo, Visibility};
+use rustc_middle::ty::{AssocTag, Visibility};
 use rustc_middle::{bug, span_bug};
 use rustc_session::config::{CrateType, ResolveDocLinks};
 use rustc_session::errors::feature_err;
@@ -3906,9 +3906,8 @@ impl<'a, 'ast, 'ra, 'tcx> LateResolutionVisitor<'a, 'ast, 'ra, 'tcx> {
             .get(&resolution_id)
             .and_then(|r| r.expect_full_res().opt_def_id());
         if let Some(resolution_id) = def_id {
-            self.r
-                .delegation_infos
-                .insert(self.r.current_owner.def_id, DelegationInfo { resolution_id });
+            let info = self.r.delegation_infos.entry(self.r.current_owner.def_id).or_default();
+            info.resolution_id = resolution_id;
         } else {
             self.r.tcx.dcx().span_delayed_bug(
                 delegation.path.span,

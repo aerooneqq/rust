@@ -79,7 +79,7 @@ impl<'a, 'ra, 'tcx> DefCollector<'a, 'ra, 'tcx> {
         );
 
         if let Some(last_delegation) = self.invocation_parent.last_delegation {
-            self.r.defs_in_delegations_blocks.insert(feed.def_id(), last_delegation);
+            self.r.delegation_infos.entry(last_delegation).or_default().block_contains_defs = true;
         }
 
         feed

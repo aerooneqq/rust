@@ -15,5 +15,23 @@ error: delegation block is specified for function with no params
 LL | reuse a as b { #![rustc_dummy] self }
    |              ^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: aborting due to 2 previous errors
+error[E0061]: this function takes 0 arguments but 1 argument was supplied
+  --> $DIR/inner-attr.rs:5:7
+   |
+LL | reuse a as b { #![rustc_dummy] self }
+   |       ^                        ---- unexpected argument
+   |
+note: function defined here
+  --> $DIR/inner-attr.rs:3:4
+   |
+LL | fn a() {}
+   |    ^
+help: remove the extra argument
+   |
+LL - reuse a as b { #![rustc_dummy] self }
+LL + reuse self }
+   |
 
+error: aborting due to 3 previous errors
+
+For more information about this error, try `rustc --explain E0061`.

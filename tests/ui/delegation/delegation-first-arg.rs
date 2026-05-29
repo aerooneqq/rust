@@ -26,6 +26,7 @@ impl F1 {
     // Error is reported as user has explicitly specified block when no params.
     reuse <S as Trait>::static_empty { self.0 }
     //~^ ERROR: delegation block is specified for function with no params
+    //~| ERROR: this function takes 0 arguments but 1 argument was supplied
 
     reuse <S as Trait>::static_one_param { self.0 }
     //~^ ERROR: `usize` is a primitive type and therefore doesn't have fields
@@ -35,8 +36,6 @@ struct F2(S);
 impl F2 {
     // In list delegations silently remove first arg if it is not a method.
     reuse <S as Trait>::{value, r#ref, mut_ref, static_empty, static_one_param} { self.0 }
-    //~^ ERROR: mismatched types
-    //~| ERROR: mismatched types
 }
 
 mod trait_to_reuse {
@@ -74,6 +73,7 @@ mod to_reuse {
 // Error is reported as user has explicitly specified block when no params.
 reuse to_reuse::empty { self + 1 }
 //~^ ERROR: delegation block is specified for function with no params
+//~| ERROR: this function takes 0 arguments but 1 argument was supplied
 
 reuse to_reuse::one_param { self + 1 }
 

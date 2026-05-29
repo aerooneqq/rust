@@ -542,3 +542,10 @@ pub(crate) struct DelegationBlockSpecifiedWhenNoParams {
     #[primary_span]
     pub span: Span,
 }
+
+#[derive(Diagnostic)]
+#[diag("attempted to delete delegation's block that contains definitions inside")]
+pub(crate) struct DelegationAttemptedBlockWithDefsDeletion {
+    #[primary_span]
+    pub span: Span,
+}
