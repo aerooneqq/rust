@@ -125,10 +125,10 @@ impl<'hir> LoweringContext<'_, 'hir> {
         let span = self.lower_span(delegation.path.segments.last().unwrap().ident.span);
 
         // Delegation can be unresolved in illegal places such as function bodies in extern blocks (see #151356)
-        let sig_id = if let Some(resolution_node) =
-            self.resolver.delegation_info(self.owner.def_id).and_then(|i| i.resolution_node)
+        let sig_id = if let Some(resolution_id) =
+            self.resolver.delegation_info(self.owner.def_id).and_then(|i| i.resolution_id)
         {
-            self.get_sig_id(delegation_info.resolution_id, span)
+            self.get_sig_id(resolution_id, span)
         } else {
             self.dcx().span_delayed_bug(
                 span,
@@ -293,10 +293,10 @@ impl<'hir> LoweringContext<'_, 'hir> {
             // it means that we refer to another delegation as a callee, so in order to obtain
             // a signature DefId we obtain NodeId of the callee delegation and try to get signature from it.
             if let Some(local_id) = def_id.as_local()
-                && let Some(resolution_node) =
-                    self.resolver.delegation_info(local_id).and_then(|i| i.resolution_node)
+                && let Some(resolution_id) =
+                    self.resolver.delegation_info(local_id).and_then(|i| i.resolution_id)
             {
-                def_id = delegation_info.resolution_id;
+                def_id = resolution_id;
                 if visited.contains(&def_id) {
                     // We encountered a cycle in the resolution, or delegation callee refers to non-existent
                     // entity, in this case emit an error.

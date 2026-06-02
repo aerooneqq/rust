@@ -269,7 +269,7 @@ pub struct DelegationInfo {
     /// Refers to the next element in a delegation resolution chain.
     /// Usually points to the final resolution, as most "chains" are just
     /// one step to a trait or an impl.
-    pub resolution_id: DefId,
+    pub resolution_id: Option<DefId>,
     pub block_contains_defs: bool,
 }
 

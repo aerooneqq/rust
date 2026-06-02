@@ -3905,9 +3905,10 @@ impl<'a, 'ast, 'ra, 'tcx> LateResolutionVisitor<'a, 'ast, 'ra, 'tcx> {
             .partial_res_map
             .get(&resolution_id)
             .and_then(|r| r.expect_full_res().opt_def_id());
+
         if let Some(resolution_id) = def_id {
             let info = self.r.delegation_infos.entry(self.r.current_owner.def_id).or_default();
-            info.resolution_id = resolution_id;
+            info.resolution_id = Some(resolution_id);
         } else {
             self.r.tcx.dcx().span_delayed_bug(
                 delegation.path.span,
