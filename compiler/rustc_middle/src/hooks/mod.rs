@@ -3,6 +3,7 @@
 //! similar to queries, but queries come with a lot of machinery for caching and incremental
 //! compilation, whereas hooks are just plain function pointers without any of the query magic.
 
+use rustc_data_structures::fx::FxIndexSet;
 use rustc_hir::def_id::{DefId, DefPathHash};
 use rustc_session::StableCrateId;
 use rustc_span::def_id::{CrateNum, LocalDefId};
@@ -113,6 +114,8 @@ declare_hooks! {
 
     /// Serializes all eligible query return values into the on-disk cache.
     hook encode_query_values(encoder: &mut CacheEncoder<'_, 'tcx>) -> ();
+
+    hook run_after_lowering_delegations_checks(ids: &FxIndexSet<LocalDefId>) -> ();
 }
 
 #[cold]

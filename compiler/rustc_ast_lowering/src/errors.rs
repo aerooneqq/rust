@@ -549,3 +549,10 @@ pub(crate) struct DelegationAttemptedBlockWithDefsDeletion {
     #[primary_span]
     pub span: Span,
 }
+
+#[derive(Diagnostic)]
+#[diag("target expression is specified in glob reuse where all functions are static")]
+pub(crate) struct DelegationTargetExprDeletedEverywhere {
+    #[primary_span]
+    pub span: Span,
+}

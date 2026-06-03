@@ -161,6 +161,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 );
 
                 let decl = self.lower_delegation_decl(
+                    delegation,
                     sig_id,
                     param_count,
                     c_variadic,
@@ -323,6 +324,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
 
     fn lower_delegation_decl(
         &mut self,
+        delegation: &Delegation,
         sig_id: DefId,
         param_count: usize,
         c_variadic: bool,
@@ -354,6 +356,13 @@ impl<'hir> LoweringContext<'_, 'hir> {
                     parent_args_segment_id: generics.parent.args_segment_id,
                     self_ty_id: generics.self_ty_id,
                     propagate_self_ty: generics.propagate_self_ty,
+                    generated_target_expr: delegation.body.is_none()
+                        || param_count > 0
+                            && self.should_generate_block(
+                                delegation,
+                                sig_id,
+                                self.is_method(sig_id, span),
+                            ),
                 })),
             )),
             span,

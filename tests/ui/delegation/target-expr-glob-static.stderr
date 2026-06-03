@@ -1,0 +1,8 @@
+error: target expression is specified in glob reuse where all functions are static
+  --> $DIR/target-expr-glob-static.rs:19:25
+   |
+LL |     reuse <F as Trait>::* { self.0 }
+   |                         ^
+
+error: aborting due to 1 previous error
+

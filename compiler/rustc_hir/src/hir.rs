@@ -3879,6 +3879,7 @@ pub struct DelegationInfo {
     pub child_args_segment_id: Option<HirId>,
     pub self_ty_id: Option<HirId>,
     pub propagate_self_ty: bool,
+    pub generated_target_expr: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, StableHash)]

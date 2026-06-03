@@ -43,7 +43,7 @@ use rustc_ast::visit::Visitor;
 use rustc_ast::{self as ast, *};
 use rustc_attr_parsing::{AttributeParser, OmitDoc, Recovery, ShouldEmit};
 use rustc_data_structures::fingerprint::Fingerprint;
-use rustc_data_structures::fx::FxIndexSet;
+use rustc_data_structures::fx::{FxIndexMap, FxIndexSet};
 use rustc_data_structures::sorted_map::SortedMap;
 use rustc_data_structures::stable_hash::{StableHash, StableHasher};
 use rustc_data_structures::steal::Steal;
@@ -64,12 +64,15 @@ use rustc_middle::span_bug;
 use rustc_middle::ty::{DelegationInfo, PerOwnerResolverData, ResolverAstLowering, TyCtxt};
 use rustc_session::errors::add_feature_diagnostics;
 use rustc_span::symbol::{Ident, Symbol, kw, sym};
-use rustc_span::{DUMMY_SP, DesugaringKind, Span};
+use rustc_span::{DUMMY_SP, DesugaringKind, ExpnId, Span};
 use smallvec::SmallVec;
 use thin_vec::ThinVec;
 use tracing::{debug, instrument, trace};
 
-use crate::errors::{AssocTyParentheses, AssocTyParenthesesSub, MisplacedImplTrait};
+use crate::errors::{
+    AssocTyParentheses, AssocTyParenthesesSub, DelegationTargetExprDeletedEverywhere,
+    MisplacedImplTrait,
+};
 use crate::item::Owners;
 
 macro_rules! arena_vec {
@@ -580,6 +583,25 @@ pub fn lower_delayed_owner(tcx: TyCtxt<'_>, def_id: LocalDefId) {
 
     for (child_def_id, owner) in map {
         tcx.feed_delayed_owner(child_def_id, owner);
+    }
+}
+
+pub fn run_after_lowering_delegations_checks(tcx: TyCtxt<'_>, ids: &FxIndexSet<LocalDefId>) {
+    let mut states = FxIndexMap::default();
+    for &id in ids {
+        let expn_id = tcx.expn_that_defined(id);
+        if expn_id == ExpnId::root() {
+            continue;
+        }
+
+        let entry = states.entry(expn_id).or_insert_with(|| (true, tcx.def_span(id)));
+        entry.0 &= tcx.hir_opt_delegation_info(id).is_some_and(|info| !info.generated_target_expr);
+    }
+
+    for (_, state) in states {
+        if state.0 {
+            tcx.dcx().emit_err(DelegationTargetExprDeletedEverywhere { span: state.1 });
+        }
     }
 }
 

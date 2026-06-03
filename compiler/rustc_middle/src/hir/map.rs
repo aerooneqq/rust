@@ -865,6 +865,14 @@ impl<'tcx> TyCtxt<'tcx> {
         self.opt_hir_owner_node(def_id)?.fn_decl()?.opt_delegation_sig_id()
     }
 
+    pub fn hir_opt_delegation_info(self, def_id: LocalDefId) -> Option<&'tcx DelegationInfo> {
+        self.opt_hir_owner_node(def_id)?.fn_decl()?.opt_delegation_info()
+    }
+
+    pub fn hir_delegation_info(self, delegation_id: LocalDefId) -> &'tcx DelegationInfo {
+        self.hir_opt_delegation_info(delegation_id).expect("processing delegation")
+    }
+
     #[inline]
     fn hir_opt_ident(self, id: HirId) -> Option<Ident> {
         match self.hir_node(id) {
@@ -1281,6 +1289,8 @@ fn force_delayed_owners_lowering(tcx: TyCtxt<'_>) {
     for &id in &krate.delayed_ids {
         tcx.ensure_done().lower_delayed_owner(id);
     }
+
+    tcx.run_after_lowering_delegations_checks(&krate.delayed_ids);
 
     let (_, krate) = krate.delayed_resolver.steal();
     let prof = tcx.sess.prof.clone();
