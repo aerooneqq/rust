@@ -13,12 +13,8 @@ impl Trait for F {}
 struct S(F);
 impl S {
     reuse Trait::foo::<> { self.0 }
-    //~^ WARN: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-    //~| WARN: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
 
     reuse Trait::foo::<'_> as bar { self.0 }
-    //~^ WARN: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-    //~| WARN: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
 }
 
 fn main() {}

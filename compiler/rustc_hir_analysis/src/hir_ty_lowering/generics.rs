@@ -430,8 +430,14 @@ pub(crate) fn check_generic_arg_count(
         prohibit_assoc_item_constraint(cx, c, None);
     }
 
+    let tcx = cx.tcx();
+
     let explicit_late_bound =
-        prohibit_explicit_late_bound_lifetimes(cx, gen_params, gen_args, gen_pos);
+        if tcx.hir_opt_delegation_sig_id(tcx.hir_get_parent_item(seg.hir_id).def_id).is_some() {
+            ExplicitLateBound::No
+        } else {
+            prohibit_explicit_late_bound_lifetimes(cx, gen_params, gen_args, gen_pos)
+        };
 
     let mut invalid_args = vec![];
 

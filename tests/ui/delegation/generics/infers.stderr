@@ -1,5 +1,5 @@
 error: path separator must be a double colon
-  --> $DIR/infers.rs:368:65
+  --> $DIR/infers.rs:246:65
    |
 LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>:::foo::<Vec<_>, _, _, ()> as foo11;
    |                                                                 ^
@@ -11,7 +11,7 @@ LL +         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>::foo::<Vec<_
    |
 
 error[E0261]: use of undeclared lifetime name `'____`
-  --> $DIR/infers.rs:135:17
+  --> $DIR/infers.rs:95:17
    |
 LL |     reuse foo::<'____, ___, _, ___> as foo12;
    |                 ^^^^^ undeclared lifetime
@@ -22,7 +22,7 @@ LL |     reuse foo'____, ::<'____, ___, _, ___> as foo12;
    |              ++++++
 
 error[E0261]: use of undeclared lifetime name `'____`
-  --> $DIR/infers.rs:225:28
+  --> $DIR/infers.rs:155:28
    |
 LL |         reuse Trait::foo::<'____, ___, _, ___> as foo12;
    |                            ^^^^^ undeclared lifetime
@@ -33,7 +33,7 @@ LL |         reuse Trait::foo'____, ::<'____, ___, _, ___> as foo12;
    |                         ++++++
 
 error[E0261]: use of undeclared lifetime name `'____`
-  --> $DIR/infers.rs:376:51
+  --> $DIR/infers.rs:254:51
    |
 LL |         reuse Trait::<'static, 'static, _>::foo::<'____, ___, _, ___> as foo12;
    |                                                   ^^^^^ undeclared lifetime
@@ -44,212 +44,69 @@ LL |         reuse Trait::<'static, 'static, _>::foo'____, ::<'____, ___, _, ___
    |                                                ++++++
 
 error[E0425]: cannot find type `___` in this scope
-  --> $DIR/infers.rs:135:24
+  --> $DIR/infers.rs:95:24
    |
 LL |     reuse foo::<'____, ___, _, ___> as foo12;
    |                        ^^^ not found in this scope
 
 error[E0425]: cannot find type `___` in this scope
-  --> $DIR/infers.rs:135:32
+  --> $DIR/infers.rs:95:32
    |
 LL |     reuse foo::<'____, ___, _, ___> as foo12;
    |                                ^^^ not found in this scope
 
 error[E0425]: cannot find type `unresolved_` in this scope
-  --> $DIR/infers.rs:148:21
+  --> $DIR/infers.rs:104:21
    |
 LL |     reuse foo::<'_, unresolved_, _, _> as foo14;
    |                     ^^^^^^^^^^^ not found in this scope
 
 error[E0425]: cannot find type `___` in this scope
-  --> $DIR/infers.rs:225:35
+  --> $DIR/infers.rs:155:35
    |
 LL |         reuse Trait::foo::<'____, ___, _, ___> as foo12;
    |                                   ^^^ not found in this scope
 
 error[E0425]: cannot find type `___` in this scope
-  --> $DIR/infers.rs:225:43
+  --> $DIR/infers.rs:155:43
    |
 LL |         reuse Trait::foo::<'____, ___, _, ___> as foo12;
    |                                           ^^^ not found in this scope
 
 error[E0425]: cannot find type `unresolved_` in this scope
-  --> $DIR/infers.rs:238:32
+  --> $DIR/infers.rs:164:32
    |
 LL |         reuse Trait::foo::<'_, unresolved_, _, _> as foo14;
    |                                ^^^^^^^^^^^ not found in this scope
 
 error[E0425]: cannot find type `___` in this scope
-  --> $DIR/infers.rs:376:58
+  --> $DIR/infers.rs:254:58
    |
 LL |         reuse Trait::<'static, 'static, _>::foo::<'____, ___, _, ___> as foo12;
    |                                                          ^^^ not found in this scope
 
 error[E0425]: cannot find type `___` in this scope
-  --> $DIR/infers.rs:376:66
+  --> $DIR/infers.rs:254:66
    |
 LL |         reuse Trait::<'static, 'static, _>::foo::<'____, ___, _, ___> as foo12;
    |                                                                  ^^^ not found in this scope
 
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:11:15
+error[E0107]: function takes 1 lifetime argument but 2 lifetime arguments were supplied
+  --> $DIR/infers.rs:39:15
    |
-LL |         fn foo<'a, 'b: 'b, 'c, X, const M: usize, Y>(_: &'a &'b &'c ()) {}
-   |                -- the late bound lifetime parameter is introduced here
-...
-LL |         reuse foo::<_, '_, '_, '_> as bar;
-   |               ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-   = note: `#[warn(late_bound_lifetime_arguments)]` (part of `#[warn(future_incompatible)]`) on by default
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:24:31
-   |
-LL |             fn method<'b: 'b, const M: usize>(&self) {}
-   |                                               - the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::<'_, _>::method::<'_, _> as foo;
-   |                               ^^^^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:28:36
-   |
-LL |             fn method<'b: 'b, const M: usize>(&self) {}
-   |                                               - the late bound lifetime parameter is introduced here
-...
-LL |         reuse <_ as Trait<'_, _>>::method::<'_, _> as foo1;
-   |                                    ^^^^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:31:37
-   |
-LL |             fn method<'b: 'b, const M: usize>(&self) {}
-   |                                               - the late bound lifetime parameter is introduced here
-...
-LL |         reuse <() as Trait<'_, _>>::method::<'_, _> as foo2;
-   |                                     ^^^^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:43:15
-   |
-LL |         fn foo<'a, 'b, 'c: 'c, 'd>(_: &'a &'b &'c &'d ()) {}
-   |                -- the late bound lifetime parameter is introduced here
-...
-LL |         reuse foo::<'_> as foo1;
-   |               ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:48:15
-   |
-LL |         fn foo<'a, 'b, 'c: 'c, 'd>(_: &'a &'b &'c &'d ()) {}
-   |                -- the late bound lifetime parameter is introduced here
-...
 LL |         reuse foo::<'_, '_> as foo2;
-   |               ^^^
+   |               ^^^--------- help: remove the lifetime argument
+   |               |
+   |               expected 1 lifetime argument
    |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:54:15
-   |
-LL |         fn foo<'a, 'b, 'c: 'c, 'd>(_: &'a &'b &'c &'d ()) {}
-   |                -- the late bound lifetime parameter is introduced here
-...
-LL |         reuse foo as foo3;
-   |               ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:59:21
+note: function defined here, with 1 lifetime parameter: `'c`
+  --> $DIR/infers.rs:33:12
    |
 LL |         fn foo<'a, 'b, 'c: 'c, 'd>(_: &'a &'b &'c &'d ()) {}
-   |                -- the late bound lifetime parameter is introduced here
-...
-LL |         reuse foo::<'static> as foo4;
-   |                     ^^^^^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:82:11
-   |
-LL |     fn foo<'a, 'b: 'b, 'c, X, const M: usize, Y>(_: &'a &'b &'c ()) {}
-   |            -- the late bound lifetime parameter is introduced here
-LL |
-LL |     reuse foo::<> as foo1;
-   |           ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:86:11
-   |
-LL |     fn foo<'a, 'b: 'b, 'c, X, const M: usize, Y>(_: &'a &'b &'c ()) {}
-   |            -- the late bound lifetime parameter is introduced here
-...
-LL |     reuse foo::<'_, _, _, _> as foo2;
-   |           ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:90:17
-   |
-LL |     fn foo<'a, 'b: 'b, 'c, X, const M: usize, Y>(_: &'a &'b &'c ()) {}
-   |            -- the late bound lifetime parameter is introduced here
-...
-LL |     reuse foo::<'static, String, _, _> as foo3;
-   |                 ^^^^^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:94:11
-   |
-LL |     fn foo<'a, 'b: 'b, 'c, X, const M: usize, Y>(_: &'a &'b &'c ()) {}
-   |            -- the late bound lifetime parameter is introduced here
-...
-LL |     reuse foo::<'_, _, 123, _> as foo4;
-   |           ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:98:11
-   |
-LL |     fn foo<'a, 'b: 'b, 'c, X, const M: usize, Y>(_: &'a &'b &'c ()) {}
-   |            -- the late bound lifetime parameter is introduced here
-...
-LL |     reuse foo::<'_, '_, '_, _, _, _,> as foo5;
-   |           ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
+   |            ^^^         --
 
 error[E0107]: function takes 3 generic arguments but 5 generic arguments were supplied
-  --> $DIR/infers.rs:98:11
+  --> $DIR/infers.rs:69:11
    |
 LL |     reuse foo::<'_, '_, '_, _, _, _,> as foo5;
    |           ^^^---------------------- help: remove the unnecessary generic arguments
@@ -257,25 +114,27 @@ LL |     reuse foo::<'_, '_, '_, _, _, _,> as foo5;
    |           expected 3 generic arguments
    |
 note: function defined here, with 3 generic parameters: `X`, `M`, `Y`
-  --> $DIR/infers.rs:80:8
+  --> $DIR/infers.rs:62:8
    |
 LL |     fn foo<'a, 'b: 'b, 'c, X, const M: usize, Y>(_: &'a &'b &'c ()) {}
    |        ^^^                 -  --------------  -
 
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:103:11
+error[E0107]: function takes 1 lifetime argument but 3 lifetime arguments were supplied
+  --> $DIR/infers.rs:72:11
+   |
+LL |     reuse foo::<_, _, _, '_, '_, '_, _, _, _,> as foo6;
+   |           ^^^---------------------- help: remove the lifetime arguments
+   |           |
+   |           expected 1 lifetime argument
+   |
+note: function defined here, with 1 lifetime parameter: `'b`
+  --> $DIR/infers.rs:62:8
    |
 LL |     fn foo<'a, 'b: 'b, 'c, X, const M: usize, Y>(_: &'a &'b &'c ()) {}
-   |            -- the late bound lifetime parameter is introduced here
-...
-LL |     reuse foo::<_, _, _, '_, '_, '_, _, _, _,> as foo6;
-   |           ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
+   |        ^^^     --
 
 error[E0107]: function takes 3 generic arguments but 6 generic arguments were supplied
-  --> $DIR/infers.rs:103:11
+  --> $DIR/infers.rs:72:11
    |
 LL |     reuse foo::<_, _, _, '_, '_, '_, _, _, _,> as foo6;
    |           ^^^------------------------------- help: remove the unnecessary generic arguments
@@ -283,55 +142,19 @@ LL |     reuse foo::<_, _, _, '_, '_, '_, _, _, _,> as foo6;
    |           expected 3 generic arguments
    |
 note: function defined here, with 3 generic parameters: `X`, `M`, `Y`
-  --> $DIR/infers.rs:80:8
+  --> $DIR/infers.rs:62:8
    |
 LL |     fn foo<'a, 'b: 'b, 'c, X, const M: usize, Y>(_: &'a &'b &'c ()) {}
    |        ^^^                 -  --------------  -
 
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:109:11
-   |
-LL |     fn foo<'a, 'b: 'b, 'c, X, const M: usize, Y>(_: &'a &'b &'c ()) {}
-   |            -- the late bound lifetime parameter is introduced here
-...
-LL |     reuse foo::<_, '_, _, _> as foo7;
-   |           ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:113:11
-   |
-LL |     fn foo<'a, 'b: 'b, 'c, X, const M: usize, Y>(_: &'a &'b &'c ()) {}
-   |            -- the late bound lifetime parameter is introduced here
-...
-LL |     reuse foo::<'_, '_, '_, '_> as foo8;
-   |           ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:117:11
-   |
-LL |     fn foo<'a, 'b: 'b, 'c, X, const M: usize, Y>(_: &'a &'b &'c ()) {}
-   |            -- the late bound lifetime parameter is introduced here
-...
-LL |     reuse foo::<_> as foo9;
-   |           ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
 error[E0107]: function takes 3 generic arguments but 0 generic arguments were supplied
-  --> $DIR/infers.rs:117:11
+  --> $DIR/infers.rs:79:11
    |
 LL |     reuse foo::<_> as foo9;
    |           ^^^ expected 3 generic arguments
    |
 note: function defined here, with 3 generic parameters: `X`, `M`, `Y`
-  --> $DIR/infers.rs:80:8
+  --> $DIR/infers.rs:62:8
    |
 LL |     fn foo<'a, 'b: 'b, 'c, X, const M: usize, Y>(_: &'a &'b &'c ()) {}
    |        ^^^                 -  --------------  -
@@ -341,13 +164,13 @@ LL |     reuse fooX, M, Y::<_> as foo9;
    |              +++++++
 
 error[E0107]: function takes 1 lifetime argument but 0 lifetime arguments were supplied
-  --> $DIR/infers.rs:122:11
+  --> $DIR/infers.rs:82:11
    |
 LL |     reuse foo::<Vec<'_>, _, _, ()> as foo10;
    |           ^^^ expected 1 lifetime argument
    |
 note: function defined here, with 1 lifetime parameter: `'b`
-  --> $DIR/infers.rs:80:8
+  --> $DIR/infers.rs:62:8
    |
 LL |     fn foo<'a, 'b: 'b, 'c, X, const M: usize, Y>(_: &'a &'b &'c ()) {}
    |        ^^^     --
@@ -357,7 +180,7 @@ LL |     reuse foo::<'b, Vec<'_>, _, _, ()> as foo10;
    |                 +++
 
 error[E0107]: function takes 3 generic arguments but 4 generic arguments were supplied
-  --> $DIR/infers.rs:122:11
+  --> $DIR/infers.rs:82:11
    |
 LL |     reuse foo::<Vec<'_>, _, _, ()> as foo10;
    |           ^^^-------------------- help: remove the unnecessary generic argument
@@ -365,19 +188,19 @@ LL |     reuse foo::<Vec<'_>, _, _, ()> as foo10;
    |           expected 3 generic arguments
    |
 note: function defined here, with 3 generic parameters: `X`, `M`, `Y`
-  --> $DIR/infers.rs:80:8
+  --> $DIR/infers.rs:62:8
    |
 LL |     fn foo<'a, 'b: 'b, 'c, X, const M: usize, Y>(_: &'a &'b &'c ()) {}
    |        ^^^                 -  --------------  -
 
 error: inferred lifetimes are not allowed in delegations as we need to inherit signature
-  --> $DIR/infers.rs:122:11
+  --> $DIR/infers.rs:82:11
    |
 LL |     reuse foo::<Vec<'_>, _, _, ()> as foo10;
    |           ^^^
 
 error[E0107]: struct takes 0 lifetime arguments but 1 lifetime argument was supplied
-  --> $DIR/infers.rs:122:17
+  --> $DIR/infers.rs:82:17
    |
 LL |     reuse foo::<Vec<'_>, _, _, ()> as foo10;
    |                 ^^^---- help: remove the unnecessary generics
@@ -385,7 +208,7 @@ LL |     reuse foo::<Vec<'_>, _, _, ()> as foo10;
    |                 expected 0 lifetime arguments
 
 error[E0107]: struct takes at least 1 generic argument but 0 generic arguments were supplied
-  --> $DIR/infers.rs:122:17
+  --> $DIR/infers.rs:82:17
    |
 LL |     reuse foo::<Vec<'_>, _, _, ()> as foo10;
    |                 ^^^ expected at least 1 generic argument
@@ -396,13 +219,13 @@ LL |     reuse foo::<Vec<'_, T>, _, _, ()> as foo10;
    |                       +++
 
 error[E0107]: function takes 1 lifetime argument but 0 lifetime arguments were supplied
-  --> $DIR/infers.rs:129:11
+  --> $DIR/infers.rs:89:11
    |
 LL |     reuse foo::<Vec<_>, _, _, ()> as foo11;
    |           ^^^ expected 1 lifetime argument
    |
 note: function defined here, with 1 lifetime parameter: `'b`
-  --> $DIR/infers.rs:80:8
+  --> $DIR/infers.rs:62:8
    |
 LL |     fn foo<'a, 'b: 'b, 'c, X, const M: usize, Y>(_: &'a &'b &'c ()) {}
    |        ^^^     --
@@ -412,7 +235,7 @@ LL |     reuse foo::<'b, Vec<_>, _, _, ()> as foo11;
    |                 +++
 
 error[E0107]: function takes 3 generic arguments but 4 generic arguments were supplied
-  --> $DIR/infers.rs:129:11
+  --> $DIR/infers.rs:89:11
    |
 LL |     reuse foo::<Vec<_>, _, _, ()> as foo11;
    |           ^^^------------------- help: remove the unnecessary generic argument
@@ -420,55 +243,31 @@ LL |     reuse foo::<Vec<_>, _, _, ()> as foo11;
    |           expected 3 generic arguments
    |
 note: function defined here, with 3 generic parameters: `X`, `M`, `Y`
-  --> $DIR/infers.rs:80:8
+  --> $DIR/infers.rs:62:8
    |
 LL |     fn foo<'a, 'b: 'b, 'c, X, const M: usize, Y>(_: &'a &'b &'c ()) {}
    |        ^^^                 -  --------------  -
 
 error: inferred lifetimes are not allowed in delegations as we need to inherit signature
-  --> $DIR/infers.rs:129:11
+  --> $DIR/infers.rs:89:11
    |
 LL |     reuse foo::<Vec<_>, _, _, ()> as foo11;
    |           ^^^
 
 error[E0121]: the placeholder `_` is not allowed within types on item signatures for functions
-  --> $DIR/infers.rs:129:21
+  --> $DIR/infers.rs:89:21
    |
 LL |     reuse foo::<Vec<_>, _, _, ()> as foo11;
    |                     ^ not allowed in type signatures
 
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:135:17
-   |
-LL |     fn foo<'a, 'b: 'b, 'c, X, const M: usize, Y>(_: &'a &'b &'c ()) {}
-   |            -- the late bound lifetime parameter is introduced here
-...
-LL |     reuse foo::<'____, ___, _, ___> as foo12;
-   |                 ^^^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:142:11
-   |
-LL |     fn foo<'a, 'b: 'b, 'c, X, const M: usize, Y>(_: &'a &'b &'c ()) {}
-   |            -- the late bound lifetime parameter is introduced here
-...
-LL |     reuse foo::<'_, Vec<_>, Vec<Vec<_>>, _> as foo13;
-   |           ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
 error[E0121]: the placeholder `_` is not allowed within types on item signatures for functions
-  --> $DIR/infers.rs:142:25
+  --> $DIR/infers.rs:100:25
    |
 LL |     reuse foo::<'_, Vec<_>, Vec<Vec<_>>, _> as foo13;
    |                         ^ not allowed in type signatures
 
 error[E0747]: type provided when a constant was expected
-  --> $DIR/infers.rs:142:29
+  --> $DIR/infers.rs:100:29
    |
 LL |     reuse foo::<'_, Vec<_>, Vec<Vec<_>>, _> as foo13;
    |                             ^^^^^^^^^^^
@@ -478,32 +277,8 @@ help: if this generic argument was intended as a const parameter, surround it wi
 LL |     reuse foo::<'_, Vec<_>, { Vec<Vec<_>> }, _> as foo13;
    |                             +             +
 
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:148:11
-   |
-LL |     fn foo<'a, 'b: 'b, 'c, X, const M: usize, Y>(_: &'a &'b &'c ()) {}
-   |            -- the late bound lifetime parameter is introduced here
-...
-LL |     reuse foo::<'_, unresolved_, _, _> as foo14;
-   |           ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:153:11
-   |
-LL |     fn foo<'a, 'b: 'b, 'c, X, const M: usize, Y>(_: &'a &'b &'c ()) {}
-   |            -- the late bound lifetime parameter is introduced here
-...
-LL |     reuse foo::<_, _, _> as foo15;
-   |           ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
 error[E0107]: function takes 3 generic arguments but 2 generic arguments were supplied
-  --> $DIR/infers.rs:153:11
+  --> $DIR/infers.rs:107:11
    |
 LL |     reuse foo::<_, _, _> as foo15;
    |           ^^^
@@ -512,7 +287,7 @@ LL |     reuse foo::<_, _, _> as foo15;
    |           supplied 2 generic arguments
    |
 note: function defined here, with 3 generic parameters: `X`, `M`, `Y`
-  --> $DIR/infers.rs:80:8
+  --> $DIR/infers.rs:62:8
    |
 LL |     fn foo<'a, 'b: 'b, 'c, X, const M: usize, Y>(_: &'a &'b &'c ()) {}
    |        ^^^                 -  --------------  -
@@ -522,79 +297,19 @@ LL |     reuse fooY::<_, _, _> as foo15;
    |              +
 
 error[E0207]: the type parameter `Some` is not constrained by the impl trait, self type, or predicates
-  --> $DIR/infers.rs:165:18
+  --> $DIR/infers.rs:117:18
    |
 LL |     impl<'a, 'b, Some, Params, X, const C: usize, Y> Trait<'a, 'b, X, C, Y> for X {}
    |                  ^^^^ unconstrained type parameter
 
 error[E0207]: the type parameter `Params` is not constrained by the impl trait, self type, or predicates
-  --> $DIR/infers.rs:165:24
+  --> $DIR/infers.rs:117:24
    |
 LL |     impl<'a, 'b, Some, Params, X, const C: usize, Y> Trait<'a, 'b, X, C, Y> for X {}
    |                        ^^^^^^ unconstrained type parameter
 
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:172:22
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::foo::<> as foo1;
-   |                      ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:176:22
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::foo::<'_, _, _, _> as foo2;
-   |                      ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:180:28
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::foo::<'static, String, _, _> as foo3;
-   |                            ^^^^^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:184:22
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::foo::<'_, _, 123, _> as foo4;
-   |                      ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:188:22
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::foo::<'_, '_, '_, _, _, _,> as foo5;
-   |                      ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
 error[E0107]: method takes 3 generic arguments but 5 generic arguments were supplied
-  --> $DIR/infers.rs:188:22
+  --> $DIR/infers.rs:129:22
    |
 LL |         reuse Trait::foo::<'_, '_, '_, _, _, _,> as foo5;
    |                      ^^^---------------------- help: remove the unnecessary generic arguments
@@ -602,25 +317,27 @@ LL |         reuse Trait::foo::<'_, '_, '_, _, _, _,> as foo5;
    |                      expected 3 generic arguments
    |
 note: method defined here, with 3 generic parameters: `XX`, `M`, `YY`
-  --> $DIR/infers.rs:161:12
+  --> $DIR/infers.rs:113:12
    |
 LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
    |            ^^^                     --  --------------  --
 
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:193:22
+error[E0107]: method takes 1 lifetime argument but 3 lifetime arguments were supplied
+  --> $DIR/infers.rs:132:22
+   |
+LL |         reuse Trait::foo::<_, _, _, '_, '_, '_, _, _, _,> as foo6;
+   |                      ^^^---------------------- help: remove the lifetime arguments
+   |                      |
+   |                      expected 1 lifetime argument
+   |
+note: method defined here, with 1 lifetime parameter: `'bb`
+  --> $DIR/infers.rs:113:12
    |
 LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::foo::<_, _, _, '_, '_, '_, _, _, _,> as foo6;
-   |                      ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
+   |            ^^^      ---
 
 error[E0107]: method takes 3 generic arguments but 6 generic arguments were supplied
-  --> $DIR/infers.rs:193:22
+  --> $DIR/infers.rs:132:22
    |
 LL |         reuse Trait::foo::<_, _, _, '_, '_, '_, _, _, _,> as foo6;
    |                      ^^^------------------------------- help: remove the unnecessary generic arguments
@@ -628,55 +345,19 @@ LL |         reuse Trait::foo::<_, _, _, '_, '_, '_, _, _, _,> as foo6;
    |                      expected 3 generic arguments
    |
 note: method defined here, with 3 generic parameters: `XX`, `M`, `YY`
-  --> $DIR/infers.rs:161:12
+  --> $DIR/infers.rs:113:12
    |
 LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
    |            ^^^                     --  --------------  --
 
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:199:22
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::foo::<_, '_, _, _> as foo7;
-   |                      ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:203:22
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::foo::<'_, '_, '_, '_> as foo8;
-   |                      ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:207:22
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::foo::<_> as foo9;
-   |                      ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
 error[E0107]: method takes 3 generic arguments but 0 generic arguments were supplied
-  --> $DIR/infers.rs:207:22
+  --> $DIR/infers.rs:139:22
    |
 LL |         reuse Trait::foo::<_> as foo9;
    |                      ^^^ expected 3 generic arguments
    |
 note: method defined here, with 3 generic parameters: `XX`, `M`, `YY`
-  --> $DIR/infers.rs:161:12
+  --> $DIR/infers.rs:113:12
    |
 LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
    |            ^^^                     --  --------------  --
@@ -686,13 +367,13 @@ LL |         reuse Trait::fooXX, M, YY::<_> as foo9;
    |                         +++++++++
 
 error[E0107]: method takes 1 lifetime argument but 0 lifetime arguments were supplied
-  --> $DIR/infers.rs:212:22
+  --> $DIR/infers.rs:142:22
    |
 LL |         reuse Trait::foo::<Vec<'_>, _, _, ()> as foo10;
    |                      ^^^ expected 1 lifetime argument
    |
 note: method defined here, with 1 lifetime parameter: `'bb`
-  --> $DIR/infers.rs:161:12
+  --> $DIR/infers.rs:113:12
    |
 LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
    |            ^^^      ---
@@ -702,7 +383,7 @@ LL |         reuse Trait::foo::<'a, Vec<'_>, _, _, ()> as foo10;
    |                            +++
 
 error[E0107]: method takes 3 generic arguments but 4 generic arguments were supplied
-  --> $DIR/infers.rs:212:22
+  --> $DIR/infers.rs:142:22
    |
 LL |         reuse Trait::foo::<Vec<'_>, _, _, ()> as foo10;
    |                      ^^^-------------------- help: remove the unnecessary generic argument
@@ -710,19 +391,19 @@ LL |         reuse Trait::foo::<Vec<'_>, _, _, ()> as foo10;
    |                      expected 3 generic arguments
    |
 note: method defined here, with 3 generic parameters: `XX`, `M`, `YY`
-  --> $DIR/infers.rs:161:12
+  --> $DIR/infers.rs:113:12
    |
 LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
    |            ^^^                     --  --------------  --
 
 error: inferred lifetimes are not allowed in delegations as we need to inherit signature
-  --> $DIR/infers.rs:212:22
+  --> $DIR/infers.rs:142:22
    |
 LL |         reuse Trait::foo::<Vec<'_>, _, _, ()> as foo10;
    |                      ^^^
 
 error[E0107]: struct takes 0 lifetime arguments but 1 lifetime argument was supplied
-  --> $DIR/infers.rs:212:28
+  --> $DIR/infers.rs:142:28
    |
 LL |         reuse Trait::foo::<Vec<'_>, _, _, ()> as foo10;
    |                            ^^^---- help: remove the unnecessary generics
@@ -730,7 +411,7 @@ LL |         reuse Trait::foo::<Vec<'_>, _, _, ()> as foo10;
    |                            expected 0 lifetime arguments
 
 error[E0107]: struct takes at least 1 generic argument but 0 generic arguments were supplied
-  --> $DIR/infers.rs:212:28
+  --> $DIR/infers.rs:142:28
    |
 LL |         reuse Trait::foo::<Vec<'_>, _, _, ()> as foo10;
    |                            ^^^ expected at least 1 generic argument
@@ -741,13 +422,13 @@ LL |         reuse Trait::foo::<Vec<'_, T>, _, _, ()> as foo10;
    |                                  +++
 
 error[E0107]: method takes 1 lifetime argument but 0 lifetime arguments were supplied
-  --> $DIR/infers.rs:219:22
+  --> $DIR/infers.rs:149:22
    |
 LL |         reuse Trait::foo::<Vec<_>, _, _, ()> as foo11;
    |                      ^^^ expected 1 lifetime argument
    |
 note: method defined here, with 1 lifetime parameter: `'bb`
-  --> $DIR/infers.rs:161:12
+  --> $DIR/infers.rs:113:12
    |
 LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
    |            ^^^      ---
@@ -757,7 +438,7 @@ LL |         reuse Trait::foo::<'a, Vec<_>, _, _, ()> as foo11;
    |                            +++
 
 error[E0107]: method takes 3 generic arguments but 4 generic arguments were supplied
-  --> $DIR/infers.rs:219:22
+  --> $DIR/infers.rs:149:22
    |
 LL |         reuse Trait::foo::<Vec<_>, _, _, ()> as foo11;
    |                      ^^^------------------- help: remove the unnecessary generic argument
@@ -765,55 +446,31 @@ LL |         reuse Trait::foo::<Vec<_>, _, _, ()> as foo11;
    |                      expected 3 generic arguments
    |
 note: method defined here, with 3 generic parameters: `XX`, `M`, `YY`
-  --> $DIR/infers.rs:161:12
+  --> $DIR/infers.rs:113:12
    |
 LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
    |            ^^^                     --  --------------  --
 
 error: inferred lifetimes are not allowed in delegations as we need to inherit signature
-  --> $DIR/infers.rs:219:22
+  --> $DIR/infers.rs:149:22
    |
 LL |         reuse Trait::foo::<Vec<_>, _, _, ()> as foo11;
    |                      ^^^
 
 error[E0121]: the placeholder `_` is not allowed within types on item signatures for functions
-  --> $DIR/infers.rs:219:32
+  --> $DIR/infers.rs:149:32
    |
 LL |         reuse Trait::foo::<Vec<_>, _, _, ()> as foo11;
    |                                ^ not allowed in type signatures
 
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:225:28
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::foo::<'____, ___, _, ___> as foo12;
-   |                            ^^^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:232:22
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::foo::<'_, Vec<_>, Vec<Vec<_>>, _> as foo13;
-   |                      ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
 error[E0121]: the placeholder `_` is not allowed within types on item signatures for functions
-  --> $DIR/infers.rs:232:36
+  --> $DIR/infers.rs:160:36
    |
 LL |         reuse Trait::foo::<'_, Vec<_>, Vec<Vec<_>>, _> as foo13;
    |                                    ^ not allowed in type signatures
 
 error[E0747]: type provided when a constant was expected
-  --> $DIR/infers.rs:232:40
+  --> $DIR/infers.rs:160:40
    |
 LL |         reuse Trait::foo::<'_, Vec<_>, Vec<Vec<_>>, _> as foo13;
    |                                        ^^^^^^^^^^^
@@ -823,32 +480,8 @@ help: if this generic argument was intended as a const parameter, surround it wi
 LL |         reuse Trait::foo::<'_, Vec<_>, { Vec<Vec<_>> }, _> as foo13;
    |                                        +             +
 
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:238:22
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::foo::<'_, unresolved_, _, _> as foo14;
-   |                      ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:243:22
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::foo::<_, _, _> as foo15;
-   |                      ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
 error[E0107]: method takes 3 generic arguments but 2 generic arguments were supplied
-  --> $DIR/infers.rs:243:22
+  --> $DIR/infers.rs:167:22
    |
 LL |         reuse Trait::foo::<_, _, _> as foo15;
    |                      ^^^
@@ -857,7 +490,7 @@ LL |         reuse Trait::foo::<_, _, _> as foo15;
    |                      supplied 2 generic arguments
    |
 note: method defined here, with 3 generic parameters: `XX`, `M`, `YY`
-  --> $DIR/infers.rs:161:12
+  --> $DIR/infers.rs:113:12
    |
 LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
    |            ^^^                     --  --------------  --
@@ -866,32 +499,8 @@ help: add missing generic argument
 LL |         reuse Trait::fooYY::<_, _, _> as foo15;
    |                         ++
 
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:252:46
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::<'_, 'static, _, _, _>::foo as foo1;
-   |                                              ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:255:41
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::<'_, '_, _, _, _>::foo as foo2;
-   |                                         ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
 error[E0107]: trait takes 2 lifetime arguments but 1 lifetime argument was supplied
-  --> $DIR/infers.rs:259:15
+  --> $DIR/infers.rs:177:15
    |
 LL |         reuse Trait::<'_, (), _, '_, _>::foo as foo3;
    |               ^^^^^                      --- supplied 1 lifetime argument
@@ -899,7 +508,7 @@ LL |         reuse Trait::<'_, (), _, '_, _>::foo as foo3;
    |               expected 2 lifetime arguments
    |
 note: trait defined here, with 2 lifetime parameters: `'a`, `'b`
-  --> $DIR/infers.rs:160:15
+  --> $DIR/infers.rs:112:15
    |
 LL |     pub trait Trait<'a, 'b, X, const C: usize, Y> {
    |               ^^^^^ --  --
@@ -909,7 +518,7 @@ LL |         reuse Trait::<'_, (), _, '_, _>::foo, 'a as foo3;
    |                                             ++++
 
 error[E0107]: trait takes 3 generic arguments but 4 generic arguments were supplied
-  --> $DIR/infers.rs:259:15
+  --> $DIR/infers.rs:177:15
    |
 LL |         reuse Trait::<'_, (), _, '_, _>::foo as foo3;
    |               ^^^^^                      --- help: remove the unnecessary generic argument
@@ -917,49 +526,25 @@ LL |         reuse Trait::<'_, (), _, '_, _>::foo as foo3;
    |               expected 3 generic arguments
    |
 note: trait defined here, with 3 generic parameters: `X`, `C`, `Y`
-  --> $DIR/infers.rs:160:15
+  --> $DIR/infers.rs:112:15
    |
 LL |     pub trait Trait<'a, 'b, X, const C: usize, Y> {
    |               ^^^^^         -  --------------  -
 
 error: inferred lifetimes are not allowed in delegations as we need to inherit signature
-  --> $DIR/infers.rs:259:15
+  --> $DIR/infers.rs:177:15
    |
 LL |         reuse Trait::<'_, (), _, '_, _>::foo as foo3;
    |               ^^^^^
 
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:259:42
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::<'_, (), _, '_, _>::foo as foo3;
-   |                                          ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:266:26
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::<>::foo as foo4;
-   |                          ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
 error[E0107]: trait takes 3 generic arguments but 0 generic arguments were supplied
-  --> $DIR/infers.rs:270:15
+  --> $DIR/infers.rs:184:15
    |
 LL |         reuse Trait::<_, _>::foo as foo5;
    |               ^^^^^ expected 3 generic arguments
    |
 note: trait defined here, with 3 generic parameters: `X`, `C`, `Y`
-  --> $DIR/infers.rs:160:15
+  --> $DIR/infers.rs:112:15
    |
 LL |     pub trait Trait<'a, 'b, X, const C: usize, Y> {
    |               ^^^^^         -  --------------  -
@@ -968,110 +553,38 @@ help: add missing generic arguments
 LL |         reuse Trait::<_, _>::foo, X, C, Y as foo5;
    |                                 +++++++++
 
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:270:30
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::<_, _>::foo as foo5;
-   |                              ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
 error[E0121]: the placeholder `_` is not allowed within types on item signatures for functions
-  --> $DIR/infers.rs:275:15
+  --> $DIR/infers.rs:187:15
    |
 LL |         reuse Trait::<'_, '_>::foo as foo6;
    |               ^^^^^ not allowed in type signatures
 
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:275:32
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::<'_, '_>::foo as foo6;
-   |                                ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
 error[E0121]: the placeholder `_` is not allowed within types on item signatures for functions
-  --> $DIR/infers.rs:280:35
+  --> $DIR/infers.rs:190:35
    |
 LL |         reuse Trait::<'_, '_, Vec<_>, 123, Vec<Vec<_>>>::foo as foo7;
    |                                   ^ not allowed in type signatures
 
 error[E0121]: the placeholder `_` is not allowed within types on item signatures for functions
-  --> $DIR/infers.rs:280:52
+  --> $DIR/infers.rs:190:52
    |
 LL |         reuse Trait::<'_, '_, Vec<_>, 123, Vec<Vec<_>>>::foo as foo7;
    |                                                    ^ not allowed in type signatures
 
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:280:58
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::<'_, '_, Vec<_>, 123, Vec<Vec<_>>>::foo as foo7;
-   |                                                          ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:286:55
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::<'static, 'static, (), 123, ()>::foo as foo8;
-   |                                                       ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:290:51
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::<'static, 'static, _, _, _>::foo as foo9;
-   |                                                   ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
 error[E0107]: trait takes 3 generic arguments but 7 generic arguments were supplied
-  --> $DIR/infers.rs:294:15
+  --> $DIR/infers.rs:197:15
    |
 LL |         reuse Trait::<'static, 'static, _, _, _, _, _, _, _>::foo as foo10;
    |               ^^^^^ expected 3 generic arguments          ------- help: remove the unnecessary generic arguments
    |
 note: trait defined here, with 3 generic parameters: `X`, `C`, `Y`
-  --> $DIR/infers.rs:160:15
+  --> $DIR/infers.rs:112:15
    |
 LL |     pub trait Trait<'a, 'b, X, const C: usize, Y> {
    |               ^^^^^         -  --------------  -
 
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:294:63
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::<'static, 'static, _, _, _, _, _, _, _>::foo as foo10;
-   |                                                               ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
 error[E0107]: trait takes 2 lifetime arguments but 6 lifetime arguments were supplied
-  --> $DIR/infers.rs:299:15
+  --> $DIR/infers.rs:200:15
    |
 LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_, '_>::foo as foo11;
    |               ^^^^^                   --------------------------- help: remove the lifetime arguments
@@ -1079,25 +592,13 @@ LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_, '_>::foo as 
    |               expected 2 lifetime arguments
    |
 note: trait defined here, with 2 lifetime parameters: `'a`, `'b`
-  --> $DIR/infers.rs:160:15
+  --> $DIR/infers.rs:112:15
    |
 LL |     pub trait Trait<'a, 'b, X, const C: usize, Y> {
    |               ^^^^^ --  --
 
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:299:69
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_, '_>::foo as foo11;
-   |                                                                     ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
 error[E0107]: trait takes 3 generic arguments but 1 generic argument was supplied
-  --> $DIR/infers.rs:304:15
+  --> $DIR/infers.rs:203:15
    |
 LL |         reuse Trait::<'static, 'static, _>::foo as foo12;
    |               ^^^^^                         --- supplied 1 generic argument
@@ -1105,7 +606,7 @@ LL |         reuse Trait::<'static, 'static, _>::foo as foo12;
    |               expected 3 generic arguments
    |
 note: trait defined here, with 3 generic parameters: `X`, `C`, `Y`
-  --> $DIR/infers.rs:160:15
+  --> $DIR/infers.rs:112:15
    |
 LL |     pub trait Trait<'a, 'b, X, const C: usize, Y> {
    |               ^^^^^         -  --------------  -
@@ -1114,44 +615,8 @@ help: add missing generic arguments
 LL |         reuse Trait::<'static, 'static, _>::foo, C, Y as foo12;
    |                                                ++++++
 
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:304:45
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::<'static, 'static, _>::foo as foo12;
-   |                                             ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:313:46
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::<'_, 'static, _, _, _>::foo::<> as foo1;
-   |                                              ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:317:41
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::<'_, '_, _, _, _>::foo::<'_, _, _, _> as foo2;
-   |                                         ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
 error[E0107]: trait takes 2 lifetime arguments but 1 lifetime argument was supplied
-  --> $DIR/infers.rs:321:15
+  --> $DIR/infers.rs:213:15
    |
 LL |         reuse Trait::<'_, (), _, '_, _>::foo::<'static, String, _, _> as foo3;
    |               ^^^^^                      --- supplied 1 lifetime argument
@@ -1159,7 +624,7 @@ LL |         reuse Trait::<'_, (), _, '_, _>::foo::<'static, String, _, _> as fo
    |               expected 2 lifetime arguments
    |
 note: trait defined here, with 2 lifetime parameters: `'a`, `'b`
-  --> $DIR/infers.rs:160:15
+  --> $DIR/infers.rs:112:15
    |
 LL |     pub trait Trait<'a, 'b, X, const C: usize, Y> {
    |               ^^^^^ --  --
@@ -1169,7 +634,7 @@ LL |         reuse Trait::<'_, (), _, '_, _>::foo, 'a::<'static, String, _, _> a
    |                                             ++++
 
 error[E0107]: trait takes 3 generic arguments but 4 generic arguments were supplied
-  --> $DIR/infers.rs:321:15
+  --> $DIR/infers.rs:213:15
    |
 LL |         reuse Trait::<'_, (), _, '_, _>::foo::<'static, String, _, _> as foo3;
    |               ^^^^^                      --- help: remove the unnecessary generic argument
@@ -1177,49 +642,25 @@ LL |         reuse Trait::<'_, (), _, '_, _>::foo::<'static, String, _, _> as fo
    |               expected 3 generic arguments
    |
 note: trait defined here, with 3 generic parameters: `X`, `C`, `Y`
-  --> $DIR/infers.rs:160:15
+  --> $DIR/infers.rs:112:15
    |
 LL |     pub trait Trait<'a, 'b, X, const C: usize, Y> {
    |               ^^^^^         -  --------------  -
 
 error: inferred lifetimes are not allowed in delegations as we need to inherit signature
-  --> $DIR/infers.rs:321:15
+  --> $DIR/infers.rs:213:15
    |
 LL |         reuse Trait::<'_, (), _, '_, _>::foo::<'static, String, _, _> as foo3;
    |               ^^^^^
 
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:321:48
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::<'_, (), _, '_, _>::foo::<'static, String, _, _> as foo3;
-   |                                                ^^^^^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:328:26
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::<>::foo::<'_, _, 123, _> as foo4;
-   |                          ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
 error[E0107]: trait takes 3 generic arguments but 0 generic arguments were supplied
-  --> $DIR/infers.rs:332:15
+  --> $DIR/infers.rs:220:15
    |
 LL |         reuse Trait::<_, _>::foo::<'_, '_, '_, _, _, _,> as foo5;
    |               ^^^^^ expected 3 generic arguments
    |
 note: trait defined here, with 3 generic parameters: `X`, `C`, `Y`
-  --> $DIR/infers.rs:160:15
+  --> $DIR/infers.rs:112:15
    |
 LL |     pub trait Trait<'a, 'b, X, const C: usize, Y> {
    |               ^^^^^         -  --------------  -
@@ -1228,20 +669,8 @@ help: add missing generic arguments
 LL |         reuse Trait::<_, _>::foo, X, C, Y::<'_, '_, '_, _, _, _,> as foo5;
    |                                 +++++++++
 
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:332:30
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::<_, _>::foo::<'_, '_, '_, _, _, _,> as foo5;
-   |                              ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
 error[E0107]: method takes 3 generic arguments but 5 generic arguments were supplied
-  --> $DIR/infers.rs:332:30
+  --> $DIR/infers.rs:220:30
    |
 LL |         reuse Trait::<_, _>::foo::<'_, '_, '_, _, _, _,> as foo5;
    |                              ^^^---------------------- help: remove the unnecessary generic arguments
@@ -1249,31 +678,33 @@ LL |         reuse Trait::<_, _>::foo::<'_, '_, '_, _, _, _,> as foo5;
    |                              expected 3 generic arguments
    |
 note: method defined here, with 3 generic parameters: `XX`, `M`, `YY`
-  --> $DIR/infers.rs:161:12
+  --> $DIR/infers.rs:113:12
    |
 LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
    |            ^^^                     --  --------------  --
 
 error[E0121]: the placeholder `_` is not allowed within types on item signatures for functions
-  --> $DIR/infers.rs:338:15
+  --> $DIR/infers.rs:224:15
    |
 LL |         reuse Trait::<'_, '_>::foo::<_, _, _, '_, '_, '_, _, _, _,> as foo6;
    |               ^^^^^ not allowed in type signatures
 
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:338:32
+error[E0107]: method takes 1 lifetime argument but 3 lifetime arguments were supplied
+  --> $DIR/infers.rs:224:32
+   |
+LL |         reuse Trait::<'_, '_>::foo::<_, _, _, '_, '_, '_, _, _, _,> as foo6;
+   |                                ^^^---------------------- help: remove the lifetime arguments
+   |                                |
+   |                                expected 1 lifetime argument
+   |
+note: method defined here, with 1 lifetime parameter: `'bb`
+  --> $DIR/infers.rs:113:12
    |
 LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::<'_, '_>::foo::<_, _, _, '_, '_, '_, _, _, _,> as foo6;
-   |                                ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
+   |            ^^^      ---
 
 error[E0107]: method takes 3 generic arguments but 6 generic arguments were supplied
-  --> $DIR/infers.rs:338:32
+  --> $DIR/infers.rs:224:32
    |
 LL |         reuse Trait::<'_, '_>::foo::<_, _, _, '_, '_, '_, _, _, _,> as foo6;
    |                                ^^^------------------------------- help: remove the unnecessary generic arguments
@@ -1281,67 +712,31 @@ LL |         reuse Trait::<'_, '_>::foo::<_, _, _, '_, '_, '_, _, _, _,> as foo6
    |                                expected 3 generic arguments
    |
 note: method defined here, with 3 generic parameters: `XX`, `M`, `YY`
-  --> $DIR/infers.rs:161:12
+  --> $DIR/infers.rs:113:12
    |
 LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
    |            ^^^                     --  --------------  --
 
 error[E0121]: the placeholder `_` is not allowed within types on item signatures for functions
-  --> $DIR/infers.rs:345:35
+  --> $DIR/infers.rs:229:35
    |
 LL |         reuse Trait::<'_, '_, Vec<_>, 123, Vec<Vec<_>>>::foo::<_, '_, _, _> as foo7;
    |                                   ^ not allowed in type signatures
 
 error[E0121]: the placeholder `_` is not allowed within types on item signatures for functions
-  --> $DIR/infers.rs:345:52
+  --> $DIR/infers.rs:229:52
    |
 LL |         reuse Trait::<'_, '_, Vec<_>, 123, Vec<Vec<_>>>::foo::<_, '_, _, _> as foo7;
    |                                                    ^ not allowed in type signatures
 
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:345:58
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::<'_, '_, Vec<_>, 123, Vec<Vec<_>>>::foo::<_, '_, _, _> as foo7;
-   |                                                          ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:351:55
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::<'static, 'static, (), 123, ()>::foo::<'_, '_, '_, '_> as foo8;
-   |                                                       ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:355:51
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::<'static, 'static, _, _, _>::foo::<_> as foo9;
-   |                                                   ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
 error[E0107]: method takes 3 generic arguments but 0 generic arguments were supplied
-  --> $DIR/infers.rs:355:51
+  --> $DIR/infers.rs:235:51
    |
 LL |         reuse Trait::<'static, 'static, _, _, _>::foo::<_> as foo9;
    |                                                   ^^^ expected 3 generic arguments
    |
 note: method defined here, with 3 generic parameters: `XX`, `M`, `YY`
-  --> $DIR/infers.rs:161:12
+  --> $DIR/infers.rs:113:12
    |
 LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
    |            ^^^                     --  --------------  --
@@ -1351,25 +746,25 @@ LL |         reuse Trait::<'static, 'static, _, _, _>::fooXX, M, YY::<_> as foo9
    |                                                      +++++++++
 
 error[E0107]: trait takes 3 generic arguments but 7 generic arguments were supplied
-  --> $DIR/infers.rs:360:15
+  --> $DIR/infers.rs:238:15
    |
 LL |         reuse Trait::<'static, 'static, _, _, _, _, _, _, _>::foo::<Vec<'_>, _, _, ()> as foo10;
    |               ^^^^^ expected 3 generic arguments          ------- help: remove the unnecessary generic arguments
    |
 note: trait defined here, with 3 generic parameters: `X`, `C`, `Y`
-  --> $DIR/infers.rs:160:15
+  --> $DIR/infers.rs:112:15
    |
 LL |     pub trait Trait<'a, 'b, X, const C: usize, Y> {
    |               ^^^^^         -  --------------  -
 
 error[E0107]: method takes 1 lifetime argument but 0 lifetime arguments were supplied
-  --> $DIR/infers.rs:360:63
+  --> $DIR/infers.rs:238:63
    |
 LL |         reuse Trait::<'static, 'static, _, _, _, _, _, _, _>::foo::<Vec<'_>, _, _, ()> as foo10;
    |                                                               ^^^ expected 1 lifetime argument
    |
 note: method defined here, with 1 lifetime parameter: `'bb`
-  --> $DIR/infers.rs:161:12
+  --> $DIR/infers.rs:113:12
    |
 LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
    |            ^^^      ---
@@ -1379,7 +774,7 @@ LL |         reuse Trait::<'static, 'static, _, _, _, _, _, _, _>::foo::<'bb, Ve
    |                                                                     ++++
 
 error[E0107]: method takes 3 generic arguments but 4 generic arguments were supplied
-  --> $DIR/infers.rs:360:63
+  --> $DIR/infers.rs:238:63
    |
 LL |         reuse Trait::<'static, 'static, _, _, _, _, _, _, _>::foo::<Vec<'_>, _, _, ()> as foo10;
    |                                                               ^^^-------------------- help: remove the unnecessary generic argument
@@ -1387,19 +782,19 @@ LL |         reuse Trait::<'static, 'static, _, _, _, _, _, _, _>::foo::<Vec<'_>
    |                                                               expected 3 generic arguments
    |
 note: method defined here, with 3 generic parameters: `XX`, `M`, `YY`
-  --> $DIR/infers.rs:161:12
+  --> $DIR/infers.rs:113:12
    |
 LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
    |            ^^^                     --  --------------  --
 
 error: inferred lifetimes are not allowed in delegations as we need to inherit signature
-  --> $DIR/infers.rs:360:63
+  --> $DIR/infers.rs:238:63
    |
 LL |         reuse Trait::<'static, 'static, _, _, _, _, _, _, _>::foo::<Vec<'_>, _, _, ()> as foo10;
    |                                                               ^^^
 
 error[E0107]: struct takes 0 lifetime arguments but 1 lifetime argument was supplied
-  --> $DIR/infers.rs:360:69
+  --> $DIR/infers.rs:238:69
    |
 LL |         reuse Trait::<'static, 'static, _, _, _, _, _, _, _>::foo::<Vec<'_>, _, _, ()> as foo10;
    |                                                                     ^^^---- help: remove the unnecessary generics
@@ -1407,7 +802,7 @@ LL |         reuse Trait::<'static, 'static, _, _, _, _, _, _, _>::foo::<Vec<'_>
    |                                                                     expected 0 lifetime arguments
 
 error[E0107]: struct takes at least 1 generic argument but 0 generic arguments were supplied
-  --> $DIR/infers.rs:360:69
+  --> $DIR/infers.rs:238:69
    |
 LL |         reuse Trait::<'static, 'static, _, _, _, _, _, _, _>::foo::<Vec<'_>, _, _, ()> as foo10;
    |                                                                     ^^^ expected at least 1 generic argument
@@ -1418,7 +813,7 @@ LL |         reuse Trait::<'static, 'static, _, _, _, _, _, _, _>::foo::<Vec<'_,
    |                                                                           +++
 
 error[E0107]: trait takes 2 lifetime arguments but 5 lifetime arguments were supplied
-  --> $DIR/infers.rs:368:15
+  --> $DIR/infers.rs:246:15
    |
 LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>:::foo::<Vec<_>, _, _, ()> as foo11;
    |               ^^^^^                   ----------------------- help: remove the lifetime arguments
@@ -1426,19 +821,19 @@ LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>:::foo::<Vec<
    |               expected 2 lifetime arguments
    |
 note: trait defined here, with 2 lifetime parameters: `'a`, `'b`
-  --> $DIR/infers.rs:160:15
+  --> $DIR/infers.rs:112:15
    |
 LL |     pub trait Trait<'a, 'b, X, const C: usize, Y> {
    |               ^^^^^ --  --
 
 error[E0107]: method takes 1 lifetime argument but 0 lifetime arguments were supplied
-  --> $DIR/infers.rs:368:66
+  --> $DIR/infers.rs:246:66
    |
 LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>:::foo::<Vec<_>, _, _, ()> as foo11;
    |                                                                  ^^^ expected 1 lifetime argument
    |
 note: method defined here, with 1 lifetime parameter: `'bb`
-  --> $DIR/infers.rs:161:12
+  --> $DIR/infers.rs:113:12
    |
 LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
    |            ^^^      ---
@@ -1448,7 +843,7 @@ LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>:::foo::<'bb,
    |                                                                        ++++
 
 error[E0107]: method takes 3 generic arguments but 4 generic arguments were supplied
-  --> $DIR/infers.rs:368:66
+  --> $DIR/infers.rs:246:66
    |
 LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>:::foo::<Vec<_>, _, _, ()> as foo11;
    |                                                                  ^^^------------------- help: remove the unnecessary generic argument
@@ -1456,25 +851,25 @@ LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>:::foo::<Vec<
    |                                                                  expected 3 generic arguments
    |
 note: method defined here, with 3 generic parameters: `XX`, `M`, `YY`
-  --> $DIR/infers.rs:161:12
+  --> $DIR/infers.rs:113:12
    |
 LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
    |            ^^^                     --  --------------  --
 
 error: inferred lifetimes are not allowed in delegations as we need to inherit signature
-  --> $DIR/infers.rs:368:66
+  --> $DIR/infers.rs:246:66
    |
 LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>:::foo::<Vec<_>, _, _, ()> as foo11;
    |                                                                  ^^^
 
 error[E0121]: the placeholder `_` is not allowed within types on item signatures for functions
-  --> $DIR/infers.rs:368:76
+  --> $DIR/infers.rs:246:76
    |
 LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>:::foo::<Vec<_>, _, _, ()> as foo11;
    |                                                                            ^ not allowed in type signatures
 
 error[E0107]: trait takes 3 generic arguments but 1 generic argument was supplied
-  --> $DIR/infers.rs:376:15
+  --> $DIR/infers.rs:254:15
    |
 LL |         reuse Trait::<'static, 'static, _>::foo::<'____, ___, _, ___> as foo12;
    |               ^^^^^                         --- supplied 1 generic argument
@@ -1482,7 +877,7 @@ LL |         reuse Trait::<'static, 'static, _>::foo::<'____, ___, _, ___> as fo
    |               expected 3 generic arguments
    |
 note: trait defined here, with 3 generic parameters: `X`, `C`, `Y`
-  --> $DIR/infers.rs:160:15
+  --> $DIR/infers.rs:112:15
    |
 LL |     pub trait Trait<'a, 'b, X, const C: usize, Y> {
    |               ^^^^^         -  --------------  -
@@ -1491,68 +886,8 @@ help: add missing generic arguments
 LL |         reuse Trait::<'static, 'static, _>::foo, C, Y::<'____, ___, _, ___> as foo12;
    |                                                ++++++
 
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:376:51
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                --- the late bound lifetime parameter is introduced here
-...
-LL |         reuse Trait::<'static, 'static, _>::foo::<'____, ___, _, ___> as foo12;
-   |                                                   ^^^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-
-error[E0794]: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:48:15
-   |
-LL |         reuse foo::<'_, '_> as foo2;
-   |               ^^^
-   |
-note: the late bound lifetime parameter is introduced here
-  --> $DIR/infers.rs:40:16
-   |
-LL |         fn foo<'a, 'b, 'c: 'c, 'd>(_: &'a &'b &'c &'d ()) {}
-   |                ^^
-
-error[E0794]: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:103:11
-   |
-LL |     reuse foo::<_, _, _, '_, '_, '_, _, _, _,> as foo6;
-   |           ^^^
-   |
-note: the late bound lifetime parameter is introduced here
-  --> $DIR/infers.rs:80:12
-   |
-LL |     fn foo<'a, 'b: 'b, 'c, X, const M: usize, Y>(_: &'a &'b &'c ()) {}
-   |            ^^
-
-error[E0794]: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:193:22
-   |
-LL |         reuse Trait::foo::<_, _, _, '_, '_, '_, _, _, _,> as foo6;
-   |                      ^^^
-   |
-note: the late bound lifetime parameter is introduced here
-  --> $DIR/infers.rs:161:16
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                ^^^
-
-error[E0794]: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/infers.rs:338:32
-   |
-LL |         reuse Trait::<'_, '_>::foo::<_, _, _, '_, '_, '_, _, _, _,> as foo6;
-   |                                ^^^
-   |
-note: the late bound lifetime parameter is introduced here
-  --> $DIR/infers.rs:161:16
-   |
-LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &'b &'cc ()) {}
-   |                ^^^
-
 error[E0308]: mismatched types
-  --> $DIR/infers.rs:400:42
+  --> $DIR/infers.rs:276:42
    |
 LL |         reuse to_reuse::foo::<_, _, _> { self.0 }
    |                         ---              ^^^^^^ expected `()`, found `S`
@@ -1560,13 +895,13 @@ LL |         reuse to_reuse::foo::<_, _, _> { self.0 }
    |                         arguments to this function are incorrect
    |
 note: function defined here
-  --> $DIR/infers.rs:395:16
+  --> $DIR/infers.rs:271:16
    |
 LL |         pub fn foo<X, const M: usize, Y>(_: ()) {}
    |                ^^^                       -----
 
 error[E0107]: function takes 0 lifetime arguments but 1 lifetime argument was supplied
-  --> $DIR/infers.rs:406:25
+  --> $DIR/infers.rs:282:25
    |
 LL |         reuse to_reuse::foo { self.0 }
    |                         ^^^
@@ -1575,13 +910,13 @@ LL |         reuse to_reuse::foo { self.0 }
    |                         help: remove the lifetime argument
    |
 note: function defined here, with 0 lifetime parameters
-  --> $DIR/infers.rs:395:16
+  --> $DIR/infers.rs:271:16
    |
 LL |         pub fn foo<X, const M: usize, Y>(_: ()) {}
    |                ^^^
 
 error[E0308]: mismatched types
-  --> $DIR/infers.rs:406:31
+  --> $DIR/infers.rs:282:31
    |
 LL |         reuse to_reuse::foo { self.0 }
    |                         ---   ^^^^^^ expected `()`, found `S`
@@ -1589,13 +924,13 @@ LL |         reuse to_reuse::foo { self.0 }
    |                         arguments to this function are incorrect
    |
 note: function defined here
-  --> $DIR/infers.rs:395:16
+  --> $DIR/infers.rs:271:16
    |
 LL |         pub fn foo<X, const M: usize, Y>(_: ()) {}
    |                ^^^                       -----
 
 error[E0308]: mismatched types
-  --> $DIR/infers.rs:413:46
+  --> $DIR/infers.rs:289:46
    |
 LL |         reuse to_reuse::foo::<(), 123, ()> { self.0 }
    |                         ---                  ^^^^^^ expected `()`, found `S`
@@ -1603,12 +938,12 @@ LL |         reuse to_reuse::foo::<(), 123, ()> { self.0 }
    |                         arguments to this function are incorrect
    |
 note: function defined here
-  --> $DIR/infers.rs:395:16
+  --> $DIR/infers.rs:271:16
    |
 LL |         pub fn foo<X, const M: usize, Y>(_: ()) {}
    |                ^^^                       -----
 
-error: aborting due to 84 previous errors; 56 warnings emitted
+error: aborting due to 84 previous errors
 
-Some errors have detailed explanations: E0107, E0121, E0207, E0261, E0308, E0425, E0747, E0794.
+Some errors have detailed explanations: E0107, E0121, E0207, E0261, E0308, E0425, E0747.
 For more information about an error, try `rustc --explain E0107`.

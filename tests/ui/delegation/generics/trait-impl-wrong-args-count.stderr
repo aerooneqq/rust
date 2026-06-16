@@ -1,16 +1,3 @@
-warning: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/trait-impl-wrong-args-count.rs:24:25
-   |
-LL |         pub fn bar<'a: 'a, 'b: 'b, A, B>(x: &super::XX) {}
-   |                                             - the late bound lifetime parameter is introduced here
-...
-LL |         reuse to_reuse::bar;
-   |                         ^^^
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
-   = note: for more information, see issue #42868 <https://github.com/rust-lang/rust/issues/42868>
-   = note: `#[warn(late_bound_lifetime_arguments)]` (part of `#[warn(future_incompatible)]`) on by default
-
 error[E0107]: function takes at most 2 generic arguments but 3 generic arguments were supplied
   --> $DIR/trait-impl-wrong-args-count.rs:24:25
    |
@@ -26,20 +13,23 @@ note: function defined here, with at most 2 generic parameters: `A`, `B`
 LL |         pub fn bar<'a: 'a, 'b: 'b, A, B>(x: &super::XX) {}
    |                ^^^                 -  -
 
-error[E0794]: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
-  --> $DIR/trait-impl-wrong-args-count.rs:29:25
+error[E0107]: function takes 0 lifetime arguments but 2 lifetime arguments were supplied
+  --> $DIR/trait-impl-wrong-args-count.rs:27:25
    |
 LL |         reuse to_reuse::bar1;
    |                         ^^^^
+   |                         |
+   |                         expected 0 lifetime arguments
+   |                         help: remove the lifetime arguments
    |
-note: the late bound lifetime parameter is introduced here
-  --> $DIR/trait-impl-wrong-args-count.rs:7:24
+note: function defined here, with 0 lifetime parameters
+  --> $DIR/trait-impl-wrong-args-count.rs:7:16
    |
 LL |         pub fn bar1(x: &super::XX) {}
-   |                        ^
+   |                ^^^^
 
 error[E0107]: function takes 0 generic arguments but 3 generic arguments were supplied
-  --> $DIR/trait-impl-wrong-args-count.rs:29:25
+  --> $DIR/trait-impl-wrong-args-count.rs:27:25
    |
 LL |         reuse to_reuse::bar1;
    |                         ^^^^
@@ -54,7 +44,7 @@ LL |         pub fn bar1(x: &super::XX) {}
    |                ^^^^
 
 error[E0284]: type annotations needed
-  --> $DIR/trait-impl-wrong-args-count.rs:33:25
+  --> $DIR/trait-impl-wrong-args-count.rs:31:25
    |
 LL |         reuse to_reuse::bar2;
    |                         ^^^^ cannot infer the value of the const parameter `X` declared on the function `bar2`
@@ -70,7 +60,7 @@ LL |         reuse to_reuse::bar2::<A, B, C, D, E, F, X, Y>;
    |                             ++++++++++++++++++++++++++
 
 error[E0284]: type annotations needed
-  --> $DIR/trait-impl-wrong-args-count.rs:33:25
+  --> $DIR/trait-impl-wrong-args-count.rs:31:25
    |
 LL |         reuse to_reuse::bar2;
    |                         ^^^^ cannot infer the value of the const parameter `Y` declared on the function `bar2`
@@ -86,13 +76,13 @@ LL |         reuse to_reuse::bar2::<A, B, C, D, E, F, X, Y>;
    |                             ++++++++++++++++++++++++++
 
 error[E0107]: missing generics for trait `test_2::Trait1`
-  --> $DIR/trait-impl-wrong-args-count.rs:63:21
+  --> $DIR/trait-impl-wrong-args-count.rs:61:21
    |
 LL |         reuse <X as Trait1>::bar;
    |                     ^^^^^^ expected 2 generic arguments
    |
 note: trait defined here, with 2 generic parameters: `A`, `B`
-  --> $DIR/trait-impl-wrong-args-count.rs:54:11
+  --> $DIR/trait-impl-wrong-args-count.rs:52:11
    |
 LL |     trait Trait1<A, B> {
    |           ^^^^^^ -  -
@@ -102,7 +92,7 @@ LL |         reuse <X as Trait1<A, B>>::bar;
    |                           ++++++
 
 error[E0107]: associated function takes 1 lifetime argument but 2 lifetime arguments were supplied
-  --> $DIR/trait-impl-wrong-args-count.rs:63:30
+  --> $DIR/trait-impl-wrong-args-count.rs:61:30
    |
 LL |         reuse <X as Trait1>::bar;
    |                              ^^^
@@ -111,13 +101,13 @@ LL |         reuse <X as Trait1>::bar;
    |                              help: remove the lifetime argument
    |
 note: associated function defined here, with 1 lifetime parameter: `'x`
-  --> $DIR/trait-impl-wrong-args-count.rs:55:12
+  --> $DIR/trait-impl-wrong-args-count.rs:53:12
    |
 LL |         fn bar<'x: 'x, AA, BB, const NN: usize>() {}
    |            ^^^ --
 
 error[E0107]: associated function takes 1 lifetime argument but 2 lifetime arguments were supplied
-  --> $DIR/trait-impl-wrong-args-count.rs:67:44
+  --> $DIR/trait-impl-wrong-args-count.rs:65:44
    |
 LL |         reuse <X as Trait1::<bool, bool>>::bar as bar1;
    |                                            ^^^
@@ -126,19 +116,19 @@ LL |         reuse <X as Trait1::<bool, bool>>::bar as bar1;
    |                                            help: remove the lifetime argument
    |
 note: associated function defined here, with 1 lifetime parameter: `'x`
-  --> $DIR/trait-impl-wrong-args-count.rs:55:12
+  --> $DIR/trait-impl-wrong-args-count.rs:53:12
    |
 LL |         fn bar<'x: 'x, AA, BB, const NN: usize>() {}
    |            ^^^ --
 
 error[E0107]: missing generics for trait `test_2::Trait1`
-  --> $DIR/trait-impl-wrong-args-count.rs:72:21
+  --> $DIR/trait-impl-wrong-args-count.rs:70:21
    |
 LL |         reuse <X as Trait1>::bar::<'static, u32, u32, 1> as bar3;
    |                     ^^^^^^ expected 2 generic arguments
    |
 note: trait defined here, with 2 generic parameters: `A`, `B`
-  --> $DIR/trait-impl-wrong-args-count.rs:54:11
+  --> $DIR/trait-impl-wrong-args-count.rs:52:11
    |
 LL |     trait Trait1<A, B> {
    |           ^^^^^^ -  -
@@ -148,13 +138,13 @@ LL |         reuse <X as Trait1<A, B>>::bar::<'static, u32, u32, 1> as bar3;
    |                           ++++++
 
 error[E0107]: missing generics for trait `test_2::Trait1`
-  --> $DIR/trait-impl-wrong-args-count.rs:75:21
+  --> $DIR/trait-impl-wrong-args-count.rs:73:21
    |
 LL |         reuse <X as Trait1>::bar as bar4;
    |                     ^^^^^^ expected 2 generic arguments
    |
 note: trait defined here, with 2 generic parameters: `A`, `B`
-  --> $DIR/trait-impl-wrong-args-count.rs:54:11
+  --> $DIR/trait-impl-wrong-args-count.rs:52:11
    |
 LL |     trait Trait1<A, B> {
    |           ^^^^^^ -  -
@@ -164,7 +154,7 @@ LL |         reuse <X as Trait1<A, B>>::bar as bar4;
    |                           ++++++
 
 error[E0107]: associated function takes 0 lifetime arguments but 2 lifetime arguments were supplied
-  --> $DIR/trait-impl-wrong-args-count.rs:100:40
+  --> $DIR/trait-impl-wrong-args-count.rs:98:40
    |
 LL |         reuse <X as Trait1::<(), ()>>::bar;
    |                                        ^^^
@@ -173,13 +163,13 @@ LL |         reuse <X as Trait1::<(), ()>>::bar;
    |                                        help: remove the lifetime arguments
    |
 note: associated function defined here, with 0 lifetime parameters
-  --> $DIR/trait-impl-wrong-args-count.rs:91:12
+  --> $DIR/trait-impl-wrong-args-count.rs:89:12
    |
 LL |         fn bar() {}
    |            ^^^
 
 error[E0107]: associated function takes 0 generic arguments but 3 generic arguments were supplied
-  --> $DIR/trait-impl-wrong-args-count.rs:100:40
+  --> $DIR/trait-impl-wrong-args-count.rs:98:40
    |
 LL |         reuse <X as Trait1::<(), ()>>::bar;
    |                                        ^^^
@@ -188,13 +178,13 @@ LL |         reuse <X as Trait1::<(), ()>>::bar;
    |                                        help: remove the unnecessary generic arguments
    |
 note: associated function defined here, with 0 generic parameters
-  --> $DIR/trait-impl-wrong-args-count.rs:91:12
+  --> $DIR/trait-impl-wrong-args-count.rs:89:12
    |
 LL |         fn bar() {}
    |            ^^^
 
 error[E0107]: associated function takes 0 lifetime arguments but 2 lifetime arguments were supplied
-  --> $DIR/trait-impl-wrong-args-count.rs:104:40
+  --> $DIR/trait-impl-wrong-args-count.rs:102:40
    |
 LL |         reuse <X as Trait1::<(), ()>>::bar as bar1;
    |                                        ^^^
@@ -203,13 +193,13 @@ LL |         reuse <X as Trait1::<(), ()>>::bar as bar1;
    |                                        help: remove the lifetime arguments
    |
 note: associated function defined here, with 0 lifetime parameters
-  --> $DIR/trait-impl-wrong-args-count.rs:91:12
+  --> $DIR/trait-impl-wrong-args-count.rs:89:12
    |
 LL |         fn bar() {}
    |            ^^^
 
 error[E0107]: associated function takes 0 generic arguments but 3 generic arguments were supplied
-  --> $DIR/trait-impl-wrong-args-count.rs:104:40
+  --> $DIR/trait-impl-wrong-args-count.rs:102:40
    |
 LL |         reuse <X as Trait1::<(), ()>>::bar as bar1;
    |                                        ^^^
@@ -218,19 +208,19 @@ LL |         reuse <X as Trait1::<(), ()>>::bar as bar1;
    |                                        help: remove the unnecessary generic arguments
    |
 note: associated function defined here, with 0 generic parameters
-  --> $DIR/trait-impl-wrong-args-count.rs:91:12
+  --> $DIR/trait-impl-wrong-args-count.rs:89:12
    |
 LL |         fn bar() {}
    |            ^^^
 
 error[E0282]: type annotations needed
-  --> $DIR/trait-impl-wrong-args-count.rs:108:40
+  --> $DIR/trait-impl-wrong-args-count.rs:106:40
    |
 LL |         reuse <X as Trait1::<(), ()>>::foo as bar2;
    |                                        ^^^ cannot infer type of the type parameter `X` declared on the associated function `foo`
 
 error[E0107]: associated function takes at most 2 generic arguments but 3 generic arguments were supplied
-  --> $DIR/trait-impl-wrong-args-count.rs:111:40
+  --> $DIR/trait-impl-wrong-args-count.rs:109:40
    |
 LL |         reuse <X as Trait1::<(), ()>>::foo as bar3;
    |                                        ^^^
@@ -239,12 +229,12 @@ LL |         reuse <X as Trait1::<(), ()>>::foo as bar3;
    |                                        help: remove the unnecessary generic argument
    |
 note: associated function defined here, with at most 2 generic parameters: `X`, `Y`
-  --> $DIR/trait-impl-wrong-args-count.rs:92:12
+  --> $DIR/trait-impl-wrong-args-count.rs:90:12
    |
 LL |         fn foo<X, Y>() {}
    |            ^^^ -  -
 
-error: aborting due to 16 previous errors; 1 warning emitted
+error: aborting due to 16 previous errors
 
-Some errors have detailed explanations: E0107, E0282, E0284, E0794.
+Some errors have detailed explanations: E0107, E0282, E0284.
 For more information about an error, try `rustc --explain E0107`.
