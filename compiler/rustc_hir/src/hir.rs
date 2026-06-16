@@ -3855,13 +3855,18 @@ pub enum OpaqueTyOrigin<D> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, StableHash)]
+pub enum DelegationSelfTyPropagationKind {
+    Default(HirId /* Self ty id */),
+    Infer,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, StableHash)]
 pub struct DelegationInfo {
     pub call_expr_id: HirId,
     pub call_path_res: Option<DefId>,
     pub parent_args_segment_id: Option<HirId>,
     pub child_args_segment_id: Option<HirId>,
-    pub self_ty_id: Option<HirId>,
-    pub propagate_self_ty: bool,
+    pub propagate_self_ty: Option<DelegationSelfTyPropagationKind>,
     pub group_id: Option<(LocalExpnId, bool /* unused_target_expr */)>,
 }
 

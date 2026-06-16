@@ -55,7 +55,9 @@ use rustc_span::def_id::{DefId, LocalDefId};
 use rustc_span::symbol::kw;
 use rustc_span::{ErrorGuaranteed, Ident, Span, Symbol};
 
-use crate::delegation::generics::{GenericsGenerationResult, GenericsGenerationResults};
+use crate::delegation::generics::{
+    GenericsGenerationResult, GenericsGenerationResults, create_path,
+};
 use crate::diagnostics::{
     CycleInDelegationSignatureResolution, DelegationAttemptedBlockWithDefsDeletion,
     DelegationBlockSpecifiedWhenNoParams, UnresolvedDelegationCallee,
@@ -406,7 +408,6 @@ impl<'hir> LoweringContext<'_, 'hir> {
                     call_path_res: self.get_resolution_id(call_path_node_id),
                     child_args_segment_id: generics.child.args_segment_id,
                     parent_args_segment_id: generics.parent.args_segment_id,
-                    self_ty_id: generics.self_ty_id,
                     propagate_self_ty: generics.propagate_self_ty,
                     group_id: {
                         let id = match source {
@@ -625,6 +626,16 @@ impl<'hir> LoweringContext<'_, 'hir> {
                     }),
                 );
 
+                let ty = ty.map(|ty| match generics.propagate_self_ty {
+                    Some(hir::DelegationSelfTyPropagationKind::Infer) => {
+                        let self_param = generics.parent.generics.expect_find_self_param();
+                        let kind = hir::TyKind::Path(create_path(self, self_param));
+
+                        self.arena.alloc(hir::Ty { kind, ..ty.clone() })
+                    }
+                    _ => ty,
+                });
+
                 hir::QPath::Resolved(ty, self.arena.alloc(new_path))
             }
             hir::QPath::TypeRelative(ty, segment) => {
@@ -634,11 +645,16 @@ impl<'hir> LoweringContext<'_, 'hir> {
             }
         };
 
-        generics.self_ty_id = match new_path {
-            hir::QPath::Resolved(ty, _) => ty,
-            hir::QPath::TypeRelative(ty, _) => Some(ty),
+        if let Some(hir::DelegationSelfTyPropagationKind::Default(id)) =
+            generics.propagate_self_ty.as_mut()
+        {
+            *id = match new_path {
+                hir::QPath::Resolved(ty, _) => ty,
+                hir::QPath::TypeRelative(ty, _) => Some(ty),
+            }
+            .map(|ty| ty.hir_id)
+            .expect("must contain self type as default propagation kind is specified");
         }
-        .map(|ty| ty.hir_id);
 
         let callee_path = self.arena.alloc(self.mk_expr(hir::ExprKind::Path(new_path), span));
         let args = self.arena.alloc_from_iter(args);
@@ -662,25 +678,58 @@ impl<'hir> LoweringContext<'_, 'hir> {
         segment: &hir::PathSegment<'hir>,
         result: &mut GenericsGenerationResult<'hir>,
     ) -> hir::PathSegment<'hir> {
-        let details = result.generics.args_propagation_details();
+        let infer_indices = result.generics.infer_indices();
+        result.generics.into_hir_generics(self, span);
 
-        // Always uplift generic params, because if they are not empty then they
-        // should be generated in delegation.
-        let generics = result.generics.into_hir_generics(self, span);
-        let segment = if details.should_propagate {
-            let args = generics.into_generic_args(self, span);
+        let mut segment = segment.clone();
+        let mut generated_args_iterator = result.generics.create_args_iterator();
 
-            // Needed for better error messages (`trait-impl-wrong-args-count.rs` test).
-            let args = if args.is_empty() { None } else { Some(args) };
+        let new_args = match segment.args {
+            Some(args) if !args.is_empty() => {
+                let mut new_args = vec![];
 
-            hir::PathSegment { args, ..segment.clone() }
-        } else {
-            segment.clone()
+                for (idx, arg) in args.args.iter().enumerate() {
+                    if infer_indices.contains(&idx) {
+                        let non_alloc_arg = generated_args_iterator
+                            .next(self, |_| arg.hir_id())
+                            .expect("there should be one param for each infer");
+
+                        new_args.push(non_alloc_arg.allocate_hir_generic_arg(self.arena));
+                    } else {
+                        new_args.push(*arg);
+                    }
+                }
+
+                self.arena.alloc_from_iter(new_args.into_iter())
+            }
+            _ => self.arena.alloc_from_iter(
+                generated_args_iterator
+                    .consume_all(self)
+                    .into_iter()
+                    .map(|non_alloc_arg| non_alloc_arg.allocate_hir_generic_arg(self.arena)),
+            ),
         };
 
-        if details.use_args_in_sig_inheritance {
+        if !result.generics.is_trait_impl() {
             result.args_segment_id = Some(segment.hir_id);
         }
+
+        // Needed for better error messages (`trait-impl-wrong-args-count.rs` test).
+        segment.args = if new_args.is_empty() {
+            None
+        } else {
+            let new_args = self.arena.alloc(hir::GenericArgs {
+                args: new_args,
+                constraints: &[],
+                parenthesized: hir::GenericArgsParentheses::No,
+                span_ext: match segment.args {
+                    Some(args) => args.span_ext,
+                    None => span,
+                },
+            });
+
+            Some(&*new_args)
+        };
 
         segment
     }

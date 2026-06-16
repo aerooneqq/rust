@@ -1,43 +1,11 @@
-error: delegation self type is not specified
-  --> $DIR/free-to-trait-static-reuse.rs:22:14
-   |
-LL | reuse Trait::static_method as error { self - 123 }
-   |              ^^^^^^^^^^^^^
-   |
-   = help: consider explicitly specifying self type: `reuse </* Type */ as Trait>::function`
-
-error: delegation self type is not specified
-  --> $DIR/free-to-trait-static-reuse.rs:25:35
-   |
-LL | reuse Trait::<'static, i32, 123>::static_method as error2;
-   |                                   ^^^^^^^^^^^^^
-   |
-   = help: consider explicitly specifying self type: `reuse </* Type */ as Trait>::function`
-
-error: delegation self type is not specified
-  --> $DIR/free-to-trait-static-reuse.rs:28:35
-   |
-LL | reuse Trait::<'static, i32, 123>::static_method::<'static, String, false> as error3;
-   |                                   ^^^^^^^^^^^^^
-   |
-   = help: consider explicitly specifying self type: `reuse </* Type */ as Trait>::function`
-
-error: delegation self type is not specified
-  --> $DIR/free-to-trait-static-reuse.rs:31:14
-   |
-LL | reuse Trait::static_method::<'static, Vec<i32>, false> as error4 { self + 4 }
-   |              ^^^^^^^^^^^^^
-   |
-   = help: consider explicitly specifying self type: `reuse </* Type */ as Trait>::function`
-
 error[E0277]: the trait bound `Struct: Bound<T>` is not satisfied
-  --> $DIR/free-to-trait-static-reuse.rs:39:49
+  --> $DIR/free-to-trait-static-reuse.rs:35:49
    |
 LL | impl<'a, T, const X: usize> Trait<'a, T, X> for Struct {}
    |                                                 ^^^^^^ unsatisfied trait bound
    |
 help: the trait `Bound<T>` is not implemented for `Struct`
-  --> $DIR/free-to-trait-static-reuse.rs:38:1
+  --> $DIR/free-to-trait-static-reuse.rs:34:1
    |
 LL | struct Struct;
    | ^^^^^^^^^^^^^
@@ -61,9 +29,12 @@ error[E0283]: type annotations needed
 LL | reuse Trait::static_method as error { self - 123 }
    |              ^^^^^^^^^^^^^ cannot infer type
    |
-note: multiple `impl`s satisfying `_: Trait<'a, T, X>` found
-  --> $DIR/free-to-trait-static-reuse.rs:14:1
+note: multiple `impl`s or `where` clauses satisfying `_: Trait<'a, T, X>` found
+  --> $DIR/free-to-trait-static-reuse.rs:1:1
    |
+LL | //@ compile-flags: -Z deduplicate-diagnostics=yes
+   | ^
+...
 LL | impl<'a, T, const X: usize> Trait<'a, T, X> for usize {}
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ...
@@ -71,14 +42,17 @@ LL | impl<'a, T, const X: usize> Trait<'a, T, X> for Struct {}
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error[E0283]: type annotations needed
-  --> $DIR/free-to-trait-static-reuse.rs:25:35
+  --> $DIR/free-to-trait-static-reuse.rs:24:35
    |
 LL | reuse Trait::<'static, i32, 123>::static_method as error2;
    |                                   ^^^^^^^^^^^^^ cannot infer type
    |
-note: multiple `impl`s satisfying `_: Trait<'static, i32, 123>` found
-  --> $DIR/free-to-trait-static-reuse.rs:14:1
+note: multiple `impl`s or `where` clauses satisfying `_: Trait<'static, i32, 123>` found
+  --> $DIR/free-to-trait-static-reuse.rs:1:1
    |
+LL | //@ compile-flags: -Z deduplicate-diagnostics=yes
+   | ^
+...
 LL | impl<'a, T, const X: usize> Trait<'a, T, X> for usize {}
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ...
@@ -86,14 +60,17 @@ LL | impl<'a, T, const X: usize> Trait<'a, T, X> for Struct {}
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error[E0283]: type annotations needed
-  --> $DIR/free-to-trait-static-reuse.rs:28:35
+  --> $DIR/free-to-trait-static-reuse.rs:26:35
    |
 LL | reuse Trait::<'static, i32, 123>::static_method::<'static, String, false> as error3;
    |                                   ^^^^^^^^^^^^^ cannot infer type
    |
-note: multiple `impl`s satisfying `_: Trait<'static, i32, 123>` found
-  --> $DIR/free-to-trait-static-reuse.rs:14:1
+note: multiple `impl`s or `where` clauses satisfying `_: Trait<'static, i32, 123>` found
+  --> $DIR/free-to-trait-static-reuse.rs:1:1
    |
+LL | //@ compile-flags: -Z deduplicate-diagnostics=yes
+   | ^
+...
 LL | impl<'a, T, const X: usize> Trait<'a, T, X> for usize {}
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ...
@@ -101,14 +78,17 @@ LL | impl<'a, T, const X: usize> Trait<'a, T, X> for Struct {}
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error[E0283]: type annotations needed
-  --> $DIR/free-to-trait-static-reuse.rs:31:14
+  --> $DIR/free-to-trait-static-reuse.rs:28:14
    |
 LL | reuse Trait::static_method::<'static, Vec<i32>, false> as error4 { self + 4 }
    |              ^^^^^^^^^^^^^ cannot infer type
    |
-note: multiple `impl`s satisfying `_: Trait<'a, T, X>` found
-  --> $DIR/free-to-trait-static-reuse.rs:14:1
+note: multiple `impl`s or `where` clauses satisfying `_: Trait<'a, T, X>` found
+  --> $DIR/free-to-trait-static-reuse.rs:1:1
    |
+LL | //@ compile-flags: -Z deduplicate-diagnostics=yes
+   | ^
+...
 LL | impl<'a, T, const X: usize> Trait<'a, T, X> for usize {}
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ...
@@ -116,7 +96,7 @@ LL | impl<'a, T, const X: usize> Trait<'a, T, X> for Struct {}
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error[E0277]: the trait bound `String: Trait<'a, T, X>` is not satisfied
-  --> $DIR/free-to-trait-static-reuse.rs:35:8
+  --> $DIR/free-to-trait-static-reuse.rs:31:8
    |
 LL | reuse <String as Trait>::static_method as error5;
    |        ^^^^^^ the trait `Trait<'a, T, X>` is not implemented for `String`
@@ -131,13 +111,13 @@ LL | impl<'a, T, const X: usize> Trait<'a, T, X> for Struct {}
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `Struct`
 
 error[E0277]: the trait bound `Struct: Bound<T>` is not satisfied
-  --> $DIR/free-to-trait-static-reuse.rs:42:8
+  --> $DIR/free-to-trait-static-reuse.rs:38:8
    |
 LL | reuse <Struct as Trait>::static_method as error6;
    |        ^^^^^^ unsatisfied trait bound
    |
 help: the trait `Bound<T>` is not implemented for `Struct`
-  --> $DIR/free-to-trait-static-reuse.rs:38:1
+  --> $DIR/free-to-trait-static-reuse.rs:34:1
    |
 LL | struct Struct;
    | ^^^^^^^^^^^^^
@@ -155,7 +135,7 @@ LL | {
 LL |     fn static_method<'c: 'c, U, const B: bool>(x: usize) {}
    |        ------------- required by a bound in this associated function
 
-error: aborting due to 11 previous errors
+error: aborting due to 7 previous errors
 
 Some errors have detailed explanations: E0277, E0283.
 For more information about an error, try `rustc --explain E0277`.

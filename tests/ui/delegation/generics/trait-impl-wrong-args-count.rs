@@ -23,9 +23,12 @@ mod test_1 {
     impl<'a, 'b, 'c, A, B, const N: usize> Trait<'a, 'b, 'c, A, B, N> for XX {
         reuse to_reuse::bar;
         //~^ ERROR: function takes at most 2 generic arguments but 3 generic arguments were supplied
+        //~| WARN: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
+        //~| WARN: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
 
         reuse to_reuse::bar1;
         //~^ ERROR: function takes 0 generic arguments but 3 generic arguments were supplied
+        //~| ERROR: cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
 
         reuse to_reuse::bar2;
         //~^ ERROR: type annotations needed
@@ -59,8 +62,10 @@ mod test_2 {
     impl Trait<String, 1> for X {
         reuse <X as Trait1>::bar;
         //~^ ERROR: missing generics for trait
+        //~| ERROR: associated function takes 1 lifetime argument but 2 lifetime arguments were supplied
 
         reuse <X as Trait1::<bool, bool>>::bar as bar1;
+        //~^ ERROR: associated function takes 1 lifetime argument but 2 lifetime arguments were supplied
 
         reuse <X as Trait1::<bool, bool>>::bar::<'static, u32, u32, 1> as bar2;
 
@@ -94,9 +99,11 @@ mod test_3 {
     impl Trait<String, 1> for X {
         reuse <X as Trait1::<(), ()>>::bar;
         //~^ ERROR: associated function takes 0 generic arguments but 3 generic arguments were supplied
+        //~| ERROR: associated function takes 0 lifetime arguments but 2 lifetime arguments were supplied
 
         reuse <X as Trait1::<(), ()>>::bar as bar1;
         //~^ ERROR: associated function takes 0 generic arguments but 3 generic arguments were supplied
+        //~| ERROR: associated function takes 0 lifetime arguments but 2 lifetime arguments were supplied
 
         reuse <X as Trait1::<(), ()>>::foo as bar2;
         //~^ ERROR: type annotations needed

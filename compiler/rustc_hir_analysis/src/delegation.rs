@@ -5,9 +5,10 @@
 use std::debug_assert_matches;
 
 use rustc_data_structures::fx::FxHashMap;
-use rustc_hir::PathSegment;
 use rustc_hir::def::DefKind;
 use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_hir::{DelegationSelfTyPropagationKind, PathSegment};
+use rustc_macros::extension;
 use rustc_middle::ty::{
     self, EarlyBinder, Ty, TyCtxt, TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitableExt,
 };
@@ -65,8 +66,9 @@ impl<'tcx> TypeFolder<TyCtxt<'tcx>> for ParamIndexRemapper<'tcx> {
     }
 }
 
+#[derive(Debug)]
 enum SelfPositionKind {
-    AfterLifetimes(bool /* Should propagate self ty */),
+    AfterLifetimes(Option<DelegationSelfTyPropagationKind>),
     Zero,
     None,
 }
@@ -268,28 +270,6 @@ fn get_parent_and_inheritance_kind<'tcx>(
     }
 }
 
-fn get_delegation_self_ty_or_err(tcx: TyCtxt<'_>, delegation_id: LocalDefId) -> Ty<'_> {
-    tcx.hir_delegation_info(delegation_id)
-        .self_ty_id
-        .map(|id| {
-            let ctx = ItemCtxt::new(tcx, delegation_id);
-            ctx.lower_ty(tcx.hir_node(id).expect_ty())
-        })
-        .unwrap_or_else(|| {
-            // It is possible to attempt to get self type when it is used in signature
-            // (i.e., `fn default() -> Self`), so emit error here in addition to possible
-            // `mismatched types` error (see #156388).
-            let err = DelegationSelfTypeNotSpecified { span: tcx.def_span(delegation_id) };
-            tcx.dcx().emit_err(err);
-
-            Ty::new_error_with_message(
-                tcx,
-                tcx.def_span(delegation_id),
-                "the self type must be specified",
-            )
-        })
-}
-
 fn get_delegation_self_ty<'tcx>(tcx: TyCtxt<'tcx>, delegation_id: LocalDefId) -> Option<Ty<'tcx>> {
     let sig_id = tcx.hir_opt_delegation_sig_id(delegation_id).expect("Delegation must have sig_id");
     let (caller_kind, callee_kind) = (fn_kind(tcx, delegation_id), fn_kind(tcx, sig_id));
@@ -302,13 +282,33 @@ fn get_delegation_self_ty<'tcx>(tcx: TyCtxt<'tcx>, delegation_id: LocalDefId) ->
         | (FnKind::AssocTrait, FnKind::AssocTrait) => {
             match create_self_position_kind(tcx, delegation_id, sig_id) {
                 SelfPositionKind::None => None,
-                SelfPositionKind::AfterLifetimes(propagate_self_ty) => {
-                    if propagate_self_ty {
-                        Some(get_delegation_self_ty_or_err(tcx, delegation_id))
-                    } else {
-                        // Both sig parent and child lifetimes are in included in this count.
-                        let index = tcx.generics_of(delegation_id).own_counts().lifetimes;
-                        Some(Ty::new_param(tcx, index as u32, kw::SelfUpper))
+                SelfPositionKind::AfterLifetimes(propagation_kind) => {
+                    match propagation_kind {
+                        Some(kind) => match kind {
+                            DelegationSelfTyPropagationKind::Default(self_ty_id) => {
+                                let ctx = ItemCtxt::new(tcx, delegation_id);
+                                Some(ctx.lower_ty(tcx.hir_node(self_ty_id).expect_ty()))
+                            }
+                            DelegationSelfTyPropagationKind::Infer => {
+                                let index = tcx.generics_of(delegation_id).own_counts().lifetimes;
+                                Some(Ty::new_param(tcx, index as u32, kw::SelfUpper))
+                            }
+                        },
+                        None => {
+                            // It is possible to attempt to get self type when it is used in signature
+                            // (i.e., `fn default() -> Self`), so emit error here in addition to possible
+                            // `mismatched types` error (see #156388).
+                            let err = DelegationSelfTypeNotSpecified {
+                                span: tcx.def_span(delegation_id),
+                            };
+                            tcx.dcx().emit_err(err);
+
+                            Some(Ty::new_error_with_message(
+                                tcx,
+                                tcx.def_span(delegation_id),
+                                "the self type must be specified",
+                            ))
+                        }
                     }
                 }
                 SelfPositionKind::Zero => Some(Ty::new_param(tcx, 0, kw::SelfUpper)),
@@ -325,6 +325,17 @@ fn get_delegation_self_ty<'tcx>(tcx: TyCtxt<'tcx>, delegation_id: LocalDefId) ->
         (FnKind::AssocTraitImpl, _)
         | (_, FnKind::AssocTraitImpl)
         | (_, FnKind::AssocInherentImpl) => unreachable!(),
+    }
+}
+
+#[extension(trait DelegationFnKinds)]
+impl (FnKind, FnKind) {
+    fn is_trait_impl(self) -> bool {
+        matches!(self, (FnKind::AssocTraitImpl, FnKind::AssocTrait))
+    }
+
+    fn is_inherent_impl(self) -> bool {
+        matches!(self, (FnKind::AssocInherentImpl, FnKind::AssocTrait))
     }
 }
 
@@ -348,135 +359,71 @@ fn create_generic_args<'tcx>(
     sig_id: DefId,
     delegation_id: LocalDefId,
     mut parent_args: &[ty::GenericArg<'tcx>],
-    child_args: &[ty::GenericArg<'tcx>],
+    mut child_args: &[ty::GenericArg<'tcx>],
 ) -> Vec<ty::GenericArg<'tcx>> {
-    let (caller_kind, callee_kind) = (fn_kind(tcx, delegation_id), fn_kind(tcx, sig_id));
-
-    let delegation_args = ty::GenericArgs::identity_for_item(tcx, delegation_id);
-
-    let deleg_parent_args_without_self_count =
-        get_delegation_parent_args_count_without_self(tcx, delegation_id, sig_id);
+    let kinds = (fn_kind(tcx, delegation_id), fn_kind(tcx, sig_id));
 
     let delegation_generics = tcx.generics_of(delegation_id);
+    let delegation_args = ty::GenericArgs::identity_for_item(tcx, delegation_id);
+
     let real_args_count = delegation_args.len() - delegation_generics.own_synthetic_params_count();
     let synth_args = &delegation_args[real_args_count..];
-    let delegation_args = &delegation_args[..real_args_count];
+    let mut delegation_parent_args =
+        &delegation_args[delegation_generics.has_self as usize..delegation_generics.parent_count];
+    let delegation_args = &delegation_args[delegation_generics.parent_count..];
 
-    let args = match (caller_kind, callee_kind) {
-        (FnKind::Free, FnKind::Free)
-        | (FnKind::Free, FnKind::AssocTrait)
-        | (FnKind::AssocInherentImpl, FnKind::Free)
-        | (FnKind::AssocTrait, FnKind::Free)
-        | (FnKind::AssocTrait, FnKind::AssocTrait) => delegation_args,
+    if kinds.is_trait_impl() {
+        // Special case, as user specifies Trait args in trait impl header, we want to treat
+        // them as parent args. We always generate a function whose generics match
+        // child generics in trait.
+        let parent = tcx.local_parent(delegation_id);
 
-        (FnKind::AssocTraitImpl, FnKind::AssocTrait) => {
-            // Special case, as user specifies Trait args in trait impl header, we want to treat
-            // them as parent args. We always generate a function whose generics match
-            // child generics in trait.
-            let parent = tcx.local_parent(delegation_id);
-            parent_args =
-                tcx.impl_trait_header(parent).trait_ref.instantiate_identity().skip_norm_wip().args;
+        parent_args =
+            tcx.impl_trait_header(parent).trait_ref.instantiate_identity().skip_norm_wip().args;
 
-            assert!(child_args.is_empty(), "Child args can not be used in trait impl case");
+        child_args =
+            &delegation_args[delegation_args.len() - delegation_generics.own_params.len()..];
 
-            tcx.mk_args(&delegation_args[delegation_generics.parent_count..])
-        }
-
-        (FnKind::AssocInherentImpl, FnKind::AssocTrait) => {
-            let self_ty =
-                tcx.type_of(tcx.local_parent(delegation_id)).instantiate_identity().skip_norm_wip();
-
-            tcx.mk_args_from_iter(
-                std::iter::once(ty::GenericArg::from(self_ty))
-                    .chain(delegation_args.iter().copied()),
-            )
-        }
-
-        // For trait impl's `sig_id` is always equal to the corresponding trait method.
-        // For inherent methods delegation is not yet supported.
-        (FnKind::AssocTraitImpl, _)
-        | (_, FnKind::AssocTraitImpl)
-        | (_, FnKind::AssocInherentImpl) => unreachable!(),
-    };
-
-    let mut new_args = vec![];
+        delegation_parent_args = &[];
+    }
 
     let self_pos_kind = create_self_position_kind(tcx, delegation_id, sig_id);
-    let mut lifetimes_end_pos;
+    let self_type = get_delegation_self_ty(tcx, delegation_id).map(|t| t.into());
+    if self_type.is_some() && !parent_args.is_empty() {
+        parent_args = &parent_args[1..];
+    }
 
-    if !parent_args.is_empty() {
-        let parent_args_lifetimes_count =
-            parent_args.iter().filter(|a| a.as_region().is_some()).count();
+    let mut new_args = parent_args
+        .iter()
+        .filter(|a| a.as_region().is_some())
+        .chain(child_args.iter().filter(|a| a.as_region().is_some()))
+        .chain(parent_args.iter().filter(|a| a.as_region().is_none()))
+        .chain(child_args.iter().filter(|a| a.as_region().is_none()))
+        .chain(synth_args)
+        .copied()
+        .collect::<Vec<_>>();
 
-        match self_pos_kind {
-            SelfPositionKind::AfterLifetimes { .. } => {
-                new_args.extend(&parent_args[1..1 + parent_args_lifetimes_count]);
-
-                lifetimes_end_pos = parent_args_lifetimes_count;
-
-                new_args.push(parent_args[0]);
-
-                new_args.extend(&parent_args[1 + parent_args_lifetimes_count..]);
-            }
-            SelfPositionKind::Zero => {
-                lifetimes_end_pos = 1 /* Self */ + parent_args_lifetimes_count;
-                new_args.extend_from_slice(parent_args);
-
-                for i in 0..deleg_parent_args_without_self_count {
-                    new_args.insert(1 + i, args[1 + i]);
-                }
-
-                lifetimes_end_pos += deleg_parent_args_without_self_count;
-            }
-            // If we have parent args then we obtained them from trait, then self must be somewhere
-            SelfPositionKind::None => unreachable!(),
-        };
-    } else {
-        let self_impact = matches!(self_pos_kind, SelfPositionKind::Zero) as usize;
-
-        lifetimes_end_pos = self_impact
-            + deleg_parent_args_without_self_count
-            + &args[self_impact + deleg_parent_args_without_self_count..]
-                .iter()
-                .filter(|a| a.as_region().is_some())
-                .count();
-
-        new_args.extend_from_slice(args);
-
-        // Parent args are empty, then if we should propagate self ty (meaning Self generic
-        // param was not generated) then we should insert it, as it won't be in `args`.
-        if matches!(self_pos_kind, SelfPositionKind::AfterLifetimes(true)) {
-            new_args.insert(
-                lifetimes_end_pos,
-                ty::GenericArg::from(get_delegation_self_ty_or_err(tcx, delegation_id)),
-            );
+    match self_pos_kind {
+        SelfPositionKind::AfterLifetimes(_) => {
+            let insert_pos = new_args.iter().position(|a| a.as_region().is_none()).unwrap_or(0);
+            new_args.insert(insert_pos, self_type.expect("set above for this variant"));
+            new_args.splice(0..0, delegation_parent_args.iter().copied());
+        }
+        SelfPositionKind::Zero => {
+            new_args.splice(0..0, delegation_parent_args.iter().copied());
+            new_args.insert(0, self_type.expect("set above for this variant"));
+        }
+        SelfPositionKind::None => {
+            new_args.splice(0..0, delegation_parent_args.iter().copied());
         }
     }
 
-    if !child_args.is_empty() {
-        let child_lifetimes_count = child_args.iter().filter(|a| a.as_region().is_some()).count();
+    if kinds.is_inherent_impl() {
+        let self_ty =
+            tcx.type_of(tcx.local_parent(delegation_id)).instantiate_identity().skip_norm_wip();
 
-        for i in 0..child_lifetimes_count {
-            new_args.insert(lifetimes_end_pos + i, child_args[i]);
-        }
-
-        new_args.extend_from_slice(&child_args[child_lifetimes_count..]);
-    } else if !parent_args.is_empty() {
-        let child_args = &delegation_args[delegation_generics.parent_count..];
-
-        let child_lifetimes_count =
-            child_args.iter().take_while(|a| a.as_region().is_some()).count();
-
-        for i in 0..child_lifetimes_count {
-            new_args.insert(lifetimes_end_pos + i, child_args[i]);
-        }
-
-        // If self_ty is propagated it means that Self generic param was not generated.
-        let skip_self = matches!(self_pos_kind, SelfPositionKind::AfterLifetimes(false));
-        new_args.extend(&child_args[child_lifetimes_count + skip_self as usize..]);
+        new_args[0] = self_ty.into();
     }
-
-    new_args.extend(synth_args);
 
     new_args
 }
@@ -541,7 +488,10 @@ pub(crate) fn inherit_predicates_for_delegation_item<'tcx>(
     let (parent_args, child_args) = tcx.delegation_user_specified_args(def_id);
     let (folder, args) = create_folder_and_args(tcx, def_id, sig_id, parent_args, child_args);
     let self_pos_kind = create_self_position_kind(tcx, def_id, sig_id);
-    let filter_self_preds = matches!(self_pos_kind, SelfPositionKind::AfterLifetimes(true));
+    let filter_self_preds = matches!(
+        self_pos_kind,
+        SelfPositionKind::AfterLifetimes(Some(DelegationSelfTyPropagationKind::Default(..)))
+    );
 
     let collector = PredicatesCollector { tcx, preds: vec![], args, folder, filter_self_preds };
     let (parent, inh_kind) = get_parent_and_inheritance_kind(tcx, def_id, sig_id);
@@ -640,15 +590,18 @@ pub(crate) fn delegation_user_specified_args<'tcx>(
 
     let ctx = ItemCtxt::new_for_delegation(tcx, delegation_id);
     let lowerer = ctx.lowerer();
+    let parent_args = info
+        .parent_args_segment_id
+        .and_then(get_segment)
+        .filter(|(_, def_id)| matches!(tcx.def_kind(*def_id), DefKind::Trait))
+        .map(|(segment, def_id)| {
+            let self_ty = get_delegation_self_ty(tcx, delegation_id);
 
-    let parent_args = info.parent_args_segment_id.and_then(get_segment).map(|(segment, def_id)| {
-        let self_ty = get_delegation_self_ty(tcx, delegation_id);
-
-        lowerer
-            .lower_generic_args_of_path(segment.ident.span, def_id, &[], segment, self_ty)
-            .0
-            .as_slice()
-    });
+            lowerer
+                .lower_generic_args_of_path(segment.ident.span, def_id, &[], segment, self_ty)
+                .0
+                .as_slice()
+        });
 
     let child_args = info
         .child_args_segment_id
