@@ -690,31 +690,21 @@ impl<'hir> LoweringContext<'_, 'hir> {
         result.generics.into_hir_generics(self, span);
 
         let mut segment = segment.clone();
-        let mut generated_args_iterator = result.generics.create_args_iterator();
+        let mut args_iter = result.generics.create_args_iterator();
 
         let new_args = segment
             .args
             .filter(|args| !args.is_empty())
             .map(|args| {
-                let mut new_args = vec![];
-
-                for (idx, arg) in args.args.iter().enumerate() {
+                self.arena.alloc_from_iter(args.args.iter().enumerate().map(|(idx, arg)| {
                     if infer_indices.contains(&idx) {
-                        let arg = generated_args_iterator
-                            .next(self, |_| arg.hir_id())
-                            .expect("there should be one param for each infer");
-
-                        new_args.push(arg);
+                        args_iter.next(self, |_| arg.hir_id()).expect("arg must exist for infer")
                     } else {
-                        new_args.push(*arg);
+                        *arg
                     }
-                }
-
-                self.arena.alloc_from_iter(new_args.into_iter())
+                }))
             })
-            .unwrap_or_else(|| {
-                self.arena.alloc_from_iter(generated_args_iterator.consume_all(self).into_iter())
-            });
+            .unwrap_or_else(|| self.arena.alloc_from_iter(args_iter.consume_all(self).into_iter()));
 
         // Needed for better error messages (`trait-impl-wrong-args-count.rs` test).
         segment.args = (!new_args.is_empty()).then(|| {
