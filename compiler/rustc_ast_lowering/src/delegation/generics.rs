@@ -437,52 +437,46 @@ impl<'hir> LoweringContext<'_, 'hir> {
 
         let params = &params[usize::from(add_first_self)..];
         for (idx, (arg, param)) in args.args.iter().zip(params).enumerate() {
-            match arg {
-                AngleBracketedArg::Arg(arg) => {
-                    let is_infer = match arg {
-                        GenericArg::Lifetime(lt) => lt.ident.name == kw::UnderscoreLifetime,
-                        GenericArg::Type(ty) => ty.is_maybe_parenthesised_infer(),
-                        GenericArg::Const(_) => false,
-                    };
+            let AngleBracketedArg::Arg(arg) = arg else { continue };
 
-                    // If `'_` is used instead of `_` (or vice versa) we emit a meaningful
-                    // error instead of processing this infer or leaving it as is for signature
-                    // inheritance.
-                    if is_infer
-                        && matches!(
-                            (arg, &param.kind),
-                            (
-                                GenericArg::Lifetime(_),
-                                GenericParamDefKind::Type { .. }
-                                    | GenericParamDefKind::Const { .. }
-                            ) | (
-                                GenericArg::Type(_) | GenericArg::Const(_),
-                                GenericParamDefKind::Lifetime { .. }
-                            )
-                        )
-                    {
-                        let (actual, expected) = if matches!(arg, GenericArg::Lifetime(..)) {
-                            (kw::UnderscoreLifetime, kw::Underscore)
-                        } else {
-                            (kw::Underscore, kw::UnderscoreLifetime)
-                        };
+            let is_infer = match arg {
+                GenericArg::Lifetime(lt) => lt.ident.name == kw::UnderscoreLifetime,
+                GenericArg::Type(ty) => ty.is_maybe_parenthesised_infer(),
+                GenericArg::Const(_) => false,
+            };
 
-                        self.tcx.dcx().emit_err(DelegationInfersMismatch {
-                            span: arg.span(),
-                            actual,
-                            expected,
-                        });
-                    }
+            // If `'_` is used instead of `_` (or vice versa) we emit a meaningful
+            // error instead of processing this infer or leaving it as is for signature
+            // inheritance.
+            if is_infer
+                && matches!(
+                    (arg, &param.kind),
+                    (
+                        GenericArg::Lifetime(_),
+                        GenericParamDefKind::Type { .. } | GenericParamDefKind::Const { .. }
+                    ) | (
+                        GenericArg::Type(_) | GenericArg::Const(_),
+                        GenericParamDefKind::Lifetime { .. }
+                    )
+                )
+            {
+                let (actual, expected) = if matches!(arg, GenericArg::Lifetime(..)) {
+                    (kw::UnderscoreLifetime, kw::Underscore)
+                } else {
+                    (kw::Underscore, kw::UnderscoreLifetime)
+                };
 
-                    slots.push(match is_infer {
-                        true => GenericArgSlot::generate_infer(param, idx),
-                        false => GenericArgSlot::UserSpecified,
-                    });
-                }
-                AngleBracketedArg::Constraint(_) => {
-                    // Not supported, do nothing.
-                }
+                self.tcx.dcx().emit_err(DelegationInfersMismatch {
+                    span: arg.span(),
+                    actual,
+                    expected,
+                });
             }
+
+            slots.push(match is_infer {
+                true => GenericArgSlot::generate_infer(param, idx),
+                false => GenericArgSlot::UserSpecified,
+            });
         }
 
         slots
