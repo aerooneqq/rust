@@ -292,9 +292,8 @@ mod free_to_trait {
         //~| ERROR: struct takes 0 lifetime arguments but 1 lifetime argument was supplied [E0107]
         //~| ERROR: struct takes at least 1 generic argument but 0 generic arguments were supplied [E0107]
 
-        reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>:::foo::<Vec<_>, _, _, ()> as foo11;
+        reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>::foo::<Vec<_>, _, _, ()> as foo11;
         //~^ ERROR: trait takes 2 lifetime arguments but 5 lifetime arguments were supplied [E0107]
-        //~| ERROR: path separator must be a double colon
         //~| ERROR: method takes 1 lifetime argument but 0 lifetime arguments were supplied [E0107]
         //~| ERROR: method takes 3 generic arguments but 4 generic arguments were supplied [E0107]
         //~| ERROR: inferred lifetimes are not allowed in delegations as we need to inherit signature

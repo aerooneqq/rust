@@ -1,15 +1,3 @@
-error: path separator must be a double colon
-  --> $DIR/infers.rs:295:65
-   |
-LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>:::foo::<Vec<_>, _, _, ()> as foo11;
-   |                                                                 ^
-   |
-help: use a double colon instead
-   |
-LL -         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>:::foo::<Vec<_>, _, _, ()> as foo11;
-LL +         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>::foo::<Vec<_>, _, _, ()> as foo11;
-   |
-
 error[E0261]: use of undeclared lifetime name `'____`
   --> $DIR/infers.rs:112:17
    |
@@ -33,7 +21,7 @@ LL |         reuse Trait::foo'____, ::<'____, ___, _, ___> as foo12;
    |                         ++++++
 
 error[E0261]: use of undeclared lifetime name `'____`
-  --> $DIR/infers.rs:306:51
+  --> $DIR/infers.rs:305:51
    |
 LL |         reuse Trait::<'static, 'static, _>::foo::<'____, ___, _, ___> as foo12;
    |                                                   ^^^^^ undeclared lifetime
@@ -80,13 +68,13 @@ LL |         reuse Trait::foo::<'_, unresolved_, _, _> as foo14;
    |                                ^^^^^^^^^^^ not found in this scope
 
 error[E0425]: cannot find type `___` in this scope
-  --> $DIR/infers.rs:306:58
+  --> $DIR/infers.rs:305:58
    |
 LL |         reuse Trait::<'static, 'static, _>::foo::<'____, ___, _, ___> as foo12;
    |                                                          ^^^ not found in this scope
 
 error[E0425]: cannot find type `___` in this scope
-  --> $DIR/infers.rs:306:66
+  --> $DIR/infers.rs:305:66
    |
 LL |         reuse Trait::<'static, 'static, _>::foo::<'____, ___, _, ___> as foo12;
    |                                                                  ^^^ not found in this scope
@@ -364,19 +352,19 @@ LL |         reuse Trait::<'static, 'static, _, _, _>::foo::<_> as foo9;
 error: wrong infer used: expected _, found: '_
   --> $DIR/infers.rs:295:41
    |
-LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>:::foo::<Vec<_>, _, _, ()> as foo11;
+LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>::foo::<Vec<_>, _, _, ()> as foo11;
    |                                         ^^
 
 error: wrong infer used: expected _, found: '_
   --> $DIR/infers.rs:295:44
    |
-LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>:::foo::<Vec<_>, _, _, ()> as foo11;
+LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>::foo::<Vec<_>, _, _, ()> as foo11;
    |                                            ^^
 
 error: wrong infer used: expected _, found: '_
   --> $DIR/infers.rs:295:48
    |
-LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>:::foo::<Vec<_>, _, _, ()> as foo11;
+LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>::foo::<Vec<_>, _, _, ()> as foo11;
    |                                                ^^
 
 error[E0107]: function takes 1 lifetime argument but 2 lifetime arguments were supplied
@@ -1103,7 +1091,7 @@ LL |         reuse Trait::<'static, 'static, _, _, _, _, _, _, _>::foo::<Vec<'_,
 error[E0107]: trait takes 2 lifetime arguments but 5 lifetime arguments were supplied
   --> $DIR/infers.rs:295:15
    |
-LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>:::foo::<Vec<_>, _, _, ()> as foo11;
+LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>::foo::<Vec<_>, _, _, ()> as foo11;
    |               ^^^^^                   ----------------------- help: remove the lifetime arguments
    |               |
    |               expected 2 lifetime arguments
@@ -1115,10 +1103,10 @@ LL |     pub trait Trait<'a, 'b, X, const C: usize, Y> {
    |               ^^^^^ --  --
 
 error[E0107]: method takes 1 lifetime argument but 0 lifetime arguments were supplied
-  --> $DIR/infers.rs:295:66
+  --> $DIR/infers.rs:295:65
    |
-LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>:::foo::<Vec<_>, _, _, ()> as foo11;
-   |                                                                  ^^^ expected 1 lifetime argument
+LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>::foo::<Vec<_>, _, _, ()> as foo11;
+   |                                                                 ^^^ expected 1 lifetime argument
    |
 note: method defined here, with 1 lifetime parameter: `'bb`
   --> $DIR/infers.rs:131:12
@@ -1127,16 +1115,16 @@ LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &
    |            ^^^      ---
 help: add missing lifetime argument
    |
-LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>:::foo::<'bb, Vec<_>, _, _, ()> as foo11;
-   |                                                                        ++++
+LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>::foo::<'bb, Vec<_>, _, _, ()> as foo11;
+   |                                                                       ++++
 
 error[E0107]: method takes 3 generic arguments but 4 generic arguments were supplied
-  --> $DIR/infers.rs:295:66
+  --> $DIR/infers.rs:295:65
    |
-LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>:::foo::<Vec<_>, _, _, ()> as foo11;
-   |                                                                  ^^^------------------- help: remove the unnecessary generic argument
-   |                                                                  |
-   |                                                                  expected 3 generic arguments
+LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>::foo::<Vec<_>, _, _, ()> as foo11;
+   |                                                                 ^^^------------------- help: remove the unnecessary generic argument
+   |                                                                 |
+   |                                                                 expected 3 generic arguments
    |
 note: method defined here, with 3 generic parameters: `XX`, `M`, `YY`
   --> $DIR/infers.rs:131:12
@@ -1145,19 +1133,19 @@ LL |         fn foo<'aa, 'bb: 'bb, 'cc, XX, const M: usize, YY>(&self, _: &'aa &
    |            ^^^                     --  --------------  --
 
 error: inferred lifetimes are not allowed in delegations as we need to inherit signature
-  --> $DIR/infers.rs:295:66
+  --> $DIR/infers.rs:295:65
    |
-LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>:::foo::<Vec<_>, _, _, ()> as foo11;
-   |                                                                  ^^^
+LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>::foo::<Vec<_>, _, _, ()> as foo11;
+   |                                                                 ^^^
 
 error[E0121]: the placeholder `_` is not allowed within types on item signatures for functions
-  --> $DIR/infers.rs:295:76
+  --> $DIR/infers.rs:295:75
    |
-LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>:::foo::<Vec<_>, _, _, ()> as foo11;
-   |                                                                            ^ not allowed in type signatures
+LL |         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_>::foo::<Vec<_>, _, _, ()> as foo11;
+   |                                                                           ^ not allowed in type signatures
 
 error[E0107]: trait takes 3 generic arguments but 1 generic argument was supplied
-  --> $DIR/infers.rs:306:15
+  --> $DIR/infers.rs:305:15
    |
 LL |         reuse Trait::<'static, 'static, _>::foo::<'____, ___, _, ___> as foo12;
    |               ^^^^^                         --- supplied 1 generic argument
@@ -1175,7 +1163,7 @@ LL |         reuse Trait::<'static, 'static, _>::foo, C, Y::<'____, ___, _, ___>
    |                                                ++++++
 
 error[E0308]: mismatched types
-  --> $DIR/infers.rs:328:42
+  --> $DIR/infers.rs:327:42
    |
 LL |         reuse to_reuse::foo::<_, _, _> { self.0 }
    |                         ---              ^^^^^^ expected `()`, found `S`
@@ -1183,13 +1171,13 @@ LL |         reuse to_reuse::foo::<_, _, _> { self.0 }
    |                         arguments to this function are incorrect
    |
 note: function defined here
-  --> $DIR/infers.rs:323:16
+  --> $DIR/infers.rs:322:16
    |
 LL |         pub fn foo<X, const M: usize, Y>(_: ()) {}
    |                ^^^                       -----
 
 error[E0107]: function takes 0 lifetime arguments but 1 lifetime argument was supplied
-  --> $DIR/infers.rs:334:25
+  --> $DIR/infers.rs:333:25
    |
 LL |         reuse to_reuse::foo { self.0 }
    |                         ^^^
@@ -1198,13 +1186,13 @@ LL |         reuse to_reuse::foo { self.0 }
    |                         help: remove the lifetime argument
    |
 note: function defined here, with 0 lifetime parameters
-  --> $DIR/infers.rs:323:16
+  --> $DIR/infers.rs:322:16
    |
 LL |         pub fn foo<X, const M: usize, Y>(_: ()) {}
    |                ^^^
 
 error[E0308]: mismatched types
-  --> $DIR/infers.rs:334:31
+  --> $DIR/infers.rs:333:31
    |
 LL |         reuse to_reuse::foo { self.0 }
    |                         ---   ^^^^^^ expected `()`, found `S`
@@ -1212,13 +1200,13 @@ LL |         reuse to_reuse::foo { self.0 }
    |                         arguments to this function are incorrect
    |
 note: function defined here
-  --> $DIR/infers.rs:323:16
+  --> $DIR/infers.rs:322:16
    |
 LL |         pub fn foo<X, const M: usize, Y>(_: ()) {}
    |                ^^^                       -----
 
 error[E0308]: mismatched types
-  --> $DIR/infers.rs:341:46
+  --> $DIR/infers.rs:340:46
    |
 LL |         reuse to_reuse::foo::<(), 123, ()> { self.0 }
    |                         ---                  ^^^^^^ expected `()`, found `S`
@@ -1226,12 +1214,12 @@ LL |         reuse to_reuse::foo::<(), 123, ()> { self.0 }
    |                         arguments to this function are incorrect
    |
 note: function defined here
-  --> $DIR/infers.rs:323:16
+  --> $DIR/infers.rs:322:16
    |
 LL |         pub fn foo<X, const M: usize, Y>(_: ()) {}
    |                ^^^                       -----
 
-error: aborting due to 132 previous errors
+error: aborting due to 131 previous errors
 
 Some errors have detailed explanations: E0107, E0121, E0207, E0261, E0308, E0425, E0747.
 For more information about an error, try `rustc --explain E0107`.
