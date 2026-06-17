@@ -54,6 +54,7 @@ mod test_2 {
     //~^ ERROR: use of undeclared lifetime name `'asdasd`
     //~| ERROR: function takes 3 generic arguments but 1 generic argument was supplied
     //~| ERROR: function takes 2 lifetime arguments but 6 lifetime arguments were supplied
+    //~| ERROR: wrong infer used: expected '_, found: _
 
     reuse foo::<String, 'static, 123, asdasd> as bar4;
     //~^ ERROR: cannot find type `asdasd` in this scope
@@ -134,6 +135,7 @@ mod test_3 {
     //~| ERROR: inferred lifetimes are not allowed in delegations as we need to inherit signature
     //~| ERROR: trait takes 2 generic arguments but 4 generic arguments were supplied
     //~| ERROR: trait takes 3 lifetime arguments but 2 lifetime arguments were supplied
+    //~| ERROR: wrong infer used: expected '_, found: _
 }
 
 fn main() {}

@@ -10,6 +10,7 @@ use rustc_span::symbol::kw;
 use rustc_span::{Ident, Span, sym};
 
 use crate::LoweringContext;
+use crate::diagnostics::DelegationInfersMismatch;
 
 #[derive(Debug, Clone, Copy)]
 pub(super) enum GenericsPosition {
@@ -360,7 +361,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
 
             if let Some(args) = args_specified(segments[len - 2].args.as_ref()) {
                 DelegationGenerics {
-                    data: Self::create_slots_from_args(
+                    data: self.create_slots_from_args(
                         args,
                         &sig_parent_params[usize::from(!generate_self)..],
                         generate_self,
@@ -383,7 +384,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
             let synth_params_index =
                 sig_params.iter().position(|p| p.kind.is_synthetic()).unwrap_or(sig_params.len());
 
-            let mut slots = Self::create_slots_from_args(args, sig_params, false);
+            let mut slots = self.create_slots_from_args(args, sig_params, false);
 
             for synth_param in &sig_params[synth_params_index..] {
                 slots.push(GenericArgSlot::Generate(synth_param, None));
@@ -413,6 +414,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
     }
 
     fn create_slots_from_args(
+        &self,
         args: &AngleBracketedArgs,
         params: &'hir [ty::GenericParamDef],
         add_first_self: bool,
@@ -432,6 +434,32 @@ impl<'hir> LoweringContext<'_, 'hir> {
                         GenericArg::Type(ty) => Self::is_ty_infer(&ty),
                         GenericArg::Const(_) => false,
                     };
+
+                    if is_infer
+                        && matches!(
+                            (arg, &param.kind),
+                            (
+                                GenericArg::Lifetime(_),
+                                GenericParamDefKind::Type { .. }
+                                    | GenericParamDefKind::Const { .. }
+                            ) | (
+                                GenericArg::Type(_) | GenericArg::Const(_),
+                                GenericParamDefKind::Lifetime { .. }
+                            )
+                        )
+                    {
+                        let (actual, expected) = if matches!(arg, GenericArg::Lifetime(..)) {
+                            (kw::UnderscoreLifetime, kw::Underscore)
+                        } else {
+                            (kw::Underscore, kw::UnderscoreLifetime)
+                        };
+
+                        self.tcx.dcx().emit_err(DelegationInfersMismatch {
+                            span: arg.span(),
+                            actual,
+                            expected,
+                        });
+                    }
 
                     slots.push(if is_infer {
                         GenericArgSlot::Generate(param, Some(idx))

@@ -9,6 +9,10 @@ mod selected_tests {
 
         // Should differentiate between lifetime and types/consts infers.
         reuse foo::<_, '_, '_, '_> as bar;
+        //~^ ERROR: wrong infer used: expected '_, found: _
+        //~| ERROR: wrong infer used: expected _, found: '_
+        //~| ERROR: wrong infer used: expected _, found: '_
+        //~| ERROR: wrong infer used: expected _, found: '_
     }
 
     mod self_type {
@@ -68,16 +72,27 @@ mod free_to_free {
 
     reuse foo::<'_, '_, '_, _, _, _,> as foo5;
     //~^ ERROR: function takes 3 generic arguments but 5 generic arguments were supplied
+    //~| ERROR: wrong infer used: expected _, found: '_
+    //~| ERROR: wrong infer used: expected _, found: '_
 
     reuse foo::<_, _, _, '_, '_, '_, _, _, _,> as foo6;
     //~^ ERROR: function takes 3 generic arguments but 6 generic arguments were supplied [E0107]
     //~| ERROR: function takes 1 lifetime argument but 3 lifetime arguments were supplied
+    //~| ERROR: wrong infer used: expected '_, found: _
+    //~| ERROR: wrong infer used: expected _, found: '_
 
     reuse foo::<_, '_, _, _> as foo7;
+    //~^ ERROR: wrong infer used: expected '_, found: _
+    //~| ERROR: wrong infer used: expected _, found: '_
+
     reuse foo::<'_, '_, '_, '_> as foo8;
+    //~^ ERROR: wrong infer used: expected _, found: '_
+    //~| ERROR: wrong infer used: expected _, found: '_
+    //~| ERROR: wrong infer used: expected _, found: '_
 
     reuse foo::<_> as foo9;
     //~^ ERROR: function takes 3 generic arguments but 0 generic arguments were supplied
+    //~| ERROR: wrong infer used: expected '_, found: _
 
     reuse foo::<Vec<'_>, _, _, ()> as foo10;
     //~^ ERROR: function takes 1 lifetime argument but 0 lifetime arguments were supplied [E0107]
@@ -106,6 +121,7 @@ mod free_to_free {
 
     reuse foo::<_, _, _> as foo15;
     //~^ ERROR: function takes 3 generic arguments but 2 generic arguments were supplied
+    //~| ERROR: wrong infer used: expected '_, found: _
 }
 
 mod free_to_trait {
@@ -128,16 +144,27 @@ mod free_to_trait {
 
         reuse Trait::foo::<'_, '_, '_, _, _, _,> as foo5;
         //~^ ERROR: method takes 3 generic arguments but 5 generic arguments were supplied
+        //~| ERROR: wrong infer used: expected _, found: '_
+        //~| ERROR: wrong infer used: expected _, found: '_
 
         reuse Trait::foo::<_, _, _, '_, '_, '_, _, _, _,> as foo6;
         //~^ ERROR: method takes 3 generic arguments but 6 generic arguments were supplied [E0107]
         //~| ERROR: method takes 1 lifetime argument but 3 lifetime arguments were supplied
+        //~| ERROR: wrong infer used: expected '_, found: _
+        //~| ERROR: wrong infer used: expected _, found: '_
 
         reuse Trait::foo::<_, '_, _, _> as foo7;
+        //~^ ERROR: wrong infer used: expected '_, found: _
+        //~| ERROR: wrong infer used: expected _, found: '_
+
         reuse Trait::foo::<'_, '_, '_, '_> as foo8;
+        //~^ ERROR: wrong infer used: expected _, found: '_
+        //~| ERROR: wrong infer used: expected _, found: '_
+        //~| ERROR: wrong infer used: expected _, found: '_
 
         reuse Trait::foo::<_> as foo9;
         //~^ ERROR: method takes 3 generic arguments but 0 generic arguments were supplied
+        //~| ERROR: wrong infer used: expected '_, found: _
 
         reuse Trait::foo::<Vec<'_>, _, _, ()> as foo10;
         //~^ ERROR: method takes 3 generic arguments but 4 generic arguments were supplied [E0107]
@@ -166,6 +193,7 @@ mod free_to_trait {
 
         reuse Trait::foo::<_, _, _> as foo15;
         //~^ ERROR: method takes 3 generic arguments but 2 generic arguments were supplied
+        //~| ERROR: wrong infer used: expected '_, found: _
     }
 
     mod parent_only {
@@ -178,11 +206,14 @@ mod free_to_trait {
         //~^ ERROR: trait takes 2 lifetime arguments but 1 lifetime argument was supplied [E0107]
         //~| ERROR: trait takes 3 generic arguments but 4 generic arguments were supplied [E0107]
         //~| ERROR: inferred lifetimes are not allowed in delegations as we need to inherit signature
+        //~| ERROR: wrong infer used: expected _, found: '_
 
         reuse Trait::<>::foo as foo4;
 
         reuse Trait::<_, _>::foo as foo5;
         //~^ ERROR: trait takes 3 generic arguments but 0 generic arguments were supplied
+        //~| ERROR: wrong infer used: expected '_, found: _
+        //~| ERROR: wrong infer used: expected '_, found: _
 
         reuse Trait::<'_, '_>::foo as foo6;
         //~^ ERROR: the placeholder `_` is not allowed within types on item signatures for functions
@@ -199,6 +230,9 @@ mod free_to_trait {
 
         reuse Trait::<'static, 'static, '_,'_, '_, '_, '_, '_, '_>::foo as foo11;
         //~^ ERROR: trait takes 2 lifetime arguments but 6 lifetime arguments were supplied
+        //~| ERROR: wrong infer used: expected _, found: '_
+        //~| ERROR: wrong infer used: expected _, found: '_
+        //~| ERROR: wrong infer used: expected _, found: '_
 
         reuse Trait::<'static, 'static, _>::foo as foo12;
         //~^ ERROR: trait takes 3 generic arguments but 1 generic argument was supplied
@@ -214,26 +248,39 @@ mod free_to_trait {
         //~^ ERROR: trait takes 2 lifetime arguments but 1 lifetime argument was supplied [E0107]
         //~| ERROR: trait takes 3 generic arguments but 4 generic arguments were supplied [E0107]
         //~| ERROR: inferred lifetimes are not allowed in delegations as we need to inherit signature
+        //~| ERROR: wrong infer used: expected _, found: '_
 
         reuse Trait::<>::foo::<'_, _, 123, _> as foo4;
 
         reuse Trait::<_, _>::foo::<'_, '_, '_, _, _, _,> as foo5;
         //~^ ERROR: trait takes 3 generic arguments but 0 generic arguments were supplied
         //~| ERROR: method takes 3 generic arguments but 5 generic arguments were supplied
+        //~| ERROR: wrong infer used: expected '_, found: _
+        //~| ERROR: wrong infer used: expected '_, found: _
+        //~| ERROR: wrong infer used: expected _, found: '_
+        //~| ERROR: wrong infer used: expected _, found: '_
 
         reuse Trait::<'_, '_>::foo::<_, _, _, '_, '_, '_, _, _, _,> as foo6;
         //~^ ERROR: the placeholder `_` is not allowed within types on item signatures for functions [E0121]
         //~| ERROR: method takes 3 generic arguments but 6 generic arguments were supplied [E0107]
         //~| ERROR: method takes 1 lifetime argument but 3 lifetime arguments were supplied
+        //~| ERROR: wrong infer used: expected '_, found: _
+        //~| ERROR: wrong infer used: expected _, found: '_
 
         reuse Trait::<'_, '_, Vec<_>, 123, Vec<Vec<_>>>::foo::<_, '_, _, _> as foo7;
         //~^ ERROR: the placeholder `_` is not allowed within types on item signatures for functions [E0121]
         //~| ERROR: the placeholder `_` is not allowed within types on item signatures for functions [E0121]
+        //~| ERROR: wrong infer used: expected '_, found: _
+        //~| ERROR: wrong infer used: expected _, found: '_
 
         reuse Trait::<'static, 'static, (), 123, ()>::foo::<'_, '_, '_, '_> as foo8;
+        //~^ ERROR: wrong infer used: expected _, found: '_
+        //~| ERROR: wrong infer used: expected _, found: '_
+        //~| ERROR: wrong infer used: expected _, found: '_
 
         reuse Trait::<'static, 'static, _, _, _>::foo::<_> as foo9;
         //~^ ERROR: method takes 3 generic arguments but 0 generic arguments were supplied
+        //~| ERROR: wrong infer used: expected '_, found: _
 
         reuse Trait::<'static, 'static, _, _, _, _, _, _, _>::foo::<Vec<'_>, _, _, ()> as foo10;
         //~^ ERROR: trait takes 3 generic arguments but 7 generic arguments were supplied [E0107]
@@ -250,6 +297,9 @@ mod free_to_trait {
         //~| ERROR: method takes 3 generic arguments but 4 generic arguments were supplied [E0107]
         //~| ERROR: inferred lifetimes are not allowed in delegations as we need to inherit signature
         //~| ERROR: the placeholder `_` is not allowed within types on item signatures for functions [E0121]
+        //~| ERROR: wrong infer used: expected _, found: '_
+        //~| ERROR: wrong infer used: expected _, found: '_
+        //~| ERROR: wrong infer used: expected _, found: '_
 
         reuse Trait::<'static, 'static, _>::foo::<'____, ___, _, ___> as foo12;
         //~^ ERROR: cannot find type `___` in this scope
