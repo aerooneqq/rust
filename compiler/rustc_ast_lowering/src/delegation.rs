@@ -408,7 +408,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                     call_path_res: self.get_resolution_id(call_path_node_id),
                     child_seg_id: generics.child.args_segment_id,
                     child_seg_id_for_sig: generics.child.segment_id_for_sig(),
-                    parent_sig_id_for_sig: generics.parent.segment_id_for_sig(),
+                    parent_seg_id_for_sig: generics.parent.segment_id_for_sig(),
                     propagate_self_ty: generics.propagate_self_ty,
                     group_id: {
                         let id = match source {

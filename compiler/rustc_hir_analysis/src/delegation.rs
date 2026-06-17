@@ -564,7 +564,7 @@ pub(crate) fn delegation_user_specified_args<'tcx>(
     let ctx = ItemCtxt::new_for_delegation(tcx, delegation_id);
     let lowerer = ctx.lowerer();
     let parent_args = info
-        .parent_sig_id_for_sig
+        .parent_seg_id_for_sig
         .and_then(get_segment)
         .filter(|(_, def_id)| matches!(tcx.def_kind(*def_id), DefKind::Trait))
         .map(|(segment, def_id)| {
