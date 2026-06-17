@@ -626,27 +626,30 @@ impl<'hir> LoweringContext<'_, 'hir> {
                     }),
                 );
 
-                let ty = ty.map(|ty| match generics.propagate_self_ty {
+                // Explicitly create `Self` self-type in case of infers or static
+                // free-to-trait reuses.
+                let ty = match generics.propagate_self_ty {
                     Some(hir::DelegationSelfTyPropagationKind::SelfParam) => {
-                        let self_param = generics.parent.generics.find_self_param();
                         let kind = hir::TyKind::Path(
                             DelegationGenericArgsIterator::create_generic_arg_path(
-                                self, self_param,
+                                self,
+                                generics.parent.generics.find_self_param(),
                             ),
                         );
 
-                        self.arena.alloc(hir::Ty { kind, ..ty.clone() })
+                        let ty = match ty {
+                            Some(ty) => hir::Ty { kind, ..ty.clone() },
+                            None => hir::Ty { kind, hir_id: self.next_id(), span },
+                        };
+
+                        Some(&*self.arena.alloc(ty))
                     }
                     _ => ty,
-                });
+                };
 
                 hir::QPath::Resolved(ty, self.arena.alloc(new_path))
             }
-            hir::QPath::TypeRelative(ty, segment) => {
-                let segment = self.process_segment(span, segment, &mut generics.child);
-
-                hir::QPath::TypeRelative(ty, self.arena.alloc(segment))
-            }
+            hir::QPath::TypeRelative(..) => unreachable!("until inherent methods are supported"),
         };
 
         if let Some(hir::DelegationSelfTyPropagationKind::SelfTy(id)) =
@@ -657,7 +660,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 hir::QPath::TypeRelative(ty, _) => Some(ty),
             }
             .map(|ty| ty.hir_id)
-            .expect("must contain self type as default propagation kind is specified");
+            .expect("must contain self type as `SelfTy` propagation kind is specified");
         }
 
         let callee_path = self.arena.alloc(self.mk_expr(hir::ExprKind::Path(new_path), span));

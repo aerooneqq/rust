@@ -107,6 +107,12 @@ pub(super) struct DelegationGenericArgsIterator<'hir> {
     params: &'hir [hir::GenericParam<'hir>],
 }
 
+/// During generic args propagation we need to create generic args
+/// (and their `HirId`s) by demand, as some of generic args can not be used
+/// and in this case an assert of an unseen `HirId` will be triggered. Moreover,
+/// when replacing infers with generated generic params we should reuse existing
+/// `HirId` of replaced infer, thus this iterator abstracts the way `HirId`s are
+/// created for new generic args.
 impl<'hir> DelegationGenericArgsIterator<'hir> {
     pub(super) fn next(
         &mut self,
@@ -317,13 +323,13 @@ impl<'hir> LoweringContext<'_, 'hir> {
         let segments = &delegation.path.segments;
         let len = segments.len();
 
-        fn get_user_args(args: Option<&Box<GenericArgs>>) -> Option<&AngleBracketedArgs> {
-            let Some(GenericArgs::AngleBracketed(args)) = args else {
+        let get_user_args = |idx: usize| -> Option<&AngleBracketedArgs> {
+            let Some(GenericArgs::AngleBracketed(args)) = segments[idx].args.as_ref() else {
                 return None;
             };
 
             (!args.args.is_empty()).then(|| args)
-        }
+        };
 
         let sig_params = &self.tcx.generics_of(sig_id).own_params[..];
 
@@ -365,7 +371,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
         let parent_generics = if can_add_generics_to_parent {
             let sig_parent_params = &self.tcx.generics_of(sig_parent).own_params;
 
-            if let Some(args) = get_user_args(segments[len - 2].args.as_ref()) {
+            if let Some(args) = get_user_args(len - 2) {
                 DelegationGenerics {
                     data: self.create_slots_from_args(
                         args,
@@ -386,7 +392,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
             DelegationGenerics { data: vec![], pos: GenericsPosition::Parent, trait_impl: false }
         };
 
-        let child_generics = if let Some(args) = get_user_args(segments[len - 1].args.as_ref()) {
+        let child_generics = if let Some(args) = get_user_args(len - 1) {
             let synth_params_index =
                 sig_params.iter().position(|p| p.kind.is_synthetic()).unwrap_or(sig_params.len());
 
@@ -410,6 +416,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                     true => hir::DelegationSelfTyPropagationKind::SelfParam,
                     false => match qself_is_infer {
                         true => hir::DelegationSelfTyPropagationKind::SelfParam,
+                        // HirId is filled during generic args propagation.
                         false => hir::DelegationSelfTyPropagationKind::SelfTy(HirId::INVALID),
                     },
                 }),
@@ -418,6 +425,14 @@ impl<'hir> LoweringContext<'_, 'hir> {
         }
     }
 
+    /// Generates generic argument slots for user-specified `args` and
+    /// generic `params` of the signature function. This function checks whether
+    /// there are infers (`kw::UnderscoreLifetime` or `kw::Underscore`) in
+    /// user-specified args, and if so we add `Generate` slot meaning we have to
+    /// generate generic param for delegation and propagate it instead of this infer.
+    /// We zip over user-specified args and signature generic params, so if there are more
+    /// infers than generic params then we will not process all infers thus not generating
+    /// more generic params then needed (anyway it is an error).
     fn create_slots_from_args(
         &self,
         args: &AngleBracketedArgs,
@@ -439,6 +454,9 @@ impl<'hir> LoweringContext<'_, 'hir> {
                         GenericArg::Const(_) => false,
                     };
 
+                    // If `'_` is used instead of `_` (or vice versa) we emit a meaningful
+                    // error instead of processing this infer or leaving it as is for signature
+                    // inheritance.
                     if is_infer
                         && matches!(
                             (arg, &param.kind),
@@ -465,10 +483,9 @@ impl<'hir> LoweringContext<'_, 'hir> {
                         });
                     }
 
-                    slots.push(if is_infer {
-                        GenericArgSlot::generate_infer(param, idx)
-                    } else {
-                        GenericArgSlot::UserSpecified
+                    slots.push(match is_infer {
+                        true => GenericArgSlot::generate_infer(param, idx),
+                        false => GenericArgSlot::UserSpecified,
                     });
                 }
                 AngleBracketedArg::Constraint(_) => {

@@ -31,6 +31,8 @@ mod selected_tests {
 
         reuse <_ as Trait<'_, _>>::r#static::<_, _> as foo3;
         reuse <() as Trait<'_, _>>::r#static::<_, _> as foo4;
+
+        reuse Trait::<'_, _>::r#static::<_, _> as foo5;
     }
 
     mod late_bound_lifetimes {
