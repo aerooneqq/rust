@@ -3864,8 +3864,9 @@ pub enum DelegationSelfTyPropagationKind {
 pub struct DelegationInfo {
     pub call_expr_id: HirId,
     pub call_path_res: Option<DefId>,
-    pub parent_args_segment_id: Option<HirId>,
-    pub child_args_segment_id: Option<HirId>,
+    pub child_seg_id: HirId,
+    pub parent_sig_id_for_sig: Option<HirId>,
+    pub child_seg_id_for_sig: Option<HirId>,
     pub propagate_self_ty: Option<DelegationSelfTyPropagationKind>,
     pub group_id: Option<(LocalExpnId, bool /* unused_target_expr */)>,
 }

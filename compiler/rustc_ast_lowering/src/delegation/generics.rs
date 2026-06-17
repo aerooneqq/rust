@@ -73,7 +73,14 @@ pub(super) enum HirOrTyGenerics<'hir> {
 
 pub(super) struct GenericsGenerationResult<'hir> {
     pub(super) generics: HirOrTyGenerics<'hir>,
-    pub(super) args_segment_id: Option<HirId>,
+    pub(super) args_segment_id: HirId,
+    pub(super) use_for_sig_inheritance: bool,
+}
+
+impl GenericsGenerationResult<'_> {
+    pub(super) fn segment_id_for_sig(&self) -> Option<HirId> {
+        self.use_for_sig_inheritance.then(|| self.args_segment_id)
+    }
 }
 
 pub(super) struct GenericsGenerationResults<'hir> {
@@ -275,7 +282,11 @@ impl<'hir> HirOrTyGenerics<'hir> {
 
 impl<'hir> GenericsGenerationResult<'hir> {
     fn new(generics: DelegationGenerics<TyGenerics<'hir>>) -> GenericsGenerationResult<'hir> {
-        GenericsGenerationResult { generics: HirOrTyGenerics::Ty(generics), args_segment_id: None }
+        GenericsGenerationResult {
+            generics: HirOrTyGenerics::Ty(generics),
+            args_segment_id: HirId::INVALID,
+            use_for_sig_inheritance: false,
+        }
     }
 }
 

@@ -406,8 +406,9 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 hir::InferDelegationSig::Output(self.arena.alloc(hir::DelegationInfo {
                     call_expr_id,
                     call_path_res: self.get_resolution_id(call_path_node_id),
-                    child_args_segment_id: generics.child.args_segment_id,
-                    parent_args_segment_id: generics.parent.args_segment_id,
+                    child_seg_id: generics.child.args_segment_id,
+                    child_seg_id_for_sig: generics.child.segment_id_for_sig(),
+                    parent_sig_id_for_sig: generics.parent.segment_id_for_sig(),
                     propagate_self_ty: generics.propagate_self_ty,
                     group_id: {
                         let id = match source {
@@ -717,10 +718,6 @@ impl<'hir> LoweringContext<'_, 'hir> {
             ),
         };
 
-        if !result.generics.is_trait_impl() {
-            result.args_segment_id = Some(segment.hir_id);
-        }
-
         // Needed for better error messages (`trait-impl-wrong-args-count.rs` test).
         segment.args = if new_args.is_empty() {
             None
@@ -737,6 +734,9 @@ impl<'hir> LoweringContext<'_, 'hir> {
 
             Some(&*new_args)
         };
+
+        result.args_segment_id = segment.hir_id;
+        result.use_for_sig_inheritance = !result.generics.is_trait_impl();
 
         segment
     }
