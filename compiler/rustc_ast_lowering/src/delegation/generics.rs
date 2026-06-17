@@ -86,7 +86,7 @@ impl GenericsGenerationResult<'_> {
 pub(super) struct GenericsGenerationResults<'hir> {
     pub(super) parent: GenericsGenerationResult<'hir>,
     pub(super) child: GenericsGenerationResult<'hir>,
-    pub(super) propagate_self_ty: Option<hir::DelegationSelfTyPropagationKind>,
+    pub(super) self_ty_propagation_kind: Option<hir::DelegationSelfTyPropagationKind>,
 }
 
 #[derive(Debug)]
@@ -357,7 +357,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
             let child = DelegationGenerics::generate_all(sig_params, GenericsPosition::Child, true);
             let child = GenericsGenerationResult::new(child);
 
-            return GenericsGenerationResults { parent, child, propagate_self_ty: None };
+            return GenericsGenerationResults { parent, child, self_ty_propagation_kind: None };
         }
 
         let delegation_in_free_ctx =
@@ -422,7 +422,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
         GenericsGenerationResults {
             parent: GenericsGenerationResult::new(parent_generics),
             child: GenericsGenerationResult::new(child_generics),
-            propagate_self_ty: match free_to_trait_delegation {
+            self_ty_propagation_kind: match free_to_trait_delegation {
                 true => Some(match qself_is_none {
                     true => hir::DelegationSelfTyPropagationKind::SelfParam,
                     false => match qself_is_infer {

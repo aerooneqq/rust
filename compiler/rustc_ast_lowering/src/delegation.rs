@@ -409,7 +409,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                     child_seg_id: generics.child.args_segment_id,
                     child_seg_id_for_sig: generics.child.segment_id_for_sig(),
                     parent_seg_id_for_sig: generics.parent.segment_id_for_sig(),
-                    propagate_self_ty: generics.propagate_self_ty,
+                    self_ty_propagation_kind: generics.self_ty_propagation_kind,
                     group_id: {
                         let id = match source {
                             DelegationSource::Single => None,
@@ -629,7 +629,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
 
                 // Explicitly create `Self` self-type in case of infers or static
                 // free-to-trait reuses.
-                let ty = match generics.propagate_self_ty {
+                let ty = match generics.self_ty_propagation_kind {
                     Some(hir::DelegationSelfTyPropagationKind::SelfParam) => {
                         let kind = hir::TyKind::Path(
                             DelegationGenericArgsIterator::create_generic_arg_path(
@@ -654,7 +654,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
         };
 
         if let Some(hir::DelegationSelfTyPropagationKind::SelfTy(id)) =
-            generics.propagate_self_ty.as_mut()
+            generics.self_ty_propagation_kind.as_mut()
         {
             *id = match new_path {
                 hir::QPath::Resolved(ty, _) => ty,

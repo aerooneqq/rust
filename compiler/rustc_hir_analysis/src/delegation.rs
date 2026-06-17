@@ -83,8 +83,8 @@ fn create_self_position_kind(
         | (FnKind::AssocTrait, FnKind::Free) => SelfPositionKind::Zero,
 
         (FnKind::Free, FnKind::AssocTrait) => {
-            let propagate_self_ty = tcx.hir_delegation_info(delegation_id).propagate_self_ty;
-            SelfPositionKind::AfterLifetimes(propagate_self_ty)
+            let kind = tcx.hir_delegation_info(delegation_id).self_ty_propagation_kind;
+            SelfPositionKind::AfterLifetimes(kind)
         }
 
         _ => SelfPositionKind::None,

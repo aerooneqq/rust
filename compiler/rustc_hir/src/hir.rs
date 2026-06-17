@@ -3867,7 +3867,7 @@ pub struct DelegationInfo {
     pub child_seg_id: HirId,
     pub parent_seg_id_for_sig: Option<HirId>,
     pub child_seg_id_for_sig: Option<HirId>,
-    pub propagate_self_ty: Option<DelegationSelfTyPropagationKind>,
+    pub self_ty_propagation_kind: Option<DelegationSelfTyPropagationKind>,
     pub group_id: Option<(LocalExpnId, bool /* unused_target_expr */)>,
 }
 
