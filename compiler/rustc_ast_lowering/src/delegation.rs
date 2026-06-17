@@ -692,37 +692,33 @@ impl<'hir> LoweringContext<'_, 'hir> {
         let mut segment = segment.clone();
         let mut generated_args_iterator = result.generics.create_args_iterator();
 
-        let new_args = match segment.args {
-            Some(args) if !args.is_empty() => {
+        let new_args = segment
+            .args
+            .filter(|args| !args.is_empty())
+            .map(|args| {
                 let mut new_args = vec![];
 
                 for (idx, arg) in args.args.iter().enumerate() {
                     if infer_indices.contains(&idx) {
-                        let non_alloc_arg = generated_args_iterator
+                        let arg = generated_args_iterator
                             .next(self, |_| arg.hir_id())
                             .expect("there should be one param for each infer");
 
-                        new_args.push(non_alloc_arg.allocate_hir_generic_arg(self.arena));
+                        new_args.push(arg);
                     } else {
                         new_args.push(*arg);
                     }
                 }
 
                 self.arena.alloc_from_iter(new_args.into_iter())
-            }
-            _ => self.arena.alloc_from_iter(
-                generated_args_iterator
-                    .consume_all(self)
-                    .into_iter()
-                    .map(|non_alloc_arg| non_alloc_arg.allocate_hir_generic_arg(self.arena)),
-            ),
-        };
+            })
+            .unwrap_or_else(|| {
+                self.arena.alloc_from_iter(generated_args_iterator.consume_all(self).into_iter())
+            });
 
         // Needed for better error messages (`trait-impl-wrong-args-count.rs` test).
-        segment.args = if new_args.is_empty() {
-            None
-        } else {
-            let new_args = self.arena.alloc(hir::GenericArgs {
+        segment.args = (!new_args.is_empty()).then(|| {
+            &*self.arena.alloc(hir::GenericArgs {
                 args: new_args,
                 constraints: &[],
                 parenthesized: hir::GenericArgsParentheses::No,
@@ -730,10 +726,8 @@ impl<'hir> LoweringContext<'_, 'hir> {
                     Some(args) => args.span_ext,
                     None => span,
                 },
-            });
-
-            Some(&*new_args)
-        };
+            })
+        });
 
         result.args_segment_id = segment.hir_id;
         result.use_for_sig_inheritance = !result.generics.is_trait_impl();

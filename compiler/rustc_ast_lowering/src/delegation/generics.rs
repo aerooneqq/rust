@@ -89,26 +89,6 @@ pub(super) struct GenericsGenerationResults<'hir> {
     pub(super) self_ty_propagation_kind: Option<hir::DelegationSelfTyPropagationKind>,
 }
 
-#[derive(Debug)]
-pub(super) enum NonAllocatedGenericArg<'hir> {
-    Lifetime(hir::Lifetime),
-    Type(hir::Ty<'hir, hir::AmbigArg>),
-    Const(hir::ConstArg<'hir, hir::AmbigArg>),
-}
-
-impl<'hir> NonAllocatedGenericArg<'hir> {
-    pub(super) fn allocate_hir_generic_arg(
-        self,
-        arena: &'hir hir::Arena<'hir>,
-    ) -> hir::GenericArg<'hir> {
-        match self {
-            NonAllocatedGenericArg::Lifetime(lt) => hir::GenericArg::Lifetime(arena.alloc(lt)),
-            NonAllocatedGenericArg::Type(ty) => hir::GenericArg::Type(arena.alloc(ty)),
-            NonAllocatedGenericArg::Const(c) => hir::GenericArg::Const(arena.alloc(c)),
-        }
-    }
-}
-
 pub(super) struct DelegationGenericArgsIterator<'hir> {
     index: usize = Default::default(),
     params: &'hir [hir::GenericParam<'hir>],
@@ -125,7 +105,7 @@ impl<'hir> DelegationGenericArgsIterator<'hir> {
         &mut self,
         ctx: &mut LoweringContext<'_, 'hir>,
         hir_id_factory: impl FnOnce(&mut LoweringContext<'_, 'hir>) -> HirId,
-    ) -> Option<NonAllocatedGenericArg<'hir>> {
+    ) -> Option<hir::GenericArg<'hir>> {
         let p = loop {
             if self.index >= self.params.len() {
                 return None;
@@ -144,9 +124,9 @@ impl<'hir> DelegationGenericArgsIterator<'hir> {
 
         let hir_id = hir_id_factory(ctx);
 
-        match p.kind {
+        Some(match p.kind {
             hir::GenericParamKind::Lifetime { .. } => {
-                Some(NonAllocatedGenericArg::Lifetime(hir::Lifetime {
+                hir::GenericArg::Lifetime(ctx.arena.alloc(hir::Lifetime {
                     hir_id,
                     ident: p.name.ident(),
                     kind: hir::LifetimeKind::Param(p.def_id),
@@ -154,25 +134,25 @@ impl<'hir> DelegationGenericArgsIterator<'hir> {
                     syntax: hir::LifetimeSyntax::ExplicitBound,
                 }))
             }
-            hir::GenericParamKind::Type { .. } => Some(NonAllocatedGenericArg::Type(hir::Ty {
+            hir::GenericParamKind::Type { .. } => hir::GenericArg::Type(ctx.arena.alloc(hir::Ty {
                 hir_id,
                 span: p.span,
                 kind: hir::TyKind::Path(Self::create_generic_arg_path(ctx, &p)),
             })),
             hir::GenericParamKind::Const { .. } => {
-                Some(NonAllocatedGenericArg::Const(hir::ConstArg {
+                hir::GenericArg::Const(ctx.arena.alloc(hir::ConstArg {
                     hir_id,
                     kind: hir::ConstArgKind::Path(Self::create_generic_arg_path(ctx, &p)),
                     span: p.span,
                 }))
             }
-        }
+        })
     }
 
     pub(super) fn consume_all(
         mut self,
         ctx: &mut LoweringContext<'_, 'hir>,
-    ) -> Vec<NonAllocatedGenericArg<'hir>> {
+    ) -> Vec<hir::GenericArg<'hir>> {
         let mut args = vec![];
         while let Some(arg) = self.next(ctx, |ctx| ctx.next_id()) {
             args.push(arg);
