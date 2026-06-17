@@ -318,7 +318,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
         let len = segments.len();
 
         fn get_user_args(args: Option<&Box<GenericArgs>>) -> Option<&AngleBracketedArgs> {
-            let Some(box GenericArgs::AngleBracketed(args)) = args else {
+            let Some(GenericArgs::AngleBracketed(args)) = args else {
                 return None;
             };
 
