@@ -432,12 +432,11 @@ pub(crate) fn check_generic_arg_count(
 
     let tcx = cx.tcx();
 
-    let explicit_late_bound =
-        if tcx.hir_opt_delegation_sig_id(tcx.hir_get_parent_item(seg.hir_id).def_id).is_some() {
-            ExplicitLateBound::No
-        } else {
-            prohibit_explicit_late_bound_lifetimes(cx, gen_params, gen_args, gen_pos)
-        };
+    let parent_def = tcx.hir_get_parent_item(seg.hir_id).def_id;
+    let explicit_late_bound = match tcx.hir_opt_delegation_sig_id(parent_def) {
+        Some(_) => ExplicitLateBound::No,
+        None => prohibit_explicit_late_bound_lifetimes(cx, gen_params, gen_args, gen_pos),
+    };
 
     let mut invalid_args = vec![];
 
@@ -464,7 +463,7 @@ pub(crate) fn check_generic_arg_count(
         };
 
         let reported = cx.dcx().emit_err(WrongNumberOfGenericArgs::new(
-            cx.tcx(),
+            tcx,
             gen_args_info,
             seg,
             gen_params,
@@ -542,20 +541,19 @@ pub(crate) fn check_generic_arg_count(
                     .map(|param| param.name)
                     .collect();
                 if constraint_names == param_names {
-                    let has_assoc_ty_with_same_name =
-                        if let DefKind::Trait = cx.tcx().def_kind(def_id) {
-                            gen_args.constraints.iter().any(|constraint| {
-                                traits::supertrait_def_ids(cx.tcx(), def_id).any(|trait_did| {
-                                    cx.probe_trait_that_defines_assoc_item(
-                                        trait_did,
-                                        ty::AssocTag::Type,
-                                        constraint.ident,
-                                    )
-                                })
+                    let has_assoc_ty_with_same_name = if let DefKind::Trait = tcx.def_kind(def_id) {
+                        gen_args.constraints.iter().any(|constraint| {
+                            traits::supertrait_def_ids(tcx, def_id).any(|trait_did| {
+                                cx.probe_trait_that_defines_assoc_item(
+                                    trait_did,
+                                    ty::AssocTag::Type,
+                                    constraint.ident,
+                                )
                             })
-                        } else {
-                            false
-                        };
+                        })
+                    } else {
+                        false
+                    };
                     // We set this to true and delay emitting `WrongNumberOfGenericArgs`
                     // to provide a succinct error for cases like issue #113073,
                     // but only if when we don't have any assoc type with the same name with a
@@ -579,7 +577,7 @@ pub(crate) fn check_generic_arg_count(
         let reported = gen_args.has_err().unwrap_or_else(|| {
             cx.dcx()
                 .create_err(WrongNumberOfGenericArgs::new(
-                    cx.tcx(),
+                    tcx,
                     gen_args_info,
                     seg,
                     gen_params,

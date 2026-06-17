@@ -56,7 +56,7 @@ use rustc_span::symbol::kw;
 use rustc_span::{ErrorGuaranteed, Ident, Span, Symbol};
 
 use crate::delegation::generics::{
-    GenericsGenerationResult, GenericsGenerationResults, create_path,
+    DelegationGenericArgsIterator, GenericsGenerationResult, GenericsGenerationResults,
 };
 use crate::diagnostics::{
     CycleInDelegationSignatureResolution, DelegationAttemptedBlockWithDefsDeletion,
@@ -628,8 +628,12 @@ impl<'hir> LoweringContext<'_, 'hir> {
 
                 let ty = ty.map(|ty| match generics.propagate_self_ty {
                     Some(hir::DelegationSelfTyPropagationKind::Infer) => {
-                        let self_param = generics.parent.generics.expect_find_self_param();
-                        let kind = hir::TyKind::Path(create_path(self, self_param));
+                        let self_param = generics.parent.generics.find_self_param();
+                        let kind = hir::TyKind::Path(
+                            DelegationGenericArgsIterator::create_generic_arg_path(
+                                self, self_param,
+                            ),
+                        );
 
                         self.arena.alloc(hir::Ty { kind, ..ty.clone() })
                     }

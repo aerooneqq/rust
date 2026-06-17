@@ -24,6 +24,16 @@ pub(super) enum GenericArgSlot<T> {
     Generate(T, Option<usize> /* Infer arg index from AST */),
 }
 
+impl<T> GenericArgSlot<T> {
+    fn generate(t: T) -> GenericArgSlot<T> {
+        GenericArgSlot::Generate(t, None)
+    }
+
+    fn generate_infer(t: T, index: usize) -> GenericArgSlot<T> {
+        GenericArgSlot::Generate(t, Some(index))
+    }
+}
+
 pub(super) struct DelegationGenerics<T> {
     data: T,
     pos: GenericsPosition,
@@ -39,7 +49,7 @@ impl<'hir> DelegationGenerics<TyGenerics<'hir>> {
         trait_impl: bool,
     ) -> Self {
         DelegationGenerics {
-            data: params.iter().map(|p| GenericArgSlot::Generate(p, None)).collect(),
+            data: params.iter().map(GenericArgSlot::generate).collect(),
             pos,
             trait_impl,
         }
@@ -97,35 +107,6 @@ pub(super) struct DelegationGenericArgsIterator<'hir> {
     params: &'hir [hir::GenericParam<'hir>],
 }
 
-pub(super) fn create_path<'hir>(
-    ctx: &mut LoweringContext<'_, 'hir>,
-    p: &hir::GenericParam<'hir>,
-) -> hir::QPath<'hir> {
-    let res = Res::Def(
-        match p.kind {
-            hir::GenericParamKind::Lifetime { .. } => DefKind::LifetimeParam,
-            hir::GenericParamKind::Type { .. } => DefKind::TyParam,
-            hir::GenericParamKind::Const { .. } => DefKind::ConstParam,
-        },
-        p.def_id.to_def_id(),
-    );
-
-    hir::QPath::Resolved(
-        None,
-        ctx.arena.alloc(hir::Path {
-            segments: ctx.arena.alloc_slice(&[hir::PathSegment {
-                args: None,
-                hir_id: ctx.next_id(),
-                ident: p.name.ident(),
-                infer_args: false,
-                res,
-            }]),
-            res,
-            span: p.span,
-        }),
-    )
-}
-
 impl<'hir> DelegationGenericArgsIterator<'hir> {
     pub(super) fn next(
         &mut self,
@@ -138,14 +119,13 @@ impl<'hir> DelegationGenericArgsIterator<'hir> {
             }
 
             let p = self.params[self.index];
+            self.index += 1;
 
             // Skip self generic arg, we do not need to propagate it.
             if p.name.ident().name == kw::SelfUpper || p.is_impl_trait() {
-                self.index += 1;
                 continue;
             }
 
-            self.index += 1;
             break p;
         };
 
@@ -164,12 +144,12 @@ impl<'hir> DelegationGenericArgsIterator<'hir> {
             hir::GenericParamKind::Type { .. } => Some(NonAllocatedGenericArg::Type(hir::Ty {
                 hir_id,
                 span: p.span,
-                kind: hir::TyKind::Path(create_path(ctx, &p)),
+                kind: hir::TyKind::Path(Self::create_generic_arg_path(ctx, &p)),
             })),
             hir::GenericParamKind::Const { .. } => {
                 Some(NonAllocatedGenericArg::Const(hir::ConstArg {
                     hir_id,
-                    kind: hir::ConstArgKind::Path(create_path(ctx, &p)),
+                    kind: hir::ConstArgKind::Path(Self::create_generic_arg_path(ctx, &p)),
                     span: p.span,
                 }))
             }
@@ -186,6 +166,35 @@ impl<'hir> DelegationGenericArgsIterator<'hir> {
         }
 
         args
+    }
+
+    pub(super) fn create_generic_arg_path(
+        ctx: &mut LoweringContext<'_, 'hir>,
+        p: &hir::GenericParam<'hir>,
+    ) -> hir::QPath<'hir> {
+        let res = Res::Def(
+            match p.kind {
+                hir::GenericParamKind::Lifetime { .. } => DefKind::LifetimeParam,
+                hir::GenericParamKind::Type { .. } => DefKind::TyParam,
+                hir::GenericParamKind::Const { .. } => DefKind::ConstParam,
+            },
+            p.def_id.to_def_id(),
+        );
+
+        hir::QPath::Resolved(
+            None,
+            ctx.arena.alloc(hir::Path {
+                segments: ctx.arena.alloc_slice(&[hir::PathSegment {
+                    args: None,
+                    hir_id: ctx.next_id(),
+                    ident: p.name.ident(),
+                    infer_args: false,
+                    res,
+                }]),
+                res,
+                span: p.span,
+            }),
+        )
     }
 }
 
@@ -243,17 +252,17 @@ impl<'hir> HirOrTyGenerics<'hir> {
         }
     }
 
-    pub(super) fn expect_find_self_param(&self) -> &'hir hir::GenericParam<'hir> {
+    pub(super) fn find_self_param(&self) -> &'hir hir::GenericParam<'hir> {
         match self {
             HirOrTyGenerics::Ty(_) => {
-                bug!("accessed ty-level generics while searching for uplifted self param")
+                bug!("accessed ty-level generics while searching for uplifted `Self` param")
             }
             HirOrTyGenerics::Hir(hir) => hir
                 .data
                 .params
                 .iter()
                 .find(|p| p.name.ident().name == kw::SelfUpper)
-                .expect("Self generic param is not found while expected"),
+                .expect("`Self` generic param is not found while expected"),
         }
     }
 }
@@ -309,14 +318,12 @@ impl<'hir> LoweringContext<'_, 'hir> {
         let segments = &delegation.path.segments;
         let len = segments.len();
 
-        fn args_specified(args: Option<&Box<GenericArgs>>) -> Option<&AngleBracketedArgs> {
-            if let Some(box GenericArgs::AngleBracketed(args)) = args
-                && !args.args.is_empty()
-            {
-                Some(args)
-            } else {
-                None
-            }
+        fn get_user_args(args: Option<&Box<GenericArgs>>) -> Option<&AngleBracketedArgs> {
+            let Some(box GenericArgs::AngleBracketed(args)) = args else {
+                return None;
+            };
+
+            (!args.args.is_empty()).then(|| args)
         }
 
         let sig_params = &self.tcx.generics_of(sig_id).own_params[..];
@@ -359,7 +366,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
         let parent_generics = if can_add_generics_to_parent {
             let sig_parent_params = &self.tcx.generics_of(sig_parent).own_params;
 
-            if let Some(args) = args_specified(segments[len - 2].args.as_ref()) {
+            if let Some(args) = get_user_args(segments[len - 2].args.as_ref()) {
                 DelegationGenerics {
                     data: self.create_slots_from_args(
                         args,
@@ -380,14 +387,15 @@ impl<'hir> LoweringContext<'_, 'hir> {
             DelegationGenerics { data: vec![], pos: GenericsPosition::Parent, trait_impl: false }
         };
 
-        let child_generics = if let Some(args) = args_specified(segments[len - 1].args.as_ref()) {
+        let child_generics = if let Some(args) = get_user_args(segments[len - 1].args.as_ref()) {
             let synth_params_index =
                 sig_params.iter().position(|p| p.kind.is_synthetic()).unwrap_or(sig_params.len());
 
-            let mut slots = self.create_slots_from_args(args, sig_params, false);
+            let mut slots =
+                self.create_slots_from_args(args, &sig_params[..synth_params_index], false);
 
             for synth_param in &sig_params[synth_params_index..] {
-                slots.push(GenericArgSlot::Generate(synth_param, None));
+                slots.push(GenericArgSlot::generate(synth_param));
             }
 
             DelegationGenerics { data: slots, pos: GenericsPosition::Child, trait_impl: false }
@@ -421,12 +429,11 @@ impl<'hir> LoweringContext<'_, 'hir> {
     ) -> TyGenerics<'hir> {
         let mut slots = vec![];
         if add_first_self {
-            slots.push(GenericArgSlot::Generate(&params[0], None));
+            slots.push(GenericArgSlot::generate(&params[0]));
         }
 
-        for (idx, (arg, param)) in
-            args.args.iter().zip(&params[usize::from(add_first_self)..]).enumerate()
-        {
+        let params = &params[usize::from(add_first_self)..];
+        for (idx, (arg, param)) in args.args.iter().zip(params).enumerate() {
             match arg {
                 AngleBracketedArg::Arg(arg) => {
                     let is_infer = match arg {
@@ -462,7 +469,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                     }
 
                     slots.push(if is_infer {
-                        GenericArgSlot::Generate(param, Some(idx))
+                        GenericArgSlot::generate_infer(param, idx)
                     } else {
                         GenericArgSlot::UserSpecified
                     });
