@@ -196,7 +196,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
             return self.generate_delegation_error(span, delegation);
         }
 
-        let mut generics = self.uplift_delegation_generics(delegation, sig_id, is_method);
+        let mut generics = self.uplift_delegation_generics(delegation, sig_id);
 
         let (body_id, call_expr_id, unused_target_expr) = self.lower_delegation_body(
             delegation,
@@ -627,7 +627,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 );
 
                 let ty = ty.map(|ty| match generics.propagate_self_ty {
-                    Some(hir::DelegationSelfTyPropagationKind::Infer) => {
+                    Some(hir::DelegationSelfTyPropagationKind::SelfParam) => {
                         let self_param = generics.parent.generics.find_self_param();
                         let kind = hir::TyKind::Path(
                             DelegationGenericArgsIterator::create_generic_arg_path(
@@ -649,7 +649,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
             }
         };
 
-        if let Some(hir::DelegationSelfTyPropagationKind::Default(id)) =
+        if let Some(hir::DelegationSelfTyPropagationKind::SelfTy(id)) =
             generics.propagate_self_ty.as_mut()
         {
             *id = match new_path {

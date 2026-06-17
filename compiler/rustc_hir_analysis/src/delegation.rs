@@ -14,7 +14,6 @@ use rustc_middle::ty::{
 use rustc_span::{ErrorGuaranteed, Span, kw};
 
 use crate::collect::ItemCtxt;
-use crate::diagnostics::DelegationSelfTypeNotSpecified;
 use crate::hir_ty_lowering::HirTyLowerer;
 
 type RemapTable = FxHashMap<u32, u32>;
@@ -282,33 +281,23 @@ fn get_delegation_self_ty<'tcx>(tcx: TyCtxt<'tcx>, delegation_id: LocalDefId) ->
             match create_self_position_kind(tcx, delegation_id, sig_id) {
                 SelfPositionKind::None => None,
                 SelfPositionKind::AfterLifetimes(propagation_kind) => {
-                    match propagation_kind {
+                    Some(match propagation_kind {
                         Some(kind) => match kind {
-                            DelegationSelfTyPropagationKind::Default(self_ty_id) => {
+                            DelegationSelfTyPropagationKind::SelfTy(self_ty_id) => {
                                 let ctx = ItemCtxt::new(tcx, delegation_id);
-                                Some(ctx.lower_ty(tcx.hir_node(self_ty_id).expect_ty()))
+                                ctx.lower_ty(tcx.hir_node(self_ty_id).expect_ty())
                             }
-                            DelegationSelfTyPropagationKind::Infer => {
+                            DelegationSelfTyPropagationKind::SelfParam => {
                                 let index = tcx.generics_of(delegation_id).own_counts().lifetimes;
-                                Some(Ty::new_param(tcx, index as u32, kw::SelfUpper))
+                                Ty::new_param(tcx, index as u32, kw::SelfUpper)
                             }
                         },
-                        None => {
-                            // It is possible to attempt to get self type when it is used in signature
-                            // (i.e., `fn default() -> Self`), so emit error here in addition to possible
-                            // `mismatched types` error (see #156388).
-                            let err = DelegationSelfTypeNotSpecified {
-                                span: tcx.def_span(delegation_id),
-                            };
-                            tcx.dcx().emit_err(err);
-
-                            Some(Ty::new_error_with_message(
-                                tcx,
-                                tcx.def_span(delegation_id),
-                                "the self type must be specified",
-                            ))
-                        }
-                    }
+                        None => Ty::new_error_with_message(
+                            tcx,
+                            tcx.def_span(delegation_id),
+                            "self propagation kind must be specified for `AfterLifetimes` variant",
+                        ),
+                    })
                 }
                 SelfPositionKind::Zero => Some(Ty::new_param(tcx, 0, kw::SelfUpper)),
             }
@@ -474,7 +463,7 @@ pub(crate) fn inherit_predicates_for_delegation_item<'tcx>(
     let self_pos_kind = create_self_position_kind(tcx, def_id, sig_id);
     let filter_self_preds = matches!(
         self_pos_kind,
-        SelfPositionKind::AfterLifetimes(Some(DelegationSelfTyPropagationKind::Default(..)))
+        SelfPositionKind::AfterLifetimes(Some(DelegationSelfTyPropagationKind::SelfTy(..)))
     );
 
     let collector = PredicatesCollector { tcx, preds: vec![], args, folder, filter_self_preds };

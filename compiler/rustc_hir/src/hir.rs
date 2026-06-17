@@ -3856,8 +3856,8 @@ pub enum OpaqueTyOrigin<D> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, StableHash)]
 pub enum DelegationSelfTyPropagationKind {
-    Default(HirId /* Self ty id */),
-    Infer,
+    SelfTy(HirId /* Self ty id */),
+    SelfParam,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, StableHash)]

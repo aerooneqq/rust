@@ -311,7 +311,6 @@ impl<'hir> LoweringContext<'_, 'hir> {
         &mut self,
         delegation: &Delegation,
         sig_id: DefId,
-        is_method: bool,
     ) -> GenericsGenerationResults<'hir> {
         let delegation_parent_kind = self.tcx.def_kind(self.tcx.local_parent(self.owner.def_id));
 
@@ -327,9 +326,6 @@ impl<'hir> LoweringContext<'_, 'hir> {
         }
 
         let sig_params = &self.tcx.generics_of(sig_id).own_params[..];
-
-        let qself_is_infer =
-            delegation.qself.as_ref().is_none_or(|qself| Self::is_ty_infer(&qself.ty));
 
         // If we are in trait impl always generate function whose generics matches
         // those that are defined in trait.
@@ -353,10 +349,13 @@ impl<'hir> LoweringContext<'_, 'hir> {
         let sig_parent = self.tcx.parent(sig_id);
         let sig_in_trait = matches!(self.tcx.def_kind(sig_parent), DefKind::Trait);
         let free_to_trait_delegation = delegation_in_free_ctx && sig_in_trait;
+
+        let qself_is_infer =
+            delegation.qself.as_ref().is_some_and(|qself| qself.ty.is_maybe_parenthesised_infer());
+
         let qself_is_none = delegation.qself.is_none();
 
-        let generate_self =
-            free_to_trait_delegation && (is_method && qself_is_none || qself_is_infer);
+        let generate_self = free_to_trait_delegation && (qself_is_none || qself_is_infer);
 
         let can_add_generics_to_parent = len >= 2
             && self.get_resolution_id(segments[len - 2].id).is_some_and(|def_id| {
@@ -406,17 +405,15 @@ impl<'hir> LoweringContext<'_, 'hir> {
         GenericsGenerationResults {
             parent: GenericsGenerationResult::new(parent_generics),
             child: GenericsGenerationResult::new(child_generics),
-            propagate_self_ty: if free_to_trait_delegation {
-                if qself_is_none {
-                    Some(hir::DelegationSelfTyPropagationKind::Infer)
-                } else {
-                    Some(match qself_is_infer {
-                        true => hir::DelegationSelfTyPropagationKind::Infer,
-                        false => hir::DelegationSelfTyPropagationKind::Default(HirId::INVALID),
-                    })
-                }
-            } else {
-                None
+            propagate_self_ty: match free_to_trait_delegation {
+                true => Some(match qself_is_none {
+                    true => hir::DelegationSelfTyPropagationKind::SelfParam,
+                    false => match qself_is_infer {
+                        true => hir::DelegationSelfTyPropagationKind::SelfParam,
+                        false => hir::DelegationSelfTyPropagationKind::SelfTy(HirId::INVALID),
+                    },
+                }),
+                false => None,
             },
         }
     }
@@ -438,7 +435,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 AngleBracketedArg::Arg(arg) => {
                     let is_infer = match arg {
                         GenericArg::Lifetime(lt) => lt.ident.name == kw::UnderscoreLifetime,
-                        GenericArg::Type(ty) => Self::is_ty_infer(&ty),
+                        GenericArg::Type(ty) => ty.is_maybe_parenthesised_infer(),
                         GenericArg::Const(_) => false,
                     };
 
@@ -481,10 +478,6 @@ impl<'hir> LoweringContext<'_, 'hir> {
         }
 
         slots
-    }
-
-    fn is_ty_infer(ty: &Ty) -> bool {
-        matches!(ty.kind, TyKind::Infer)
     }
 
     fn uplift_delegation_generic_params(
