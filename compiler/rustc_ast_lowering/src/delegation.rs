@@ -704,7 +704,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                     }
                 }))
             })
-            .unwrap_or_else(|| self.arena.alloc_from_iter(args_iter.consume_all(self).into_iter()));
+            .unwrap_or_else(|| self.arena.alloc_from_iter(args_iter.consume_all(self)));
 
         // Needed for better error messages (`trait-impl-wrong-args-count.rs` test).
         segment.args = (!new_args.is_empty()).then(|| {
