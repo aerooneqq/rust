@@ -202,13 +202,8 @@ impl<'tcx> TyCtxt<'tcx> {
     }
 
     #[inline]
-    pub fn hir_free_items(self) -> impl Iterator<Item = ItemId> {
-        self.hir_crate_items(()).free_items.iter().copied()
-    }
-
-    #[inline]
     pub fn hir_module_free_items(self, module: LocalModDefId) -> impl Iterator<Item = ItemId> {
-        self.hir_module_items(module).free_items()
+        self.hir_module_items(module).free_items.iter().copied()
     }
 
     pub fn hir_def_key(self, def_id: LocalDefId) -> DefKey {
@@ -369,12 +364,12 @@ impl<'tcx> TyCtxt<'tcx> {
     /// crate.
     #[inline]
     pub fn hir_body_owners(self) -> impl Iterator<Item = LocalDefId> {
-        self.hir_crate_items(()).body_owners.iter().copied()
+        self.hir_crate_body_owners(()).iter().copied()
     }
 
     #[inline]
     pub fn par_hir_body_owners(self, f: impl Fn(LocalDefId) + DynSend + DynSync) {
-        par_for_each_in(&self.hir_crate_items(()).body_owners[..], |&&def_id| f(def_id));
+        par_for_each_in(&self.hir_crate_body_owners(())[..], |&&def_id| f(def_id));
     }
 
     pub fn hir_ty_param_owner(self, def_id: LocalDefId) -> LocalDefId {
@@ -433,8 +428,7 @@ impl<'tcx> TyCtxt<'tcx> {
     where
         V: Visitor<'tcx>,
     {
-        let krate = self.hir_crate_items(());
-        for owner in krate.owners() {
+        for owner in self.hir_crate_owners(()).into_iter().copied() {
             let attrs = self.hir_attr_map(owner);
             for attrs in attrs.map.values() {
                 walk_list!(visitor, visit_attribute, *attrs);
@@ -457,18 +451,28 @@ impl<'tcx> TyCtxt<'tcx> {
     where
         V: Visitor<'tcx>,
     {
-        let krate = self.hir_crate_items(());
-        walk_list!(visitor, visit_item, krate.free_items().map(|id| self.hir_item(id)));
+        walk_list!(
+            visitor,
+            visit_item,
+            self.hir_crate_free_items(()).into_iter().copied().map(|id| self.hir_item(id))
+        );
         walk_list!(
             visitor,
             visit_trait_item,
-            krate.trait_items().map(|id| self.hir_trait_item(id))
+            self.hir_crate_trait_items(()).into_iter().copied().map(|id| self.hir_trait_item(id))
         );
-        walk_list!(visitor, visit_impl_item, krate.impl_items().map(|id| self.hir_impl_item(id)));
+        walk_list!(
+            visitor,
+            visit_impl_item,
+            self.hir_crate_impl_items(()).into_iter().copied().map(|id| self.hir_impl_item(id))
+        );
         walk_list!(
             visitor,
             visit_foreign_item,
-            krate.foreign_items().map(|id| self.hir_foreign_item(id))
+            self.hir_crate_foreign_items(())
+                .into_iter()
+                .copied()
+                .map(|id| self.hir_foreign_item(id))
         );
         V::Result::output()
     }
@@ -484,32 +488,38 @@ impl<'tcx> TyCtxt<'tcx> {
         V: Visitor<'tcx>,
     {
         let module = self.hir_module_items(module);
-        walk_list!(visitor, visit_item, module.free_items().map(|id| self.hir_item(id)));
+        walk_list!(
+            visitor,
+            visit_item,
+            module.free_items.iter().copied().map(|id| self.hir_item(id))
+        );
         walk_list!(
             visitor,
             visit_trait_item,
-            module.trait_items().map(|id| self.hir_trait_item(id))
+            module.trait_items.iter().copied().map(|id| self.hir_trait_item(id))
         );
-        walk_list!(visitor, visit_impl_item, module.impl_items().map(|id| self.hir_impl_item(id)));
+        walk_list!(
+            visitor,
+            visit_impl_item,
+            module.impl_items.iter().copied().map(|id| self.hir_impl_item(id))
+        );
         walk_list!(
             visitor,
             visit_foreign_item,
-            module.foreign_items().map(|id| self.hir_foreign_item(id))
+            module.foreign_items.iter().copied().map(|id| self.hir_foreign_item(id))
         );
         V::Result::output()
     }
 
     pub fn hir_for_each_module(self, mut f: impl FnMut(LocalModDefId)) {
-        let crate_items = self.hir_crate_items(());
-        for module in crate_items.submodules.iter() {
+        for module in self.submodules() {
             f(LocalModDefId::new_unchecked(module.def_id))
         }
     }
 
     #[inline]
     pub fn par_hir_for_each_module(self, f: impl Fn(LocalModDefId) + DynSend + DynSync) {
-        let crate_items = self.hir_crate_items(());
-        par_for_each_in(&crate_items.submodules[..], |module| {
+        par_for_each_in(self.submodules(), |module| {
             f(LocalModDefId::new_unchecked(module.def_id))
         })
     }
@@ -519,8 +529,7 @@ impl<'tcx> TyCtxt<'tcx> {
         self,
         f: impl Fn(LocalModDefId) -> Result<(), ErrorGuaranteed> + DynSend + DynSync,
     ) -> Result<(), ErrorGuaranteed> {
-        let crate_items = self.hir_crate_items(());
-        try_par_for_each_in(&crate_items.submodules[..], |module| {
+        try_par_for_each_in(self.submodules(), |module| {
             f(LocalModDefId::new_unchecked(module.def_id))
         })
     }
@@ -1169,7 +1178,6 @@ impl<'tcx> pprust_hir::PpAnn for TyCtxt<'tcx> {
 }
 
 pub(super) fn crate_hash(tcx: TyCtxt<'_>, _: LocalCrate) -> Svh {
-    let krate = tcx.hir_crate_items(());
     let upstream_crates = upstream_crates(tcx);
     let resolutions = tcx.resolutions(());
 
@@ -1206,7 +1214,7 @@ pub(super) fn crate_hash(tcx: TyCtxt<'_>, _: LocalCrate) -> Svh {
     let crate_hash: Fingerprint = tcx.with_stable_hashing_context(|mut hcx| {
         let mut stable_hasher = StableHasher::new();
         // hir_body_hash
-        for owner in krate.owners() {
+        for owner in tcx.hir_crate_owners(()) {
             if let Some(info) = tcx.lower_to_hir(owner.def_id).as_owner() {
                 info.stable_hash(&mut hcx, &mut stable_hasher);
             }
@@ -1217,9 +1225,9 @@ pub(super) fn crate_hash(tcx: TyCtxt<'_>, _: LocalCrate) -> Svh {
         if tcx.sess.opts.incremental.is_some() {
             let definitions = tcx.untracked().definitions.freeze();
             let mut owner_spans: Vec<_> = tcx
-                .hir_crate_items(())
-                .definitions()
-                .map(|def_id| {
+                .hir_crate_definitions(())
+                .into_iter()
+                .map(|&def_id| {
                     let def_path_hash = definitions.def_path_hash(def_id);
                     let span = tcx.source_span(def_id);
                     debug_assert_eq!(span.parent(), None);

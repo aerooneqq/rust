@@ -17,7 +17,7 @@ pub fn dump_symbol_names_and_def_paths(tcx: TyCtxt<'_>) {
     }
 
     tcx.dep_graph.with_ignore(|| {
-        for id in tcx.hir_crate_items(()).owners() {
+        for id in tcx.owners() {
             if id == CRATE_OWNER_ID {
                 continue;
             }

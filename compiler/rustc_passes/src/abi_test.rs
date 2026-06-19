@@ -16,7 +16,7 @@ pub fn test_abi(tcx: TyCtxt<'_>) {
         // if the `rustc_attrs` feature is not enabled, don't bother testing ABI
         return;
     }
-    for id in tcx.hir_crate_items(()).definitions() {
+    for id in tcx.hir_crate_defs() {
         let Some((attr_span, attr_kind)) =
             find_attr!(tcx, id, RustcAbi{ attr_span, kind } => (*attr_span, *kind))
         else {

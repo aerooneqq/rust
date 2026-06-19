@@ -2188,7 +2188,7 @@ impl<'a, 'tcx> EncodeContext<'a, 'tcx> {
         let mut trait_impls: FxIndexMap<DefId, Vec<(DefIndex, Option<SimplifiedType>)>> =
             FxIndexMap::default();
 
-        for id in tcx.hir_free_items() {
+        for id in tcx.free_items() {
             let DefKind::Impl { of_trait } = tcx.def_kind(id.owner_id) else {
                 continue;
             };

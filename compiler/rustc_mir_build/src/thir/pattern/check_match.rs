@@ -1068,7 +1068,7 @@ fn find_fallback_pattern_typo<'tcx>(
         let (infcx, param_env) = cx.tcx.infer_ctxt().build_with_typing_env(cx.typing_env);
         let parent = cx.tcx.hir_get_parent_item(hir_id);
 
-        for item in cx.tcx.hir_crate_items(()).free_items() {
+        for item in cx.tcx.free_items() {
             if let DefKind::Use = cx.tcx.def_kind(item.owner_id) {
                 // Look for consts being re-exported.
                 let item = cx.tcx.hir_expect_item(item.owner_id.def_id);

@@ -59,8 +59,7 @@ fn diagnostic_items(tcx: TyCtxt<'_>, _: LocalCrate) -> DiagnosticItems {
     let mut diagnostic_items = DiagnosticItems::default();
 
     // Collect diagnostic items in this crate.
-    let crate_items = tcx.hir_crate_items(());
-    for id in crate_items.owners().chain(std::iter::once(CRATE_OWNER_ID)) {
+    for id in tcx.owners().chain(std::iter::once(CRATE_OWNER_ID)) {
         observe_item(tcx, &mut diagnostic_items, id);
     }
 

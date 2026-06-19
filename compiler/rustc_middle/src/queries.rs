@@ -134,6 +134,55 @@ use crate::{mir, thir};
 // Queries without a custom `handle_cycle_error_fn` implementation will raise a
 // fatal error on query cycles instead.
 rustc_queries! {
+    query hir_crate_submodules(_: ()) -> &'tcx [rustc_hir::OwnerId] {
+        desc { "xd" }
+    }
+
+    query hir_crate_body_owners(_: ()) -> &'tcx [LocalDefId] {
+        desc { "xd" }
+    }
+
+    query hir_crate_free_items(_: ()) -> &'tcx [rustc_hir::ItemId] {
+        desc { "xd" }
+    }
+
+    query hir_crate_trait_items(_: ()) -> &'tcx [rustc_hir::TraitItemId] {
+        desc { "xd" }
+    }
+
+    query hir_crate_delayed_lint_items(_: ()) -> &'tcx [rustc_hir::OwnerId] {
+        desc { "xd" }
+    }
+
+    query hir_crate_eiis(_: ()) -> &'tcx [LocalDefId] {
+        desc { "xd" }
+    }
+
+    query hir_crate_impl_items(_: ()) -> &'tcx [rustc_hir::ImplItemId] {
+        desc { "xd" }
+    }
+
+    query hir_crate_foreign_items(_: ()) -> &'tcx [rustc_hir::ForeignItemId] {
+        desc { "xd" }
+    }
+
+    query hir_crate_owners(_: ()) -> &'tcx [rustc_hir::OwnerId] {
+        desc { "xd" }
+    }
+
+    query hir_crate_opaques(_: ()) -> &'tcx [LocalDefId] {
+        desc { "xd" }
+    }
+
+    /// Closures and inline consts
+    query hir_crate_nested_bodies(_: ()) -> &'tcx [LocalDefId] {
+        desc { "xd" }
+    }
+
+    query hir_crate_definitions(_: ()) -> &'tcx [LocalDefId] {
+        desc { "xd" }
+    }
+
     /// Caches the expansion of a derive proc macro, e.g. `#[derive(Serialize)]`.
     /// The key is:
     /// - A unique key corresponding to the invocation of a macro.

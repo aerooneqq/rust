@@ -24,7 +24,7 @@ pub(super) fn infer_predicates(
         let mut predicates_added = vec![];
 
         // Visit all the crates and infer predicates
-        for id in tcx.hir_free_items() {
+        for id in tcx.free_items() {
             let item_did = id.owner_id;
 
             debug!("InferVisitor::visit_item(item={:?})", item_did);

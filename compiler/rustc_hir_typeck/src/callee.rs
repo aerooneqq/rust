@@ -879,7 +879,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             && let Res::Local(_) = path.res
             && let [segment] = &path.segments
         {
-            for id in self.tcx.hir_free_items() {
+            for id in self.tcx.free_items() {
                 if let Some(node) = self.tcx.hir_get_if_local(id.owner_id.into())
                     && let hir::Node::Item(item) = node
                     && let hir::ItemKind::Fn { ident, .. } = item.kind

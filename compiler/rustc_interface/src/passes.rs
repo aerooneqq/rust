@@ -1065,7 +1065,7 @@ impl<'a, 'tcx> Diagnostic<'a, ()> for DiagCallback<'tcx> {
 }
 
 pub fn emit_delayed_lints(tcx: TyCtxt<'_>) {
-    for owner_id in tcx.hir_crate_items(()).delayed_lint_items() {
+    for owner_id in tcx.delayed_lint_items() {
         if let Some(delayed_lints) = tcx.opt_ast_lowering_delayed_lints(owner_id) {
             for lint in delayed_lints.steal() {
                 tcx.emit_node_span_lint(
@@ -1142,13 +1142,12 @@ fn run_required_analyses(tcx: TyCtxt<'_>) {
         // but this check is there to catch that.
         #[cfg(debug_assertions)]
         {
-            let hir_items = tcx.hir_crate_items(());
-            for owner_id in hir_items.owners() {
+            for owner_id in tcx.owners() {
                 if let Some(delayed_lints) = tcx.opt_ast_lowering_delayed_lints(owner_id)
                     && !delayed_lints.borrow().is_empty()
                 {
                     // Assert that delayed_lint_items also picked up this item to have lints.
-                    assert!(hir_items.delayed_lint_items().any(|i| i == owner_id));
+                    assert!(tcx.delayed_lint_items().any(|i| i == owner_id));
                 }
             }
         }

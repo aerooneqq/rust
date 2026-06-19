@@ -6,7 +6,7 @@ use rustc_middle::ty::TyCtxt;
 fn proc_macro_decls_static(tcx: TyCtxt<'_>, (): ()) -> Option<LocalDefId> {
     let mut decls = None;
 
-    for id in tcx.hir_free_items() {
+    for id in tcx.free_items() {
         if find_attr!(tcx, id.hir_id(), RustcProcMacroDecls) {
             decls = Some(id.owner_id.def_id);
         }

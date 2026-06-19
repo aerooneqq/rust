@@ -342,7 +342,7 @@ fn mir_keys(tcx: TyCtxt<'_>, (): ()) -> FxIndexSet<LocalDefId> {
 
     // tuple struct/variant constructors have MIR, but they don't have a BodyId,
     // so we need to build them separately.
-    for item in tcx.hir_crate_items(()).free_items() {
+    for item in tcx.free_items() {
         if let DefKind::Struct | DefKind::Enum = tcx.def_kind(item.owner_id) {
             for variant in tcx.adt_def(item.owner_id).variants() {
                 if let Some((CtorKind::Fn, ctor_def_id)) = variant.ctor {

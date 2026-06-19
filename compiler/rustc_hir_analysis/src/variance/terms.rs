@@ -76,13 +76,7 @@ pub(crate) fn determine_parameters_to_be_inferred<'a, 'tcx>(
         lang_items: lang_items(tcx),
     };
 
-    // See the following for a discussion on dep-graph management.
-    //
-    // - https://rustc-dev-guide.rust-lang.org/query.html
-    // - https://rustc-dev-guide.rust-lang.org/variance.html
-    let crate_items = tcx.hir_crate_items(());
-
-    for def_id in crate_items.definitions() {
+    for def_id in tcx.hir_crate_defs() {
         debug!("add_inferreds for item {:?}", def_id);
 
         let def_kind = tcx.def_kind(def_id);

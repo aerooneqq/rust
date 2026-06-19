@@ -63,9 +63,7 @@ pub(crate) fn add_constraints_from_crate<'a, 'tcx>(
         constraints: Vec::new(),
     };
 
-    let crate_items = tcx.hir_crate_items(());
-
-    for def_id in crate_items.definitions() {
+    for def_id in tcx.hir_crate_defs() {
         let def_kind = tcx.def_kind(def_id);
         match def_kind {
             DefKind::Struct | DefKind::Union | DefKind::Enum => {

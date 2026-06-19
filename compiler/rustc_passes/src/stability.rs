@@ -281,7 +281,7 @@ fn stability_implications(tcx: TyCtxt<'_>, LocalCrate: LocalCrate) -> UnordMap<S
 
     if tcx.features().staged_api() {
         register_implication(CRATE_DEF_ID);
-        for def_id in tcx.hir_crate_items(()).definitions() {
+        for def_id in tcx.hir_crate_defs() {
             register_implication(def_id);
             let def_kind = tcx.def_kind(def_id);
             if def_kind.is_adt() {

@@ -10,7 +10,7 @@ pub(crate) fn collect(tcx: TyCtxt<'_>, LocalCrate: LocalCrate) -> FxIndexMap<Def
     let mut modules = FxIndexMap::default();
 
     // We need to collect all the `ForeignMod`, even if they are empty.
-    for id in tcx.hir_free_items() {
+    for id in tcx.free_items() {
         if !matches!(tcx.def_kind(id.owner_id), DefKind::ForeignMod) {
             continue;
         }

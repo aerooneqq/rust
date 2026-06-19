@@ -143,21 +143,19 @@ pub(crate) fn check_clean_annotations(tcx: TyCtxt<'_>) {
     tcx.dep_graph.with_ignore(|| {
         let mut clean_visitor = CleanVisitor { tcx, checked_attrs: Default::default() };
 
-        let crate_items = tcx.hir_crate_items(());
-
-        for id in crate_items.free_items() {
+        for id in tcx.free_items() {
             clean_visitor.check_item(id.owner_id.def_id);
         }
 
-        for id in crate_items.trait_items() {
+        for id in tcx.trait_items() {
             clean_visitor.check_item(id.owner_id.def_id);
         }
 
-        for id in crate_items.impl_items() {
+        for id in tcx.impl_items() {
             clean_visitor.check_item(id.owner_id.def_id);
         }
 
-        for id in crate_items.foreign_items() {
+        for id in tcx.foreign_items() {
             clean_visitor.check_item(id.owner_id.def_id);
         }
 

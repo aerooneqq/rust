@@ -13,11 +13,9 @@ pub(crate) fn provide(providers: &mut Providers) {
 }
 
 fn lint_expectations(tcx: TyCtxt<'_>, (): ()) -> Vec<(StableLintExpectationId, LintExpectation)> {
-    let krate = tcx.hir_crate_items(());
-
     let mut expectations = Vec::new();
 
-    for owner in krate.owners() {
+    for owner in tcx.owners() {
         let lints = tcx.shallow_lint_levels_on(owner);
         expectations.extend_from_slice(&lints.expectations);
     }

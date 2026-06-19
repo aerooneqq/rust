@@ -494,4 +494,81 @@ pub fn provide(providers: &mut Providers) {
         |tcx, trait_id| tcx.resolutions(()).trait_impls.get(&trait_id).map_or(&[], |xs| &xs[..]);
     providers.expn_that_defined =
         |tcx, id| tcx.resolutions(()).expn_that_defined.get(&id).copied().unwrap_or(ExpnId::root());
+
+    providers.hir_crate_free_items = |tcx, _| tcx.hir_crate_items(()).free_items.as_ref();
+    providers.hir_crate_trait_items = |tcx, _| tcx.hir_crate_items(()).trait_items.as_ref();
+    providers.hir_crate_delayed_lint_items =
+        |tcx, _| tcx.hir_crate_items(()).delayed_lint_items.as_ref();
+    providers.hir_crate_eiis = |tcx, _| tcx.hir_crate_items(()).eiis.as_ref();
+    providers.hir_crate_impl_items = |tcx, _| tcx.hir_crate_items(()).impl_items.as_ref();
+    providers.hir_crate_foreign_items = |tcx, _| tcx.hir_crate_items(()).foreign_items.as_ref();
+    providers.hir_crate_body_owners = |tcx, _| tcx.hir_crate_items(()).body_owners.as_ref();
+    providers.hir_crate_owners = |tcx, _| {
+        tcx.arena.alloc_from_iter(
+            tcx.hir_crate_items(())
+                .add_root
+                .then_some(CRATE_OWNER_ID)
+                .into_iter()
+                .chain(tcx.hir_crate_items(()).free_items.iter().map(|id| id.owner_id))
+                .chain(tcx.hir_crate_items(()).trait_items.iter().map(|id| id.owner_id))
+                .chain(tcx.hir_crate_items(()).impl_items.iter().map(|id| id.owner_id))
+                .chain(tcx.hir_crate_items(()).foreign_items.iter().map(|id| id.owner_id)),
+        )
+    };
+
+    providers.hir_crate_submodules = |tcx, _| tcx.hir_crate_items(()).submodules.as_ref();
+    providers.hir_crate_opaques = |tcx, _| tcx.hir_crate_items(()).opaques.as_ref();
+    providers.hir_crate_nested_bodies = |tcx, _| tcx.hir_crate_items(()).nested_bodies.as_ref();
+    providers.hir_crate_definitions = |tcx, _| {
+        tcx.arena.alloc_from_iter(tcx.hir_crate_owners(()).into_iter().map(|id| id.def_id))
+    };
+}
+
+impl TyCtxt<'_> {
+    pub fn submodules(self) -> impl Iterator<Item = OwnerId> {
+        self.hir_crate_submodules(()).iter().copied()
+    }
+
+    pub fn free_items(self) -> impl Iterator<Item = ItemId> {
+        self.hir_crate_free_items(()).iter().copied()
+    }
+
+    pub fn trait_items(self) -> impl Iterator<Item = TraitItemId> {
+        self.hir_crate_trait_items(()).iter().copied()
+    }
+
+    pub fn delayed_lint_items(self) -> impl Iterator<Item = OwnerId> {
+        self.hir_crate_delayed_lint_items(()).iter().copied()
+    }
+
+    pub fn eiis(self) -> impl Iterator<Item = LocalDefId> {
+        self.hir_crate_eiis(()).iter().copied()
+    }
+
+    /// Returns all items that are associated with some `impl` block (both inherent and trait impl
+    /// blocks).
+    pub fn impl_items(self) -> impl Iterator<Item = ImplItemId> {
+        self.hir_crate_impl_items(()).iter().copied()
+    }
+
+    pub fn foreign_items(self) -> impl Iterator<Item = ForeignItemId> {
+        self.hir_crate_foreign_items(()).iter().copied()
+    }
+
+    pub fn owners(self) -> impl Iterator<Item = OwnerId> {
+        self.hir_crate_owners(()).iter().copied()
+    }
+
+    pub fn opaques(self) -> impl Iterator<Item = LocalDefId> {
+        self.hir_crate_opaques(()).iter().copied()
+    }
+
+    /// Closures and inline consts
+    pub fn nested_bodies(self) -> impl Iterator<Item = LocalDefId> {
+        self.hir_crate_nested_bodies(()).iter().copied()
+    }
+
+    pub fn hir_crate_defs(self) -> impl Iterator<Item = LocalDefId> {
+        self.hir_crate_definitions(()).iter().copied()
+    }
 }

@@ -10,7 +10,7 @@ pub(crate) fn opaque_hidden_types(tcx: TyCtxt<'_>) {
     if !find_attr!(tcx, crate, RustcDumpHiddenTypeOfOpaques) {
         return;
     }
-    for id in tcx.hir_crate_items(()).opaques() {
+    for id in tcx.opaques() {
         if let hir::OpaqueTyOrigin::FnReturn { parent: fn_def_id, .. }
         | hir::OpaqueTyOrigin::AsyncFn { parent: fn_def_id, .. } =
             tcx.hir_expect_opaque_ty(id).origin
@@ -27,7 +27,7 @@ pub(crate) fn opaque_hidden_types(tcx: TyCtxt<'_>) {
 }
 
 pub(crate) fn predicates_and_item_bounds(tcx: TyCtxt<'_>) {
-    for id in tcx.hir_crate_items(()).owners() {
+    for id in tcx.owners() {
         #[expect(deprecated)] // we don't want to unnecessarily retrieve the attrs twice in a row.
         let attrs = tcx.get_all_attrs(id);
 
@@ -71,7 +71,7 @@ pub(crate) fn predicates_and_item_bounds(tcx: TyCtxt<'_>) {
 }
 
 pub(crate) fn def_parents(tcx: TyCtxt<'_>) {
-    for iid in tcx.hir_free_items() {
+    for iid in tcx.free_items() {
         let did = iid.owner_id.def_id;
         if find_attr!(tcx, did, RustcDumpDefParents) {
             struct AnonConstFinder<'tcx> {
@@ -118,7 +118,7 @@ pub(crate) fn def_parents(tcx: TyCtxt<'_>) {
 }
 
 pub(crate) fn vtables<'tcx>(tcx: TyCtxt<'tcx>) {
-    for id in tcx.hir_free_items() {
+    for id in tcx.free_items() {
         let def_id = id.owner_id.def_id;
 
         let Some(&attr_span) = find_attr!(tcx, def_id, RustcDumpVtable(span) => span) else {

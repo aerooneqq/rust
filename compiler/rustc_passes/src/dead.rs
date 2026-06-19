@@ -960,8 +960,7 @@ fn create_and_seed_worklist(tcx: TyCtxt<'_>) -> SeedWorklists {
         ComesFromAllowExpect::Yes => deferred_seeds.push(work_item),
         ComesFromAllowExpect::No => worklist.push(work_item),
     };
-    let crate_items = tcx.hir_crate_items(());
-    for id in crate_items.owners() {
+    for id in tcx.owners() {
         maybe_record_as_seed(tcx, id, &mut push_into_worklist, &mut unsolved_items);
     }
 

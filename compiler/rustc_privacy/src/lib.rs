@@ -427,7 +427,7 @@ struct DefIdsToImplsCollector<'tcx, 'a> {
 impl<'tcx, 'a> DefIdsToImplsCollector<'tcx, 'a> {
     fn collect(tcx: TyCtxt<'tcx>) -> DefIdsToImpls {
         let mut def_ids_to_impls = Default::default();
-        for item in tcx.hir_free_items() {
+        for item in tcx.free_items() {
             let impl_def_id = item.owner_id.def_id;
             let DefKind::Impl { of_trait } = tcx.def_kind(impl_def_id) else {
                 continue;
@@ -1796,8 +1796,7 @@ fn effective_visibilities(tcx: TyCtxt<'_>, (): ()) -> &EffectiveVisibilities {
     if impl_trait_pass {
         // Underlying types of `impl Trait`s are marked as reachable unconditionally,
         // so this pass doesn't need to be a part of the fixed point iteration below.
-        let krate = tcx.hir_crate_items(());
-        for id in krate.opaques() {
+        for id in tcx.opaques() {
             let opaque = tcx.hir_node_by_def_id(id).expect_opaque_ty();
             let should_visit = match opaque.origin {
                 hir::OpaqueTyOrigin::FnReturn {
@@ -1860,11 +1859,10 @@ fn effective_visibilities(tcx: TyCtxt<'_>, (): ()) -> &EffectiveVisibilities {
         }
     }
 
-    let crate_items = tcx.hir_crate_items(());
-    for id in crate_items.free_items() {
+    for id in tcx.free_items() {
         visitor.check_def_id(id.owner_id.def_id);
     }
-    for id in crate_items.foreign_items() {
+    for id in tcx.foreign_items() {
         visitor.check_def_id(id.owner_id.def_id);
     }
     while let Some(def_id) = visitor.queue.pop() {
@@ -1874,7 +1872,7 @@ fn effective_visibilities(tcx: TyCtxt<'_>, (): ()) -> &EffectiveVisibilities {
 
     let check_visitor =
         TestReachabilityVisitor { tcx, effective_visibilities: &visitor.effective_visibilities };
-    for id in crate_items.owners() {
+    for id in tcx.owners() {
         check_visitor.check_def_id(id);
     }
 

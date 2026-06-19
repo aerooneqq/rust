@@ -257,7 +257,7 @@ impl<'sess> AttributeParser<'sess> {
     }
 
     fn first_line_of_next_item(&self, span: Span) -> Option<Span> {
-        // We can't exactly call `tcx.hir_free_items()` here because it's too early and querying
+        // We can't exactly call `tcx.free_items()` here because it's too early and querying
         // this would create a circular dependency. Instead, we resort to getting the original
         // source code that follows `span` and find the next item from here.
 

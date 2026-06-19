@@ -16,7 +16,7 @@ pub fn test_layout(tcx: TyCtxt<'_>) {
         // if the `rustc_attrs` feature is not enabled, don't bother testing layout
         return;
     }
-    for id in tcx.hir_crate_items(()).definitions() {
+    for id in tcx.hir_crate_defs() {
         if let Some(kinds) = find_attr!(tcx, id, RustcDumpLayout(kinds) => kinds) {
             // Attribute parsing handles error reporting
             if let DefKind::TyAlias | DefKind::Enum | DefKind::Struct | DefKind::Union =

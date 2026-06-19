@@ -1465,17 +1465,15 @@ fn collect_roots(tcx: TyCtxt<'_>, mode: MonoItemCollectionStrategy) -> Vec<MonoI
 
         let mut collector = RootCollector { tcx, strategy: mode, entry_fn, output: &mut roots };
 
-        let crate_items = tcx.hir_crate_items(());
-
-        for id in crate_items.free_items() {
+        for id in tcx.free_items() {
             collector.process_item(id);
         }
 
-        for id in crate_items.impl_items() {
+        for id in tcx.impl_items() {
             collector.process_impl_item(id);
         }
 
-        for id in crate_items.nested_bodies() {
+        for id in tcx.nested_bodies() {
             collector.process_nested_body(id);
         }
 

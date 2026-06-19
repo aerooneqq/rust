@@ -23,7 +23,7 @@ pub(crate) fn get_lints() -> LintVec {
 
 fn clashing_extern_declarations(tcx: TyCtxt<'_>, (): ()) {
     let mut lint = ClashingExternDeclarations::new();
-    for id in tcx.hir_crate_items(()).foreign_items() {
+    for id in tcx.foreign_items() {
         lint.check_foreign_item(tcx, id);
     }
 }

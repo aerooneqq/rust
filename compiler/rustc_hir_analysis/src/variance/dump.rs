@@ -24,15 +24,13 @@ fn format_variances(tcx: TyCtxt<'_>, def_id: LocalDefId) -> String {
 }
 
 pub(crate) fn variances(tcx: TyCtxt<'_>) {
-    let crate_items = tcx.hir_crate_items(());
-
     if find_attr!(tcx, crate, RustcDumpVariancesOfOpaques) {
-        for id in crate_items.opaques() {
+        for id in tcx.opaques() {
             tcx.dcx().span_err(tcx.def_span(id), format_variances(tcx, id));
         }
     }
 
-    for id in crate_items.owners() {
+    for id in tcx.owners() {
         if !find_attr!(tcx, id, RustcDumpVariances) {
             continue;
         }

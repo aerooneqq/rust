@@ -500,13 +500,12 @@ fn reachable_set(tcx: TyCtxt<'_>, (): ()) -> LocalDefIdSet {
         // trait is a lang item.
         // (But if you implement this, don't forget to take into account that vtables can also
         // make trait methods reachable!)
-        let crate_items = tcx.hir_crate_items(());
 
-        for id in crate_items.free_items() {
+        for id in tcx.free_items() {
             check_item(tcx, id, &mut reachable_context.worklist, effective_visibilities);
         }
 
-        for id in crate_items.impl_items() {
+        for id in tcx.impl_items() {
             if has_custom_linkage(tcx, id.owner_id.def_id) {
                 reachable_context.worklist.push(id.owner_id.def_id);
             }

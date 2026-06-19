@@ -24,7 +24,7 @@ pub(crate) fn collect<'tcx>(tcx: TyCtxt<'tcx>, LocalCrate: LocalCrate) -> EiiMap
     let mut eiis = EiiMap::default();
 
     // iterate over all items in the current crate
-    for id in tcx.hir_crate_items(()).eiis() {
+    for id in tcx.eiis() {
         for i in find_attr!(tcx, id, EiiImpls(e) => e).into_iter().flatten() {
             let decl = match i.resolution {
                 EiiImplResolution::Macro(macro_defid) => {

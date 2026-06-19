@@ -138,7 +138,7 @@ fn lints_that_dont_need_to_run(tcx: TyCtxt<'_>, (): ()) -> UnordSet<LintId> {
         .map(|lint| LintId::of(*lint))
         .collect();
 
-    for owner in tcx.hir_crate_items(()).owners() {
+    for owner in tcx.owners() {
         let map = tcx.shallow_lint_levels_on(owner);
 
         // All lints that appear with a non-allow level must be run.

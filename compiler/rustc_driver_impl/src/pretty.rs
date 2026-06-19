@@ -295,7 +295,6 @@ pub fn print<'tcx>(sess: &Session, ppm: PpMode, ex: PrintExtra<'tcx>) {
         HirTree => {
             debug!("pretty printing HIR tree");
             ex.tcx()
-                .hir_crate_items(())
                 .owners()
                 .map(|owner| format!("{:#?} => {:#?}\n", owner, ex.tcx().hir_owner_nodes(owner)))
                 .collect()
