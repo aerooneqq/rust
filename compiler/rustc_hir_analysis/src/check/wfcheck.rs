@@ -2396,23 +2396,24 @@ impl<'tcx> WfCheckingCtxt<'_, 'tcx> {
 }
 
 pub(super) fn check_type_wf(tcx: TyCtxt<'_>, (): ()) -> Result<(), ErrorGuaranteed> {
-    let items = tcx.hir_crate_items(());
-    let res =
-        items
-            .par_items(|item| tcx.ensure_result().check_well_formed(item.owner_id.def_id))
-            .and(
-                items.par_impl_items(|item| {
-                    tcx.ensure_result().check_well_formed(item.owner_id.def_id)
-                }),
-            )
-            .and(items.par_trait_items(|item| {
-                tcx.ensure_result().check_well_formed(item.owner_id.def_id)
-            }))
-            .and(items.par_foreign_items(|item| {
-                tcx.ensure_result().check_well_formed(item.owner_id.def_id)
-            }))
-            .and(items.par_nested_bodies(|item| tcx.ensure_result().check_well_formed(item)))
-            .and(items.par_opaques(|item| tcx.ensure_result().check_well_formed(item)));
+    use rustc_data_structures::sync::try_par_for_each_in;
+
+    let res = try_par_for_each_in(tcx.free_items(), |item| {
+        tcx.ensure_result().check_well_formed(item.owner_id.def_id)
+    })
+    .and(try_par_for_each_in(tcx.impl_items(), |item| {
+        tcx.ensure_result().check_well_formed(item.owner_id.def_id)
+    }))
+    .and(try_par_for_each_in(tcx.trait_items(), |item| {
+        tcx.ensure_result().check_well_formed(item.owner_id.def_id)
+    }))
+    .and(try_par_for_each_in(tcx.foreign_items(), |item| {
+        tcx.ensure_result().check_well_formed(item.owner_id.def_id)
+    }))
+    .and(try_par_for_each_in(tcx.nested_bodies(), |&item| {
+        tcx.ensure_result().check_well_formed(item)
+    }))
+    .and(try_par_for_each_in(tcx.opaques(), |&item| tcx.ensure_result().check_well_formed(item)));
 
     super::entry::check_for_entry_fn(tcx)?;
 
