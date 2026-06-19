@@ -3875,7 +3875,8 @@ pub struct DelegationInfo {
 
     /// Ids of parent and child segments, `Some` when we need to take
     /// generic args of those segments for signature/predicates inheritance.
-    /// `None` only in trait impl case.
+    /// `None` in trait impl case or when error delegation is generated, meaning
+    /// we should not access those segments for generic args lowering.
     /// When `child_seg_id_for_sig` is Some it always equals `child_seg_id`.
     pub parent_seg_id_for_sig: Option<HirId>,
     pub child_seg_id_for_sig: Option<HirId>,
