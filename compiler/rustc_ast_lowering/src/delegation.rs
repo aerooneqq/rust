@@ -657,11 +657,12 @@ impl<'hir> LoweringContext<'_, 'hir> {
             generics.self_ty_propagation_kind.as_mut()
         {
             *id = match new_path {
-                hir::QPath::Resolved(ty, _) => ty,
-                hir::QPath::TypeRelative(ty, _) => Some(ty),
+                hir::QPath::Resolved(ty, _) => {
+                    ty.expect("must contain self type as `SelfTy` propagation kind is specified")
+                }
+                hir::QPath::TypeRelative(ty, _) => ty,
             }
-            .map(|ty| ty.hir_id)
-            .expect("must contain self type as `SelfTy` propagation kind is specified");
+            .hir_id;
         }
 
         let callee_path = self.arena.alloc(self.mk_expr(hir::ExprKind::Path(new_path), span));
@@ -712,10 +713,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 args: new_args,
                 constraints: &[],
                 parenthesized: hir::GenericArgsParentheses::No,
-                span_ext: match segment.args {
-                    Some(args) => args.span_ext,
-                    None => span,
-                },
+                span_ext: segment.args.map_or(span, |args| args.span_ext),
             })
         });
 

@@ -85,7 +85,7 @@ pub(super) struct DelegationGenericArgsIterator<'hir> {
 }
 
 /// During generic args propagation we need to create generic args
-/// (and their `HirId`s) by demand, as some of generic args can not be used
+/// (and their `HirId`s) on demand, as some of generic args can not be used
 /// and in this case an assert of an unseen `HirId` will be triggered. Moreover,
 /// when replacing infers with generated generic params we should reuse existing
 /// `HirId` of replaced infer, thus this iterator abstracts the way `HirId`s are
@@ -185,8 +185,7 @@ impl<'hir> HirOrTyGenerics<'hir> {
     pub(super) fn into_hir_generics(&mut self, ctx: &mut LoweringContext<'_, 'hir>, span: Span) {
         if let HirOrTyGenerics::Ty(ty) = self {
             let rename_self = matches!(ty.pos, GenericsPosition::Child);
-            let params =
-                ctx.uplift_delegation_generic_params(span, ty.data.as_slice(), rename_self);
+            let params = ctx.uplift_delegation_generic_params(span, &ty.data, rename_self);
 
             *self = HirOrTyGenerics::Hir(DelegationGenerics {
                 data: params,
