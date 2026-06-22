@@ -55,9 +55,7 @@ use rustc_span::def_id::{DefId, LocalDefId};
 use rustc_span::symbol::kw;
 use rustc_span::{ErrorGuaranteed, Ident, Span, Symbol};
 
-use crate::delegation::generics::{
-    DelegationGenericArgsIterator, GenericsGenerationResult, GenericsGenerationResults,
-};
+use crate::delegation::generics::{GenericsGenerationResult, GenericsGenerationResults};
 use crate::diagnostics::{
     CycleInDelegationSignatureResolution, DelegationAttemptedBlockWithDefsDeletion,
     DelegationBlockSpecifiedWhenNoParams, UnresolvedDelegationCallee,
@@ -631,12 +629,9 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 // free-to-trait reuses.
                 let ty = match generics.self_ty_propagation_kind {
                     Some(hir::DelegationSelfTyPropagationKind::SelfParam) => {
-                        let kind = hir::TyKind::Path(
-                            DelegationGenericArgsIterator::create_generic_arg_path(
-                                self,
-                                generics.parent.generics.find_self_param(),
-                            ),
-                        );
+                        let self_param = generics.parent.generics.find_self_param();
+                        let path = self.create_generic_arg_path(self_param);
+                        let kind = hir::TyKind::Path(path);
 
                         let ty = match ty {
                             Some(ty) => hir::Ty { kind, ..ty.clone() },

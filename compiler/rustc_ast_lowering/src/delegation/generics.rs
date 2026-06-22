@@ -127,12 +127,12 @@ impl<'hir> DelegationGenericArgsIterator<'hir> {
             hir::GenericParamKind::Type { .. } => hir::GenericArg::Type(ctx.arena.alloc(hir::Ty {
                 hir_id,
                 span: p.span,
-                kind: hir::TyKind::Path(Self::create_generic_arg_path(ctx, &p)),
+                kind: hir::TyKind::Path(ctx.create_generic_arg_path(&p)),
             })),
             hir::GenericParamKind::Const { .. } => {
                 hir::GenericArg::Const(ctx.arena.alloc(hir::ConstArg {
                     hir_id,
-                    kind: hir::ConstArgKind::Path(Self::create_generic_arg_path(ctx, &p)),
+                    kind: hir::ConstArgKind::Path(ctx.create_generic_arg_path(&p)),
                     span: p.span,
                 }))
             }
@@ -149,35 +149,6 @@ impl<'hir> DelegationGenericArgsIterator<'hir> {
         }
 
         args
-    }
-
-    pub(super) fn create_generic_arg_path(
-        ctx: &mut LoweringContext<'_, 'hir>,
-        p: &hir::GenericParam<'hir>,
-    ) -> hir::QPath<'hir> {
-        let res = Res::Def(
-            match p.kind {
-                hir::GenericParamKind::Lifetime { .. } => DefKind::LifetimeParam,
-                hir::GenericParamKind::Type { .. } => DefKind::TyParam,
-                hir::GenericParamKind::Const { .. } => DefKind::ConstParam,
-            },
-            p.def_id.to_def_id(),
-        );
-
-        hir::QPath::Resolved(
-            None,
-            ctx.arena.alloc(hir::Path {
-                segments: ctx.arena.alloc_slice(&[hir::PathSegment {
-                    args: None,
-                    hir_id: ctx.next_id(),
-                    ident: p.name.ident(),
-                    infer_args: false,
-                    res,
-                }]),
-                res,
-                span: p.span,
-            }),
-        )
     }
 }
 
@@ -595,5 +566,34 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 },
             )),
         }
+    }
+
+    pub(super) fn create_generic_arg_path(
+        &mut self,
+        p: &hir::GenericParam<'hir>,
+    ) -> hir::QPath<'hir> {
+        let res = Res::Def(
+            match p.kind {
+                hir::GenericParamKind::Lifetime { .. } => DefKind::LifetimeParam,
+                hir::GenericParamKind::Type { .. } => DefKind::TyParam,
+                hir::GenericParamKind::Const { .. } => DefKind::ConstParam,
+            },
+            p.def_id.to_def_id(),
+        );
+
+        hir::QPath::Resolved(
+            None,
+            self.arena.alloc(hir::Path {
+                segments: self.arena.alloc_slice(&[hir::PathSegment {
+                    args: None,
+                    hir_id: self.next_id(),
+                    ident: p.name.ident(),
+                    infer_args: false,
+                    res,
+                }]),
+                res,
+                span: p.span,
+            }),
+        )
     }
 }
