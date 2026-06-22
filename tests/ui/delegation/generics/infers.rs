@@ -28,7 +28,6 @@ mod selected_tests {
         reuse <_ as Trait<'_, _>>::method::<'_, _> as foo1;
         reuse <() as Trait<'_, _>>::method::<'_, _> as foo2;
 
-
         reuse <_ as Trait<'_, _>>::r#static::<_, _> as foo3;
         reuse <() as Trait<'_, _>>::r#static::<_, _> as foo4;
 
@@ -48,8 +47,20 @@ mod selected_tests {
         reuse foo as foo3;
         reuse foo::<'static> as foo4;
     }
-}
 
+    mod non_angle_bracketed_args {
+        fn foo<'a, 'b: 'b, 'c, X, const M: usize, Y>(_: &'a &'b &'c ()) {}
+
+        reuse foo::('_, _, _, _) as bar;
+        //~^ ERROR: lifetimes must be followed by `+` to form a trait object type
+        //~| ERROR: at least one trait is required for an object type
+        //~| ERROR: parenthesized type parameters may only be used with a `Fn` trait [E0214]
+        //~| ERROR: function takes 1 lifetime argument but 0 lifetime arguments were supplied [E0107]
+        //~| ERROR: function takes 3 generic arguments but 4 generic arguments were supplied [E0107]
+        //~| ERROR: inferred lifetimes are not allowed in delegations as we need to inherit signature
+        //~| ERROR: the placeholder `_` is not allowed within types on item signatures for functions [E0121]
+    }
+}
 
 // All other stuff:
 mod legacy_tests {

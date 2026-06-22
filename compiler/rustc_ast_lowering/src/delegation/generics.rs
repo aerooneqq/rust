@@ -304,7 +304,15 @@ impl<'hir> LoweringContext<'_, 'hir> {
         let len = segments.len();
 
         let get_user_args = |idx: usize| -> Option<&AngleBracketedArgs> {
-            let Some(GenericArgs::AngleBracketed(args)) = segments[idx].args.as_ref() else {
+            let segment = &segments[idx];
+
+            let Some(args) = segment.args.as_ref() else { return None };
+            let GenericArgs::AngleBracketed(args) = args else {
+                self.tcx.dcx().span_delayed_bug(
+                    segment.span(),
+                    "expected angle-bracketed generic args in delegation segment",
+                );
+
                 return None;
             };
 
