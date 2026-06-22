@@ -316,6 +316,9 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 return None;
             };
 
+            // Treat empty args `reuse foo::<> as bar` as `reuse foo as bar`,
+            // the same logic applied when we call function `fn f<T>(t: T)`
+            // like that `f::<>(())`, in HIR no `<>` will be generated.
             (!args.args.is_empty()).then(|| args)
         };
 
