@@ -24,16 +24,6 @@ pub(super) enum GenericArgSlot<T> {
     Generate(T, Option<usize> /* Infer arg index from AST */),
 }
 
-impl<T> GenericArgSlot<T> {
-    fn generate(t: T) -> GenericArgSlot<T> {
-        GenericArgSlot::Generate(t, None)
-    }
-
-    fn generate_infer(t: T, index: usize) -> GenericArgSlot<T> {
-        GenericArgSlot::Generate(t, Some(index))
-    }
-}
-
 pub(super) struct DelegationGenerics<T> {
     data: T,
     pos: GenericsPosition,
@@ -49,7 +39,7 @@ impl<'hir> DelegationGenerics<TyGenerics<'hir>> {
         trait_impl: bool,
     ) -> Self {
         DelegationGenerics {
-            data: params.iter().map(GenericArgSlot::generate).collect(),
+            data: params.iter().map(|p| GenericArgSlot::Generate(p, None)).collect(),
             pos,
             trait_impl,
         }
@@ -391,7 +381,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 self.create_slots_from_args(args, &sig_params[..synth_params_index], false);
 
             for synth_param in &sig_params[synth_params_index..] {
-                slots.push(GenericArgSlot::generate(synth_param));
+                slots.push(GenericArgSlot::Generate(synth_param, None));
             }
 
             DelegationGenerics { data: slots, pos: GenericsPosition::Child, trait_impl: false }
@@ -432,7 +422,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
     ) -> TyGenerics<'hir> {
         let mut slots = vec![];
         if add_first_self {
-            slots.push(GenericArgSlot::generate(&params[0]));
+            slots.push(GenericArgSlot::Generate(&params[0], None));
         }
 
         let params = &params[usize::from(add_first_self)..];
@@ -474,7 +464,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
             }
 
             slots.push(match is_infer {
-                true => GenericArgSlot::generate_infer(param, idx),
+                true => GenericArgSlot::Generate(param, Some(idx)),
                 false => GenericArgSlot::UserSpecified,
             });
         }
