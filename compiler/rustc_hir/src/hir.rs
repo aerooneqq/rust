@@ -17,6 +17,7 @@ pub use rustc_ast::{
     MetaItemInner, MetaItemLit, Movability, Mutability, Pinnedness, UnOp,
 };
 use rustc_data_structures::fingerprint::Fingerprint;
+use rustc_data_structures::fx::FxIndexSet;
 use rustc_data_structures::sorted_map::SortedMap;
 use rustc_data_structures::steal::Steal;
 use rustc_data_structures::tagged_ptr::TaggedRef;
@@ -3875,7 +3876,7 @@ pub enum DelegationSelfTyPropagationKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, StableHash)]
-pub struct DelegationInfo {
+pub struct DelegationInfo<'hir> {
     pub call_expr_id: HirId,
     pub call_path_res: DefId,
 
@@ -3893,13 +3894,15 @@ pub struct DelegationInfo {
 
     pub self_ty_propagation_kind: Option<DelegationSelfTyPropagationKind>,
     pub group_id: Option<(LocalExpnId, bool /* unused_target_expr */)>,
+
+    pub arguments_to_map: &'hir FxIndexSet<usize>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, StableHash)]
 pub enum InferDelegationSig<'hir> {
     Input(usize),
     // Place delegation info here, as we always specify output type for delegations.
-    Output(&'hir DelegationInfo),
+    Output(&'hir DelegationInfo<'hir>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, StableHash)]
@@ -4253,7 +4256,7 @@ impl<'hir> FnDecl<'hir> {
         None
     }
 
-    pub fn opt_delegation_info(&self) -> Option<&'hir DelegationInfo> {
+    pub fn opt_delegation_info(&self) -> Option<&'hir DelegationInfo<'hir>> {
         if let FnRetTy::Return(ty) = self.output
             && let TyKind::InferDelegation(InferDelegation::Sig(_, kind)) = ty.kind
             && let InferDelegationSig::Output(generics) = kind

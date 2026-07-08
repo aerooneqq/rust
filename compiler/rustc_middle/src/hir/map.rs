@@ -871,11 +871,11 @@ impl<'tcx> TyCtxt<'tcx> {
         self.opt_hir_owner_node(def_id)?.fn_decl()?.opt_delegation_sig_id()
     }
 
-    pub fn hir_opt_delegation_info(self, def_id: LocalDefId) -> Option<&'tcx DelegationInfo> {
+    pub fn hir_opt_delegation_info(self, def_id: LocalDefId) -> Option<&'tcx DelegationInfo<'tcx>> {
         self.opt_hir_owner_node(def_id)?.fn_decl()?.opt_delegation_info()
     }
 
-    pub fn hir_delegation_info(self, delegation_id: LocalDefId) -> &'tcx DelegationInfo {
+    pub fn hir_delegation_info(self, delegation_id: LocalDefId) -> &'tcx DelegationInfo<'tcx> {
         self.hir_opt_delegation_info(delegation_id).expect("processing delegation")
     }
 
