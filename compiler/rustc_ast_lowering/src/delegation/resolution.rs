@@ -2,7 +2,7 @@ use std::ops::ControlFlow;
 
 use ast::visit::Visitor;
 use hir::def::DefKind;
-use rustc_ast as ast;
+use rustc_ast::{self as ast, Delegation, DelegationSource, NodeId};
 use rustc_data_structures::fx::{FxHashSet, FxIndexSet};
 use rustc_hir as hir;
 use rustc_middle::ty::Ty;
@@ -43,7 +43,7 @@ pub(super) struct DelegationResolution {
     pub param_info: ParamInfo,
     pub span: Span,
     pub call_path_res: DefId,
-    pub source: ast::DelegationSource,
+    pub source: DelegationSource,
     pub parent: LocalDefId,
     pub sig_mapping: SigMapping,
 }
@@ -106,7 +106,7 @@ pub(super) mod resolver {
 impl<'tcx> DelegationResolver<'_, 'tcx> {
     pub(super) fn resolve_delegation(
         &self,
-        delegation: &ast::Delegation,
+        delegation: &Delegation,
         span: Span,
     ) -> Result<(DelegationResolution, GenericsGenerationResults<'tcx>), ErrorGuaranteed> {
         let tcx = self.tcx();
@@ -192,7 +192,7 @@ impl<'tcx> DelegationResolver<'_, 'tcx> {
 
     fn check_block_soundness(
         &self,
-        delegation: &ast::Delegation,
+        delegation: &Delegation,
         sig_id: DefId,
         is_method: bool,
         param_count: usize,
@@ -200,7 +200,7 @@ impl<'tcx> DelegationResolver<'_, 'tcx> {
         let tcx = self.tcx();
         let should_generate_block = is_method
             || matches!(tcx.def_kind(sig_id), DefKind::Fn)
-            || matches!(delegation.source, ast::DelegationSource::Single);
+            || matches!(delegation.source, DelegationSource::Single);
 
         let Some(block) = &delegation.body else { return Ok((should_generate_block, false)) };
 
@@ -218,7 +218,7 @@ impl<'tcx> DelegationResolver<'_, 'tcx> {
         impl<'a> Visitor<'a> for DefinitionsFinder<'a, '_> {
             type Result = ControlFlow<()>;
 
-            fn visit_id(&mut self, id: ast::NodeId) -> Self::Result {
+            fn visit_id(&mut self, id: NodeId) -> Self::Result {
                 match self.resolver.is_definition(id) {
                     true => ControlFlow::Break(()),
                     false => ControlFlow::Continue(()),
@@ -241,7 +241,7 @@ impl<'tcx> DelegationResolver<'_, 'tcx> {
 
     fn create_sig_mapping(
         &self,
-        delegation: &ast::Delegation,
+        delegation: &Delegation,
         span: Span,
         should_generate_block: bool,
         parent: LocalDefId,
@@ -283,7 +283,7 @@ impl<'tcx> DelegationResolver<'_, 'tcx> {
 
     fn can_perform_self_mapping(
         &self,
-        delegation: &ast::Delegation,
+        delegation: &Delegation,
         parent: LocalDefId,
     ) -> Result<bool, ErrorGuaranteed> {
         // Heuristic: don't do wrapping if there is no target expression.
