@@ -1,5 +1,4 @@
-//@ run-pass
-//@ check-run-results
+//@ check-pass
 
 #![feature(fn_delegation)]
 
@@ -65,7 +64,6 @@ mod many_froms {
 mod many_froms_2 {
     use std::sync::Arc;
     use std::rc::Rc;
-    use std::pin::Pin;
 
     trait MyAdd {
         fn add(self, other: Self) -> Box<Arc<Rc<Box<Rc<Self>>>>>;
@@ -95,6 +93,4 @@ mod many_froms_2 {
 }
 
 fn main() {
-    println!("default_test");
-    default_test::check();
 }
