@@ -630,8 +630,8 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
     }
 
     /// Performs arguments check with an additional routine of adjusting the first argument,
-    /// so it corresponds to the first parameter of the function. We reuse adjustments
-    /// that are obtained from `probe_for_name`, where the first argument pretends to be
+    /// (and possibly other arguments) so it corresponds to the first parameter of the function.
+    /// We reuse adjustments that are obtained from `probe_for_name`, where the first argument pretends to be
     /// a receiver like in a method call. At this point this routine is used for delegations,
     /// as from this moment we always generate a call (earlier method calls were generated),
     /// so we can both propagate parent generics and get benefits from adjustments from method call.
@@ -669,7 +669,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             return do_check();
         };
 
-        // After we found pick for receiver we need to resolve inference variables
+        // After we found pick for first argument we need to resolve inference variables
         // in order to find adjustments for other mapped arguments.
         let mut resolved_inputs = vec![];
         let mut prev_types = FxHashMap::default();
@@ -681,8 +681,8 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             .collect::<Vec<_>>();
 
         for &(idx, arg) in &args_to_map {
-            let is_receiver = idx == 0;
-            let self_ty_override = if is_receiver { None } else { Some(resolved_inputs[idx]) };
+            let is_first_arg = idx == 0;
+            let self_ty_override = if is_first_arg { None } else { Some(resolved_inputs[idx]) };
             let scope = ProbeScope::Single(candidate_res, self_ty_override);
             let arg_type = self.check_expr(arg);
 
@@ -700,8 +700,8 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
             let Ok(pick) = pick else { return do_check() };
 
-            if is_receiver && args_to_map.len() > 1 {
-                // We successfully found a pick and adjustments for receiver,
+            if is_first_arg && args_to_map.len() > 1 {
+                // We successfully found a pick and adjustments for first argument,
                 // now we have to unify it with signature input in order to resolve
                 // all inference variables. After that we update input signature for
                 // adjustments search for mapped arguments.
