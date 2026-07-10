@@ -268,7 +268,7 @@ pub(crate) enum Mode {
     Path,
 }
 
-#[derive(PartialEq, Eq, Copy, Clone, Debug)]
+#[derive(PartialEq, Eq, Debug)]
 pub(crate) enum ProbeScope<'tcx> {
     // Single candidate coming from pre-resolved delegation method.
     Single(DefId, Option<Ty<'tcx>> /* self_ty override */),
@@ -2552,13 +2552,9 @@ impl<'a, 'tcx> ProbeContext<'a, 'tcx> {
         impl_ty: Ty<'tcx>,
         args: GenericArgsRef<'tcx>,
     ) -> (Ty<'tcx>, Option<Ty<'tcx>>) {
-        if let Some(self_ty_override) = self.self_ty_override {
-            return (self_ty_override, None);
-        }
-
         if item.is_fn() && self.mode == Mode::MethodCall {
             let sig = self.xform_method_sig(item.def_id, args);
-            (sig.inputs()[0], Some(sig.output()))
+            (self.self_ty_override.unwrap_or(sig.inputs()[0]), Some(sig.output()))
         } else {
             (impl_ty, None)
         }

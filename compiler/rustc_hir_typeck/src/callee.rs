@@ -645,14 +645,11 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         def_id: Option<DefId>,
         callee_generic_args: Option<GenericArgsRef<'tcx>>,
     ) {
-        let call_span = call_expr.span;
-        let formal_input_tys = fn_sig.inputs();
-
         let do_check = || {
             self.check_argument_types(
-                call_span,
+                call_expr.span,
                 call_expr,
-                formal_input_tys,
+                fn_sig.inputs(),
                 fn_sig.output(),
                 expected,
                 arg_exprs,
@@ -673,6 +670,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         // in order to find adjustments for other mapped arguments.
         let mut resolved_inputs = vec![];
         let mut prev_types = FxHashMap::default();
+        let formal_input_tys = fn_sig.inputs();
 
         let args_to_map = arg_exprs
             .iter()
@@ -705,7 +703,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                 // now we have to unify it with signature input in order to resolve
                 // all inference variables. After that we update input signature for
                 // adjustments search for mapped arguments.
-                let cause = self.cause(call_span, ObligationCauseCode::Misc);
+                let cause = self.cause(call_expr.span, ObligationCauseCode::Misc);
                 if self
                     .at(&cause, self.param_env)
                     .sup(DefineOpaqueTypes::Yes, formal_input_tys[0], pick.self_ty)
