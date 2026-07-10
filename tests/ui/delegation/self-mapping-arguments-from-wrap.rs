@@ -35,26 +35,26 @@ mod many_froms {
     use std::rc::Rc;
 
     trait MyAdd {
-        fn add(self, other: Self) -> Box<Box<Arc<Box<Rc<Self>>>>>;
+        fn add(self, other: Self) -> Box<Box<Box<Arc<Box<Rc<Self>>>>>>;
     }
 
     impl MyAdd for usize {
-        fn add(self, other: usize) -> Box<Box<Arc<Box<Rc<usize>>>>> {
-            Box::new(Box::new(Arc::new(Box::new(Rc::new(self + other)))))
+        fn add(self, other: usize) -> Box<Box<Box<Arc<Box<Rc<usize>>>>>> {
+            Box::new(Box::new(Box::new(Arc::new(Box::new(Rc::new(self + other))))))
         }
     }
 
     #[derive(Eq, PartialEq, Debug)]
-    struct W(Box<Box<Arc<Box<Rc<usize>>>>>);
+    struct W(Box<Box<Box<Arc<Box<Rc<usize>>>>>>);
 
     reuse impl MyAdd for W {
         println!("{self:?}");
-        *****self.0
+        ******self.0
     }
 
     pub fn check() {
         fn w(x: usize) -> W {
-            W(Box::new(Box::new(Arc::new(Box::new(Rc::new(x))))))
+            W(Box::new(Box::new(Box::new(Arc::new(Box::new(Rc::new(x)))))))
         }
 
         w(1).add(w(2));
