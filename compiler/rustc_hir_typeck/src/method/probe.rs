@@ -2552,8 +2552,8 @@ impl<'a, 'tcx> ProbeContext<'a, 'tcx> {
         impl_ty: Ty<'tcx>,
         args: GenericArgsRef<'tcx>,
     ) -> (Ty<'tcx>, Option<Ty<'tcx>>) {
-        if let Some(r#override) = self.self_ty_override {
-            return (r#override, None);
+        if let Some(self_ty_override) = self.self_ty_override {
+            return (self_ty_override, None);
         }
 
         if item.is_fn() && self.mode == Mode::MethodCall {
