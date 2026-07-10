@@ -662,7 +662,20 @@ impl<'hir> LoweringContext<'_, 'hir> {
             p.def_id.to_def_id(),
         );
 
-        self.create_resolved_path(res, p.name.ident(), p.span)
+        self.create_resolved_qpath(res, p.name.ident(), p.span, false)
+    }
+
+    pub(super) fn create_resolved_qpath(
+        &mut self,
+        res: Res,
+        ident: Ident,
+        span: Span,
+        infer_args: bool,
+    ) -> hir::QPath<'hir> {
+        hir::QPath::Resolved(
+            None,
+            self.arena.alloc(self.create_resolved_path(res, ident, span, infer_args, None)),
+        )
     }
 
     pub(super) fn create_resolved_path(
@@ -670,21 +683,32 @@ impl<'hir> LoweringContext<'_, 'hir> {
         res: Res,
         ident: Ident,
         span: Span,
-    ) -> hir::QPath<'hir> {
-        hir::QPath::Resolved(
-            None,
-            self.arena.alloc(hir::Path {
-                segments: self.arena.alloc_slice(&[hir::PathSegment {
-                    args: None,
-                    hir_id: self.next_id(),
-                    ident,
-                    infer_args: false,
-                    res,
-                    delegation_child_segment: false,
-                }]),
-                res,
-                span,
-            }),
-        )
+        infer_args: bool,
+        args: Option<&'hir hir::GenericArgs<'hir>>,
+    ) -> hir::Path<'hir> {
+        hir::Path {
+            res,
+            span,
+            segments: self
+                .arena
+                .alloc_slice(&[self.create_resolved_path_segment(res, ident, infer_args, args)]),
+        }
+    }
+
+    pub(super) fn create_resolved_path_segment(
+        &mut self,
+        res: Res,
+        ident: Ident,
+        infer_args: bool,
+        args: Option<&'hir hir::GenericArgs<'hir>>,
+    ) -> hir::PathSegment<'hir> {
+        hir::PathSegment {
+            args,
+            hir_id: self.next_id(),
+            ident,
+            infer_args,
+            res,
+            delegation_child_segment: false,
+        }
     }
 }

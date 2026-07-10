@@ -31,9 +31,9 @@ pub(super) struct ParamInfo {
     pub splatted: Option<u8>,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub(super) struct SigMapping {
-    pub map_return: bool,
+    pub return_mapping: Option<Vec<(DefId, usize)>>,
     pub arguments_to_map: FxIndexSet<usize>,
 }
 
@@ -254,9 +254,35 @@ impl<'tcx> DelegationResolver<'_, 'tcx> {
         }
 
         if self.can_perform_self_mapping(delegation, parent)? {
-            // FIXME(fn_delegation): support heuristics for mapping of complex
-            // return types: `Self` -> `Box<Arc<Rc<Self>>>`
-            mapping.map_return = sig.output().is_param(0);
+            let self_param = Ty::new_param(self.tcx(), 0, kw::SelfUpper);
+            let output = sig.output();
+
+            mapping.return_mapping = if output.contains(self_param) {
+                let mut type_ids = vec![];
+                let mut current_type = output;
+
+                let found_self = loop {
+                    if current_type == self_param {
+                        break true;
+                    }
+
+                    let ty::Adt(did, args) = current_type.kind() else {
+                        break false;
+                    };
+
+                    type_ids.push((did.did(), args.len()));
+                    current_type = if let [arg, ..] = args.as_slice() {
+                        let ty::GenericArgKind::Type(t) = arg.kind() else { panic!() };
+                        t
+                    } else {
+                        break false;
+                    };
+                };
+
+                if found_self { Some(type_ids) } else { None }
+            } else {
+                None
+            };
 
             let self_param = Ty::new_param(self.tcx(), 0, kw::SelfUpper);
             let arguments_to_map = sig
