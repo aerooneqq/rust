@@ -3875,8 +3875,8 @@ pub enum DelegationSelfTyPropagationKind {
     SelfParam,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, StableHash)]
-pub struct DelegationInfo<'hir> {
+#[derive(Debug, StableHash)]
+pub struct DelegationInfo {
     pub call_expr_id: HirId,
     pub call_path_res: DefId,
 
@@ -3895,17 +3895,17 @@ pub struct DelegationInfo<'hir> {
     pub self_ty_propagation_kind: Option<DelegationSelfTyPropagationKind>,
     pub group_id: Option<(LocalExpnId, bool /* unused_target_expr */)>,
 
-    pub arguments_to_map: &'hir FxIndexSet<usize>,
+    pub arguments_to_map: FxIndexSet<usize>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, StableHash)]
+#[derive(Debug, Clone, Copy, StableHash)]
 pub enum InferDelegationSig<'hir> {
     Input(usize),
     // Place delegation info here, as we always specify output type for delegations.
-    Output(&'hir DelegationInfo<'hir>),
+    Output(&'hir DelegationInfo),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, StableHash)]
+#[derive(Debug, Clone, Copy, StableHash)]
 pub enum InferDelegation<'hir> {
     /// Infer the type of this `DefId` through `tcx.type_of(def_id).instantiate_identity()`,
     /// used for const types propagation.
@@ -4256,7 +4256,7 @@ impl<'hir> FnDecl<'hir> {
         None
     }
 
-    pub fn opt_delegation_info(&self) -> Option<&'hir DelegationInfo<'hir>> {
+    pub fn opt_delegation_info(&self) -> Option<&'hir DelegationInfo> {
         if let FnRetTy::Return(ty) = self.output
             && let TyKind::InferDelegation(InferDelegation::Sig(_, kind)) = ty.kind
             && let InferDelegationSig::Output(generics) = kind

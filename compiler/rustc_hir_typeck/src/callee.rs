@@ -779,7 +779,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             return None;
         }
 
-        Some((info.call_path_res, info.arguments_to_map))
+        Some((info.call_path_res, &info.arguments_to_map))
     }
 
     /// Attempts to reinterpret `method(rcvr, args...)` as `rcvr.method(args...)`
