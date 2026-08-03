@@ -476,12 +476,12 @@ impl<'hir> LoweringContext<'_, 'hir> {
     fn generate_from_wrapper(
         &mut self,
         mut expr: hir::Expr<'hir>,
-        type_ids: &Vec<(DefId, usize)>,
+        type_ids: &[DefId],
         span: Span,
     ) -> hir::Expr<'hir> {
         let items = self.tcx.lang_items();
-        let from_trait_res = Res::Def(DefKind::Trait, items.from_trait().expect("must be"));
-        let from_fn_res = Res::Def(DefKind::AssocFn, items.from_fn().expect("must be"));
+        let from_trait_res = Res::Def(DefKind::Trait, items.from_trait().expect("lang item"));
+        let from_fn_res = Res::Def(DefKind::AssocFn, items.from_fn().expect("lang item"));
 
         for idx in 0..type_ids.len() {
             let is_first_wrap = idx == 0;
@@ -523,9 +523,9 @@ impl<'hir> LoweringContext<'_, 'hir> {
                     hir::TyKind::Path(hir::QPath::Resolved(None, ctx.arena.alloc(path)))
                 }
 
-                let (id, _) = type_ids[type_ids.len() - idx];
+                let id = type_ids[type_ids.len() - idx];
                 let args: &[_] = if type_ids.len() >= idx - 1 && idx - 1 > 0 {
-                    let (prev_id, _) = type_ids[type_ids.len() - idx + 1];
+                    let prev_id = type_ids[type_ids.len() - idx + 1];
 
                     let prev_path = create_path(self, prev_id, None, span);
                     self.arena.alloc_from_iter(std::iter::once(hir::GenericArg::Type(

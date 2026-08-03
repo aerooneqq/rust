@@ -33,7 +33,7 @@ pub(super) struct ParamInfo {
 
 #[derive(Default, Debug)]
 pub(super) struct SigMapping {
-    pub return_mapping: Option<Vec<(DefId, usize)>>,
+    pub return_mapping: Option<Vec<DefId>>,
     pub arguments_to_map: FxIndexSet<usize>,
 }
 
@@ -257,32 +257,38 @@ impl<'tcx> DelegationResolver<'_, 'tcx> {
             let self_param = Ty::new_param(self.tcx(), 0, kw::SelfUpper);
             let output = sig.output();
 
-            mapping.return_mapping = if output.contains(self_param) {
-                let mut type_ids = vec![];
-                let mut current_type = output;
+            mapping.return_mapping = output
+                .contains(self_param)
+                .then(|| {
+                    let mut type_ids = vec![];
+                    let mut current_type = output;
 
-                let found_self = loop {
-                    if current_type == self_param {
-                        break true;
-                    }
+                    let found_self = loop {
+                        if current_type == self_param {
+                            break true;
+                        }
 
-                    let ty::Adt(did, args) = current_type.kind() else {
-                        break false;
+                        let ty::Adt(did, args) = current_type.kind() else {
+                            break false;
+                        };
+
+                        type_ids.push(did.did());
+
+                        let first_type_arg = args.iter().find(|a| a.as_type().is_some());
+                        if let Some(type_arg) = first_type_arg {
+                            let ty::GenericArgKind::Type(t) = type_arg.kind() else {
+                                unreachable!()
+                            };
+
+                            current_type = t;
+                        } else {
+                            break false;
+                        }
                     };
 
-                    type_ids.push((did.did(), args.len()));
-                    current_type = if let [arg, ..] = args.as_slice() {
-                        let ty::GenericArgKind::Type(t) = arg.kind() else { panic!() };
-                        t
-                    } else {
-                        break false;
-                    };
-                };
-
-                if found_self { Some(type_ids) } else { None }
-            } else {
-                None
-            };
+                    found_self.then(|| type_ids)
+                })
+                .flatten();
 
             let self_param = Ty::new_param(self.tcx(), 0, kw::SelfUpper);
             let arguments_to_map = sig
