@@ -498,7 +498,6 @@ impl<'hir> LoweringContext<'_, 'hir> {
 
             let segments = self.arena.alloc_slice(&[from_segment, from_fn_segment]);
             let path = self.arena.alloc(hir::Path { res: from_fn_res, segments, span });
-
             let path = self.mk_expr(hir::ExprKind::Path(hir::QPath::Resolved(None, path)), span);
             let path = self.arena.alloc(path);
 

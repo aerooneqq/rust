@@ -1,3 +1,8 @@
-default_test
-W(1)
-W(2)
+single_from W(1)
+single_from W(2)
+many_froms W(1)
+many_froms W(2)
+many_froms_2 W(1)
+many_froms_2 W(2)
+custom_froms W(S3 { t: S2 { t: S2 { t: S1 { a: 1 } } }, pd: PhantomData<&[usize; 123]> })
+custom_froms W(S3 { t: S2 { t: S2 { t: S1 { a: 2 } } }, pd: PhantomData<&[usize; 123]> })
