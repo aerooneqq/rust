@@ -33,7 +33,7 @@ pub(super) struct ParamInfo {
 
 #[derive(Default, Debug)]
 pub(super) struct SigMapping {
-    pub return_mapping: Option<Vec<DefId>>,
+    pub return_mapping: Option<Vec<(DefId, Option<usize>)>>,
     pub arguments_to_map: FxIndexSet<usize>,
 }
 
@@ -262,6 +262,7 @@ impl<'tcx> DelegationResolver<'_, 'tcx> {
                 .then(|| {
                     let mut type_ids = vec![];
                     let mut current_type = output;
+                    let mut current_pos_in_args = None;
 
                     let found_self = loop {
                         if current_type == self_param {
@@ -272,14 +273,18 @@ impl<'tcx> DelegationResolver<'_, 'tcx> {
                             break false;
                         };
 
-                        type_ids.push(did.did());
+                        type_ids.push((did.did(), current_pos_in_args));
 
-                        let first_type_arg = args.iter().find(|a| a.as_type().is_some());
-                        if let Some(type_arg) = first_type_arg {
-                            let ty::GenericArgKind::Type(t) = type_arg.kind() else {
-                                unreachable!()
+                        let first_type_arg_idx = args.iter().position(|a| a.as_type().is_some());
+                        if let Some(idx) = first_type_arg_idx {
+                            let ty::GenericArgKind::Type(t) = args[idx].kind() else {
+                                unreachable!("found index of the first type above")
                             };
 
+                            let lifetimes_count =
+                                args.iter().filter(|a| a.as_region().is_some()).count();
+
+                            current_pos_in_args = Some(idx - lifetimes_count);
                             current_type = t;
                         } else {
                             break false;

@@ -476,7 +476,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
     fn generate_from_wrapper(
         &mut self,
         mut expr: hir::Expr<'hir>,
-        type_ids: &[DefId],
+        type_ids: &[(DefId, Option<usize>)],
         span: Span,
     ) -> hir::Expr<'hir> {
         let items = self.tcx.lang_items();
@@ -509,7 +509,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
 
     fn fill_from_trait_args(
         &mut self,
-        type_ids: &[DefId],
+        type_ids: &[(DefId, Option<usize>)],
         idx: usize,
         from_trait_segment: &mut hir::PathSegment<'hir>,
         span: Span,
@@ -533,17 +533,26 @@ impl<'hir> LoweringContext<'_, 'hir> {
             hir::TyKind::Path(hir::QPath::Resolved(None, ctx.arena.alloc(path)))
         }
 
-        let first_type = type_ids[idx - 1];
-        let args: &[_] = if idx >= 2 {
-            let inner_type = type_ids[idx - 2];
+        let (first_type, _) = type_ids[idx - 1];
 
-            let inner_path = create_path(self, inner_type, None, span);
-            self.arena.alloc_from_iter(std::iter::once(hir::GenericArg::Type(self.arena.alloc(
-                hir::Ty { hir_id: self.next_id(), kind: to_type_path(self, inner_path), span },
-            ))))
-        } else {
-            &[]
-        };
+        let args = type_ids
+            .get(idx - 2)
+            .map(|&(inner_type, pos)| {
+                let pos = pos.expect("must contain position for inner generic arg");
+                let infers = (0..pos)
+                    .map(|_| hir::GenericArg::Infer(hir::InferArg { hir_id: self.next_id(), span }))
+                    .collect::<Vec<_>>();
+
+                let inner_path = create_path(self, inner_type, None, span);
+                self.arena.alloc_from_iter(infers.into_iter().chain(std::iter::once(
+                    hir::GenericArg::Type(self.arena.alloc(hir::Ty {
+                        hir_id: self.next_id(),
+                        kind: to_type_path(self, inner_path),
+                        span,
+                    })),
+                )))
+            })
+            .unwrap_or_default();
 
         let first_path = create_path(
             self,

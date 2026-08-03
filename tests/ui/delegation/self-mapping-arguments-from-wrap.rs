@@ -117,41 +117,41 @@ mod custom_froms {
     }
 
     #[derive(Debug)]
-    struct S3<'a, const C: usize, T> {
+    struct S3<'a, const C: usize, T, U, const B: bool> {
         t: T,
-        pd: std::marker::PhantomData<&'a [usize; C]>
+        pd: std::marker::PhantomData<&'a [(usize, U); C]>
     }
 
-    impl<'a, const C: usize, T> From<T> for S3<'a, C, T> {
-        fn from(t: T) -> S3<'a, C, T> {
+    impl<'a, const C: usize, T, const B: bool> From<T> for S3<'a, C, T, (), B> {
+        fn from(t: T) -> S3<'a, C, T, (), B> {
             S3 {
                 t,
-                pd: std::marker::PhantomData::<&'a [usize; C]>,
+                pd: std::marker::PhantomData::<&'a [(usize, ()); C]>,
             }
         }
     }
 
     trait MyAdd: Sized {
-        fn add(self, other: Self) -> S3<'static, 123, S2<S2<S1<usize>>>>;
+        fn add(self, other: Self) -> S1<S1<S3<'static, 123, S2<S2<S1<Self>>>, (), true>>>;
     }
 
     impl MyAdd for usize {
-        fn add(self, other: usize) -> S3<'static, 123, S2<S2<S1<usize>>>> {
-            S3::from(S2::from(S2::from(S1::from(self + other))))
+        fn add(self, other: usize) -> S1<S1<S3<'static, 123, S2<S2<S1<Self>>>, (), true>>> {
+            S1::from(S1::from(S3::from(S2::from(S2::from(S1::from(self + other))))))
         }
     }
 
     #[derive(Debug)]
-    struct W(S3<'static, 123, S2<S2<S1<usize>>>>);
+    struct W(S1<S1<S3<'static, 123, S2<S2<S1<usize>>>, (), true>>>);
 
     reuse impl MyAdd for W {
         println!("custom_froms {self:?}");
-        self.0.t.t.t.a
+        self.0.a.a.t.t.t.a
     }
 
     pub fn check() {
         fn w(x: usize) -> W {
-            W(S3::from(S2::from(S2::from(S1::from(x)))))
+            W(S1::from(S1::from(S3::from(S2::from(S2::from(S1::from(x)))))))
         }
 
         w(1).add(w(2));
