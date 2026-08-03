@@ -674,11 +674,11 @@ impl<'hir> LoweringContext<'_, 'hir> {
     ) -> hir::QPath<'hir> {
         hir::QPath::Resolved(
             None,
-            self.arena.alloc(self.create_resolved_path(res, ident, span, infer_args, None)),
+            self.arena.alloc(self.create_path(res, ident, span, infer_args, None)),
         )
     }
 
-    pub(super) fn create_resolved_path(
+    pub(super) fn create_path(
         &mut self,
         res: Res,
         ident: Ident,
@@ -691,11 +691,11 @@ impl<'hir> LoweringContext<'_, 'hir> {
             span,
             segments: self
                 .arena
-                .alloc_slice(&[self.create_resolved_path_segment(res, ident, infer_args, args)]),
+                .alloc_slice(&[self.create_path_segment(res, ident, infer_args, args)]),
         }
     }
 
-    pub(super) fn create_resolved_path_segment(
+    pub(super) fn create_path_segment(
         &mut self,
         res: Res,
         ident: Ident,

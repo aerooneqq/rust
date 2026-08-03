@@ -480,108 +480,96 @@ impl<'hir> LoweringContext<'_, 'hir> {
         span: Span,
     ) -> hir::Expr<'hir> {
         let items = self.tcx.lang_items();
-        let from_trait_res = Res::Def(DefKind::Trait, items.from_trait().expect("lang item"));
+        let from_res = Res::Def(DefKind::Trait, items.from_trait().expect("lang item"));
         let from_fn_res = Res::Def(DefKind::AssocFn, items.from_fn().expect("lang item"));
 
         for idx in 0..type_ids.len() {
-            let is_first_wrap = idx == 0;
+            let first_wrap = idx == 0;
 
-            let mut from_trait_segment = self.create_resolved_path_segment(
-                from_trait_res,
-                Ident::new(sym::From, span),
-                is_first_wrap,
-                None,
-            );
+            let ident = Ident::new(sym::From, span);
+            let mut from_segment = self.create_path_segment(from_res, ident, first_wrap, None);
 
-            let from_trait_from_segment = self.create_resolved_path_segment(
-                from_fn_res,
-                Ident::new(sym::from, span),
-                false,
-                None,
-            );
+            let ident = Ident::new(sym::from, span);
+            let from_fn_segment = self.create_path_segment(from_fn_res, ident, false, None);
 
-            if !is_first_wrap {
-                fn create_path<'hir>(
-                    ctx: &mut LoweringContext<'_, 'hir>,
-                    id: DefId,
-                    args: Option<&'hir hir::GenericArgs<'hir>>,
-                    span: Span,
-                ) -> hir::Path<'hir> {
-                    ctx.create_resolved_path(
-                        Res::Def(DefKind::Struct, id),
-                        Ident::new(ctx.tcx.item_name(id), span),
-                        span,
-                        true,
-                        args,
-                    )
-                }
-
-                fn to_type_path<'hir>(
-                    ctx: &mut LoweringContext<'_, 'hir>,
-                    path: hir::Path<'hir>,
-                ) -> hir::TyKind<'hir, AmbigArg> {
-                    hir::TyKind::Path(hir::QPath::Resolved(None, ctx.arena.alloc(path)))
-                }
-
-                let id = type_ids[type_ids.len() - idx];
-                let args: &[_] = if type_ids.len() >= idx - 1 && idx - 1 > 0 {
-                    let prev_id = type_ids[type_ids.len() - idx + 1];
-
-                    let prev_path = create_path(self, prev_id, None, span);
-                    self.arena.alloc_from_iter(std::iter::once(hir::GenericArg::Type(
-                        self.arena.alloc(hir::Ty {
-                            hir_id: self.next_id(),
-                            kind: to_type_path(self, prev_path),
-                            span,
-                        }),
-                    )))
-                } else {
-                    &[]
-                };
-
-                let curr_path = create_path(
-                    self,
-                    id,
-                    Some(self.arena.alloc(hir::GenericArgs {
-                        args,
-                        constraints: &[],
-                        parenthesized: rustc_hir::GenericArgsParentheses::No,
-                        span_ext: span,
-                    })),
-                    span,
-                );
-
-                from_trait_segment.args = Some(self.arena.alloc(hir::GenericArgs {
-                    args: self.arena.alloc_slice(&[hir::GenericArg::Type(self.arena.alloc(
-                        hir::Ty {
-                            hir_id: self.next_id(),
-                            kind: to_type_path(self, curr_path),
-                            span,
-                        },
-                    ))]),
-                    constraints: &[],
-                    parenthesized: rustc_hir::GenericArgsParentheses::No,
-                    span_ext: span,
-                }));
+            if !first_wrap {
+                self.fill_from_trait_args(type_ids, idx, &mut from_segment, span);
             }
 
-            let path = self.arena.alloc(self.mk_expr(
-                hir::ExprKind::Path(hir::QPath::Resolved(
-                    None,
-                    self.arena.alloc(hir::Path {
-                        res: from_fn_res,
-                        segments:
-                            self.arena.alloc_slice(&[from_trait_segment, from_trait_from_segment]),
-                        span,
-                    }),
-                )),
-                span,
-            ));
+            let segments = self.arena.alloc_slice(&[from_segment, from_fn_segment]);
+            let path = self.arena.alloc(hir::Path { res: from_fn_res, segments, span });
+
+            let path = self.mk_expr(hir::ExprKind::Path(hir::QPath::Resolved(None, path)), span);
+            let path = self.arena.alloc(path);
 
             expr = self.mk_expr(hir::ExprKind::Call(path, self.arena.alloc_slice(&[expr])), span)
         }
 
         expr
+    }
+
+    fn fill_from_trait_args(
+        &mut self,
+        type_ids: &[DefId],
+        idx: usize,
+        from_trait_segment: &mut hir::PathSegment<'hir>,
+        span: Span,
+    ) {
+        fn create_path<'hir>(
+            ctx: &mut LoweringContext<'_, 'hir>,
+            id: DefId,
+            args: Option<&'hir hir::GenericArgs<'hir>>,
+            span: Span,
+        ) -> hir::Path<'hir> {
+            let res = Res::Def(DefKind::Struct, id);
+            let ident = Ident::new(ctx.tcx.item_name(id), span);
+
+            ctx.create_path(res, ident, span, true, args)
+        }
+
+        fn to_type_path<'hir>(
+            ctx: &mut LoweringContext<'_, 'hir>,
+            path: hir::Path<'hir>,
+        ) -> hir::TyKind<'hir, AmbigArg> {
+            hir::TyKind::Path(hir::QPath::Resolved(None, ctx.arena.alloc(path)))
+        }
+
+        let first_type = type_ids[idx - 1];
+        let args: &[_] = if idx >= 2 {
+            let inner_type = type_ids[idx - 2];
+
+            let inner_path = create_path(self, inner_type, None, span);
+            self.arena.alloc_from_iter(std::iter::once(hir::GenericArg::Type(self.arena.alloc(
+                hir::Ty { hir_id: self.next_id(), kind: to_type_path(self, inner_path), span },
+            ))))
+        } else {
+            &[]
+        };
+
+        let first_path = create_path(
+            self,
+            first_type,
+            Some(self.arena.alloc(hir::GenericArgs {
+                args,
+                constraints: &[],
+                parenthesized: rustc_hir::GenericArgsParentheses::No,
+                span_ext: span,
+            })),
+            span,
+        );
+
+        let args = self.arena.alloc_slice(&[hir::GenericArg::Type(self.arena.alloc(hir::Ty {
+            hir_id: self.next_id(),
+            kind: to_type_path(self, first_path),
+            span,
+        }))]);
+
+        from_trait_segment.args = Some(self.arena.alloc(hir::GenericArgs {
+            args,
+            constraints: &[],
+            parenthesized: rustc_hir::GenericArgsParentheses::No,
+            span_ext: span,
+        }));
     }
 
     fn process_segment(

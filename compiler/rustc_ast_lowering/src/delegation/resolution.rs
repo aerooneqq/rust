@@ -286,7 +286,10 @@ impl<'tcx> DelegationResolver<'_, 'tcx> {
                         }
                     };
 
-                    found_self.then(|| type_ids)
+                    found_self.then(|| {
+                        type_ids.reverse();
+                        type_ids
+                    })
                 })
                 .flatten();
 
